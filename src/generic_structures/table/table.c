@@ -73,10 +73,12 @@ int resize_table(Table * table, uint64_t new_size) {
 	uint64_t old_size = table -> size;
 
 	// create new table that will replace old one
-	void ** new_table = (void **) malloc(new_size * sizeof(void *));
+	// ensure new table is initialized to all null, otherwise placement errors
+	void ** new_table = (void **) calloc(new_size, sizeof(void *));
 
 	// re-hash all the items into new table
 	uint64_t hash_ind, table_ind;
+	uint64_t reinsert_cnt = 0;
 	for (uint64_t i = 0; i < old_size; i++){
 		if (old_table[i] == NULL){
 			continue;
@@ -91,6 +93,11 @@ int resize_table(Table * table, uint64_t new_size) {
 				// inserted new item so break from inner loop
 				break;
 			}
+		}
+		// for sparsely populated hash tables we want to break early when done
+		reinsert_cnt += 1;
+		if (reinsert_cnt == cnt){
+			break;
 		}
 	}
 

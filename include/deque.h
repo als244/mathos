@@ -11,7 +11,7 @@
 typedef struct deque_item Deque_Item;
 
 struct deque_item {
-	uint64_t id;
+	void * item;
 	Deque_Item * prev;
 	Deque_Item * next;
 };
@@ -27,10 +27,10 @@ typedef struct deque {
 
 Deque * init_deque();
 void destroy_deque(Deque * deque);
-int enqueue(Deque * deque, uint64_t item);
-int enqueue_front(Deque * deque, uint64_t item);
-int dequeue(Deque * deque, uint64_t * ret_item);
-int dequeue_rear(Deque * deque, uint64_t * ret_item);
+int enqueue(Deque * deque, void * item);
+int enqueue_front(Deque * deque, void * item);
+int dequeue(Deque * deque, void ** ret_item);
+int dequeue_rear(Deque * deque, void ** ret_item);
 bool is_deque_empty(Deque * deque);
 
 #endif
