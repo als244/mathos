@@ -18,7 +18,7 @@ typedef enum fingerprint_type{
 
 void print_hex(unsigned char * digest, int num_bytes);
 void print_sha256(unsigned char * digest);
-uint64_t digest_to_least_sig64(unsigned char * digest, int digest_num_bytes);
+uint64_t fingerprint_to_least_sig64(unsigned char * digest, int digest_num_bytes);
 uint8_t get_fingerprint_num_bytes(FingerprintType fingerprint_type);
 char * get_fingerprint_type_name(FingerprintType fingerprint_type);
 void do_fingerprinting(void * data, uint64_t num_bytes, unsigned char * ret_digest, FingerprintType fingerprint_type);
