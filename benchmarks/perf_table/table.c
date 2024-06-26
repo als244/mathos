@@ -78,20 +78,33 @@ int resize_table(Table * table, uint64_t new_size) {
 
 	// re-hash all the items into new table
 	uint64_t hash_ind, table_ind;
+	bool is_inserted;
 	uint64_t reinsert_cnt = 0;
 	for (uint64_t i = 0; i < old_size; i++){
 		if (old_table[i] == NULL){
 			continue;
 		}
 		hash_ind = (table -> hash_func)(old_table[i], new_size);
+		is_inserted = false;
 		// do open addressing insert
-		for (uint64_t j = hash_ind; j < hash_ind + new_size; j++){
-			table_ind = j % new_size;
+		for (table_ind = hash_ind; table_ind < new_size; table_ind++){
 			// found empty slot to insert
 			if (new_table[table_ind] == NULL) {
 				new_table[table_ind] = old_table[i];
+				is_inserted = true;
 				// inserted new item so break from inner loop
 				break;
+			}
+		}
+		if (!is_inserted){
+			for (table_ind = 0; table_ind < hash_ind; table_ind++){
+				// found empty slot to insert
+				if (new_table[table_ind] == NULL) {
+					new_table[table_ind] = old_table[i];
+					is_inserted = true;
+					// inserted new item so break from inner loop
+					break;
+				}
 			}
 		}
 		// for sparsely populated hash tables we want to break early when done
@@ -127,8 +140,6 @@ int insert_item(Table * table, void * item) {
 
 	int ret;
 	uint64_t size = table -> size;
-
-	
 	uint64_t cnt = table -> cnt;
 	
 
@@ -138,16 +149,32 @@ int insert_item(Table * table, void * item) {
 	}
 
 	uint64_t hash_ind = (table -> hash_func)(item, size);
-	uint64_t table_ind;
+	;
 	// doing the Linear Probing
 	// worst case O(size) insert time
 	void ** tab = table -> table;
-	for (uint64_t i = hash_ind; i < hash_ind + size; i++){
-		table_ind = i % size;
+
+	// seperating wrap around to avoid modulus operation
+	bool is_inserted = false;
+	// start looking until the end of the table
+	for (uint64_t table_ind = hash_ind; table_ind < size; table_ind++){
 		// there is a free slot to insert
 		if (tab[table_ind] == NULL){
 			tab[table_ind] = item;
+			is_inserted = true;
 			break;
+		}
+	}
+	
+	if (!is_inserted){
+		// now look from the beginning
+		for (uint64_t table_ind = 0; table_ind < hash_ind; table_ind++){
+			// there is a free slot to insert
+			if (tab[table_ind] == NULL){
+				tab[table_ind] = item;
+				is_inserted = true;
+				break;
+			}
 		}
 	}
 
@@ -187,8 +214,15 @@ void * find_item(Table * table, void * item){
 	void ** tab = table -> table;
 	uint64_t table_ind;
 	// do linear scan
-	for (uint64_t i = hash_ind; i < hash_ind + size; i++){
-		table_ind = i % size;
+	// seperating wrap around to avoid modulus operation
+	for (uint64_t table_ind = hash_ind; table_ind < size; table_ind++){
+		// check if we found item
+		// use function pointer to check for item key
+		if ((tab[table_ind] != NULL) && ((table -> item_cmp)(item, tab[table_ind]) == 0)){
+			return tab[table_ind];
+		}
+	}
+	for (uint64_t table_ind = 0; table_ind < hash_ind; table_ind++){
 		// check if we found item
 		// use function pointer to check for item key
 		if ((tab[table_ind] != NULL) && ((table -> item_cmp)(item, tab[table_ind]) == 0)){
@@ -217,11 +251,11 @@ void * remove_item(Table * table, void * item) {
 	// orig set to null in case item not in table 
 	// in which case we want to return NULL
 	void * ret_item = NULL;
-	uint64_t table_ind;
 	// do linear scan
 	void ** tab = table -> table;
-	for (uint64_t i = hash_ind; i < hash_ind + size; i++){
-		table_ind = i % size;
+	
+	bool is_removed = false;
+	for (uint64_t table_ind = hash_ind; table_ind < size; table_ind++){
 		// check if we found item, remember its contents and make room in table
 		// use function pointer to check for item key
 		if ((tab[table_ind] != NULL) &&  ((table -> item_cmp)(item, tab[table_ind]) == 0)){
@@ -231,8 +265,27 @@ void * remove_item(Table * table, void * item) {
 			tab[table_ind] = NULL;
 			cnt -= 1;
 			table -> cnt = cnt;
+			is_removed = true;
 			// found item so break
 			break;
+		}
+	}
+
+	if (!is_removed){
+		for (uint64_t table_ind = 0; table_ind < hash_ind; table_ind++){
+			// check if we found item, remember its contents and make room in table
+			// use function pointer to check for item key
+			if ((tab[table_ind] != NULL) &&  ((table -> item_cmp)(item, tab[table_ind]) == 0)){
+				// set item to be the item removed so we can return it
+				ret_item = tab[table_ind];
+				// remove reference from table
+				tab[table_ind] = NULL;
+				cnt -= 1;
+				table -> cnt = cnt;
+				is_removed = true;
+				// found item so break
+				break;
+			}
 		}
 	}
 
