@@ -4,7 +4,6 @@
 #include "common.h"
 #include "table.h"
 #include "deque.h"
-#include "lru.h"
 #include "fingerprint.h"
 
 typedef struct participant {
