@@ -78,6 +78,9 @@ int resize_table(Table * table, uint64_t new_size) {
 	// re-hash all the items into new table
 	uint64_t hash_ind, table_ind;
 	for (uint64_t i = 0; i < old_size; i++){
+		if (old_table[i] == NULL){
+			continue;
+		}
 		hash_ind = (table -> hash_func)(old_table[i], new_size);
 		// do open addressing insert
 		for (uint64_t j = hash_ind; j < hash_ind + new_size; j++){
