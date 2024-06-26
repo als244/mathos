@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O3 -Wall -pedantic
+CFLAGS = -g -Wall -pedantic
 
 all: testTable
 
