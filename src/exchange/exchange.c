@@ -209,26 +209,6 @@ Participant * init_participant(uint64_t location_id, uint64_t addr, uint32_t rke
 }
 
 
-// used at the beginning of a bid posting to see if can immediately do an RDMA
-int lookup_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerprint_bytes, Exchange_Item ** ret_item){
-
-	Table * offers = exchange -> offers;
-
-	// create temp_exchange item populated with fingerprint and fingerprint_bytes
-	Exchange_Item exchange_item;
-	exchange_item.fingerprint = fingerprint;
-	exchange_item.fingerprint_bytes = fingerprint_bytes;
-
-	Exchange_Item * found_item = (Exchange_Item *) find_item(offers, &exchange_item);
-
-	*ret_item = found_item;
-
-	if (found_item == NULL){
-		return -1;
-	}
-
-	return 0;
-}
 
 // used at the beginning of an offer posting to see if can immediately do RDMA writes
 int lookup_bid(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerprint_bytes, Exchange_Item ** ret_item){
@@ -251,13 +231,88 @@ int lookup_bid(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerp
 	return 0;
 }
 
+// used at the beginning of a bid posting to see if can immediately do an RDMA
+int lookup_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerprint_bytes, Exchange_Item ** ret_item){
+
+	Table * offers = exchange -> offers;
+
+	// create temp_exchange item populated with fingerprint and fingerprint_bytes
+	Exchange_Item exchange_item;
+	exchange_item.fingerprint = fingerprint;
+	exchange_item.fingerprint_bytes = fingerprint_bytes;
+
+	Exchange_Item * found_item = (Exchange_Item *) find_item(offers, &exchange_item);
+
+	*ret_item = found_item;
+
+	if (found_item == NULL){
+		return -1;
+	}
+
+	return 0;
+}
+
+
+
+int remove_bid(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerprint_bytes, Exchange_Item ** ret_item){
+	Table * bids = exchange -> bids;
+
+	// create temp_exchange item populated with fingerprint and fingerprint_bytes
+	Exchange_Item exchange_item;
+	exchange_item.fingerprint = fingerprint;
+	exchange_item.fingerprint_bytes = fingerprint_bytes;
+
+	Exchange_Item * removed_item = (Exchange_Item *) find_item(bids, &exchange_item);
+
+	*ret_item = removed_item;
+
+	if (removed_item == NULL){
+		return -1;
+	}
+
+	return 0;
+}
+
+int remove_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerprint_bytes, Exchange_Item ** ret_item){
+	Table * offers = exchange -> offers;
+
+	// create temp_exchange item populated with fingerprint and fingerprint_bytes
+	Exchange_Item exchange_item;
+	exchange_item.fingerprint = fingerprint;
+	exchange_item.fingerprint_bytes = fingerprint_bytes;
+
+	Exchange_Item * removed_item = (Exchange_Item *) find_item(offers, &exchange_item);
+
+	*ret_item = removed_item;
+
+	if (removed_item == NULL){
+		return -1;
+	}
+
+	return 0;
+}
+
 
 
 int post_bid(Exchange * exchange, unsigned char * fingerprint, uint64_t location_id, uint64_t addr, uint32_t rkey) {
+
+	// 1.) lookup if offer exists, then just do RDMA read (choosing "best" of participants) and return
+	// Otherwise...
+	// 2.) Build participant
+	// 3.) Lookup bids to see if exchange item exists
+	// 		a.) If Yes, append participant to the deque
+	//		b.) If no, create an exchange item and insert into table
 
 }
 
 
 int post_offer(Exchange * exchange, unsigned char * fingerprint, uint64_t location_id, uint64_t addr, uint32_t rkey) {
+
+	// 1.) Lookup if bid exists. If so, then queue RDMA writes for all (or "available") participants, 
+	//	   and remove participants from bid item (if no participants left, remove item). Free memory appropriately
+	// 2.) Build participant
+	// 3.) Lookup offers to see if exchange item exists
+	// 		a.) If Yes, append participant to the deque
+	//		b.) If no, create an exchange item and insert into table
 
 }
