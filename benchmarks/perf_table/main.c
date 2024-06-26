@@ -1,10 +1,10 @@
 #include "table.h"
 #include "fingerprint.h"
 
-#define SEED 2
+#define SEED 1
 
 typedef struct my_item {
-	unsigned char hash_digest[HASH_DIGEST_LEN_BYTES];
+	unsigned char * hash_digest;
 	uint64_t db_id;
 } My_Item;
 
@@ -26,10 +26,12 @@ int my_item_cmp(void * my_item, void * other_item){
 
 // do bitmask of table_size & last 8 bytes of the hash digest
 // assuming table size is power of 2
+// unsure if this would work with non pow of 2 table sizes..?
 uint64_t my_hash_func(void * my_item, uint64_t table_size){
 	My_Item * item_casted = (My_Item *) my_item;
 	unsigned char * digest = item_casted -> hash_digest;
-	uint64_t least_sig_64bits = sha256_to_least_sig64(digest);
+	// we were using sha256, so 32 bytes
+	uint64_t least_sig_64bits = digest_to_least_sig64(digest, 32);
 	// compares the least significant log(table_size) bits in the hash
 	uint64_t hash_ind = least_sig_64bits & (table_size - 1);
 	// printf("In hash function. Working on hash: ");
@@ -90,9 +92,12 @@ int load_shard(char * shard_dir, int shard_id, char ** ret_buffer, uint64_t ** r
 int main(int argc, char * argv[]){
 
 	int ret;
-	
+
+
 	// setting random seed for choosing items to search
 	srand(SEED);
+	FingerprintType fingerprint_type = SHA256_HASH;
+	uint8_t fingerprint_bytes = get_fingerprint_num_bytes(fingerprint_type);
 
 	// 1. Fetch Text from Fineweb-Edu Shard to Memory
 
@@ -116,7 +121,7 @@ int main(int argc, char * argv[]){
 
 	// 2. Initialize Table
 
-	uint64_t min_size = 1L << 12;
+	uint64_t min_size = 1L << 16;
 	uint64_t max_size = 1L << 36;
 	float load_factor = .5f;
 	float shrink_factor = .1f;
@@ -135,8 +140,11 @@ int main(int argc, char * argv[]){
 	uint64_t timestamp_start, timestamp_stop;
 	uint64_t elapsed_ns;
 
+	struct timespec total_start, total_stop;
+	uint64_t timestamp_total_start, timestamp_total_stop;
+	uint64_t total_elapsed_ns;
 
-	My_Item ** items = (My_Item **) malloc(total_records * sizeof(My_Item *));
+	My_Item ** items = (My_Item **) calloc(total_records, sizeof(My_Item *));
 
 	My_Item * search_ret = NULL;
 	uint64_t rand_search_item_id;
@@ -146,17 +154,22 @@ int main(int argc, char * argv[]){
 	printf("\nStarting to hash/insert/search...\n");
 
 	My_Item * cur_item;
+
+	clock_gettime(CLOCK_MONOTONIC, &total_start);
+
 	for (uint64_t i = 0; i < total_records; i++){
 		
 		// A.) Set current item
 		cur_item = malloc(sizeof(My_Item));
+		cur_item -> hash_digest = malloc(fingerprint_bytes);
 		cur_item -> db_id = i;
 
 		// B.) Do hash of text
 
 		clock_gettime(CLOCK_MONOTONIC, &start);
 		
-		do_sha256(cur_record_loc, record_bytes[i], cur_item -> hash_digest);
+		// function call overhead may add a few 10s of nanos
+		do_fingerprinting(cur_record_loc, record_bytes[i], cur_item -> hash_digest, fingerprint_type);
 
 		clock_gettime(CLOCK_MONOTONIC, &stop);
 
@@ -220,6 +233,12 @@ int main(int argc, char * argv[]){
 		}
 	}
 
+	clock_gettime(CLOCK_MONOTONIC, &total_stop);
+	timestamp_total_start = total_start.tv_sec * 1e9 + total_start.tv_nsec;
+	timestamp_total_stop = total_stop.tv_sec * 1e9 + total_stop.tv_nsec;
+	total_elapsed_ns = timestamp_total_stop - timestamp_total_start;
+	uint64_t total_elapsed_ms = total_elapsed_ns / 1e6;
+
 
 	// 4.) Analyze Performance
 
@@ -239,8 +258,9 @@ int main(int argc, char * argv[]){
 	double search_avg_ns = (double) search_total_ns / (double) num_records_to_avg;
 
 
-	printf("\n\nAverage ns per operation (over %lu records):\n", num_records_to_avg);
+	printf("\n\nAverage ns per operation. %lu records, hashing with type %s:\n", num_records_to_avg, get_fingerprint_type_name(fingerprint_type));
 	printf("\tHash: %f\n\tInsert: %f\n\tRandom Search: %f\n\n", hash_avg_ns, insert_avg_ns, search_avg_ns);
+	printf("Total Elapsed Millis: %lu\n\n", total_elapsed_ms);
 
 	return 0;
 }
