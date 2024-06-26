@@ -9,10 +9,53 @@ typedef struct my_item {
 } My_Item;
 
 
+// floor(log2(index) + 1)
+// number of low order 1's bits in table_size bitmask
+static const char LogTable512[512] = {
+	0, 1, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4,
+	5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+	6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+	6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+	8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+	8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+	8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+	8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+	8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+	8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+	8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+	8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9
+};
+
+
+
+
 /*
 The memcmp() function shall return an integer greater than, equal to, or less than 0, 
 if the object pointed to by s1 is greater than, equal to, or less than the object pointed to by s2, respectively
 */
+
+
+
 int my_item_cmp(void * my_item, void * other_item){
 	// printf("In comparing items.\n");
 	// printf("\tA. Id: %lu Hash: ", ((My_Item *) my_item) -> db_id);
@@ -24,20 +67,71 @@ int my_item_cmp(void * my_item, void * other_item){
 	return cmp_res;
 }
 
-// do bitmask of table_size & last 8 bytes of the hash digest
-// assuming table size is power of 2
-// unsure if this would work with non pow of 2 table sizes..?
+
+// will error if table size is 0 (which should never happen...)
 uint64_t my_hash_func(void * my_item, uint64_t table_size){
 	My_Item * item_casted = (My_Item *) my_item;
 	unsigned char * digest = item_casted -> hash_digest;
 	// we were using sha256, so 32 bytes
 	uint64_t least_sig_64bits = digest_to_least_sig64(digest, 32);
-	// compares the least significant log(table_size) bits in the hash
-	uint64_t hash_ind = least_sig_64bits & (table_size - 1);
+	// bitmask should be the lower log(2) lower bits of table size.
+	// i.e. if table_size = 2^12, we should have a bit mask of 12 1's
+	uint64_t bit_mask;
+	uint64_t hash_ind;
+
+	// optimization for power's of two table sizes, no need for leading-zero/table lookup or modulus
+	if (__builtin_popcountll(table_size) == 1){
+		bit_mask = table_size - 1;
+		hash_ind = least_sig_64bits & bit_mask;
+		return hash_ind;
+	}
+
+	int leading_zeros = __builtin_clzll(table_size);
+	// 64 bits as table_size type
+	// taking ceil of power of 2, then subtracing 1 to get low-order 1's bitmask
+	int num_bits = (64 - leading_zeros) + 1;
+	bit_mask = (1L << num_bits) - 1;
+	hash_ind = (least_sig_64bits & bit_mask) % table_size;
+	return hash_ind; 
+	
+	/* WITHOUT USING BUILT-IN leading zeros...
+
+	// Ref: "https://graphics.stanford.edu/~seander/bithacks.html#ModulusDivisionEasy"
+	// here we set the log table to be floor(log(ind) + 1), which represents number of bits we should have in bitmask before modulus
+	uint64_t num_bits;
+	register uint64_t temp;
+	if (temp = table_size >> 56){
+		num_bits = 56 + LogTable512[temp];
+	}
+	else if (temp = table_size >> 48) {
+		num_bits = 48 + LogTable512[temp];
+	}
+	else if (temp = table_size >> 40){
+		num_bits = 40 + LogTable512[temp];
+	}
+	else if (temp = table_size >> 32){
+		num_bits = 32 + LogTable512[temp];
+	}
+	else if (temp = table_size >> 24){
+		num_bits = 24 + LogTable512[temp];
+	}
+	else if (temp = table_size >> 16){
+		num_bits = 18 + LogTable512[temp];
+	}
+	else if (temp = table_size >> 8){
+		num_bits = 8 + LogTable512[temp];
+	}
+	else{
+		num_bits = LogTable512[temp];
+	}
+	bit_mask = (1 << num_bits) - 1;
+	// now after computing bit_mask the hash_ind may be greater than table_size
+	hash_ind = (least_sig_64bits & bit_mask) % table_size;
+	*/
+	
 	// printf("In hash function. Working on hash: ");
 	// print_sha256(item_casted -> hash_digest);
 	// printf("Hash Ind: %lu\n", hash_ind);
-	return hash_ind; 
 }
 
 
@@ -121,7 +215,7 @@ int main(int argc, char * argv[]){
 
 	// 2. Initialize Table
 
-	uint64_t min_size = 1L << 16;
+	uint64_t min_size = 1L << 12;
 	uint64_t max_size = 1L << 36;
 	float load_factor = .5f;
 	float shrink_factor = .1f;
