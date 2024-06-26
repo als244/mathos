@@ -159,7 +159,7 @@ Exchange * init_exchange(uint64_t start_val, uint64_t end_val, uint64_t max_bids
 // exchange items are initialized if fingerprint not found, 
 // then create item based on whoever called post_bid or post_offer
 // exchange items should only exist with >= 1 participants
-Exchange_Item * init_exchange_item(unsigned char * fingerprint, uint8_t fingerprint_bytes, ExchangeItemType item_type, Participant * participant){
+Exchange_Item * init_exchange_item(unsigned char * fingerprint, uint8_t fingerprint_bytes, uint64_t data_bytes, ExchangeItemType item_type, Participant * participant){
 
 	int ret;
 
@@ -171,6 +171,7 @@ Exchange_Item * init_exchange_item(unsigned char * fingerprint, uint8_t fingerpr
 
 	exchange_item -> fingerprint = fingerprint;
 	exchange_item -> fingerprint_bytes = fingerprint_bytes;
+	exchange_item -> data_bytes = data_bytes;
 	exchange_item -> item_type = item_type;
 
 	Deque * participants = init_deque();
@@ -262,7 +263,7 @@ int remove_bid(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerp
 	exchange_item.fingerprint = fingerprint;
 	exchange_item.fingerprint_bytes = fingerprint_bytes;
 
-	Exchange_Item * removed_item = (Exchange_Item *) find_item(bids, &exchange_item);
+	Exchange_Item * removed_item = (Exchange_Item *) remove_item(bids, &exchange_item);
 
 	*ret_item = removed_item;
 
@@ -281,7 +282,7 @@ int remove_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t finge
 	exchange_item.fingerprint = fingerprint;
 	exchange_item.fingerprint_bytes = fingerprint_bytes;
 
-	Exchange_Item * removed_item = (Exchange_Item *) find_item(offers, &exchange_item);
+	Exchange_Item * removed_item = (Exchange_Item *) remove_item(offers, &exchange_item);
 
 	*ret_item = removed_item;
 
@@ -294,25 +295,133 @@ int remove_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t finge
 
 
 
-int post_bid(Exchange * exchange, unsigned char * fingerprint, uint64_t location_id, uint64_t addr, uint32_t rkey) {
+int post_bid(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerprint_bytes, uint64_t data_bytes, uint64_t location_id, uint64_t addr, uint32_t rkey) {
+
+	int ret;
 
 	// 1.) lookup if offer exists, then just do RDMA read (choosing "best" of participants) and return
+	Exchange_Item * found_offer;
+	ret = lookup_offer(exchange, fingerprint, fingerprint_bytes, &found_offer);
+	if (found_offer){
+		Deque * offer_participants = found_offer -> participants;
+		int num_participants = offer_participants -> cnt;
+
+		// FOR NOW: CRUDELY SIMULATING DOING RDMA TRANSFERS
+		// BIG TODO!!!
+		printf("Found %d participants with offers for fingerprint. Would be reading from any of: ");
+		print_hex(fingerprint, fingerprint_bytes);
+		Deque_Item * cur_item = offer_participants -> head;
+		Participant * offer_participant;
+		while (cur_item != NULL){
+			offer_participant = (Participant *) cur_item -> item;
+			printf("\tLocation ID: %lu\n\tAddr: %lu\n\tRkey: %lu\n\n", offer_participant -> location_id, offer_participant -> addr, offer_participant -> rkey);
+			cur_item = cur_item -> next;
+		}
+		return 0;
+	}
+
 	// Otherwise...
 	// 2.) Build participant
+
+	Particiapnt * new_participant = init_participant(location_id, addr, rkey);
+	if (new_participant == NULL){
+		fprintf(stderr, "Error: could not initialize participant\n");
+		return -1;
+	}
+	
 	// 3.) Lookup bids to see if exchange item exists
 	// 		a.) If Yes, append participant to the deque
 	//		b.) If no, create an exchange item and insert into table
 
+	Exchange_Item * found_bid;
+	ret = lookup_offer(exchange, fingerprint, fingerprint_bytes, &found_bid);
+	if (found_bid){
+		ret = enqueue(found_bid -> participants, new_participant);
+		if (ret != 0){
+			fprintf(stderr, "Error: could not enqueue new participant to exciting participants on bid\n");
+			return -1;
+		}
+	}
+	else{
+		ExchangeItemType item_type = BID;
+		Exchange_Item * new_bid = init_exchange_item(fingerprint, fingerprint_bytes, data_bytes, item_type, new_participant);
+		if (new_bid == NULL){
+			fprintf(stderr, "Error: could not initialize new bid exchange item\n");
+			return -1;
+		}
+		ret = insert_item(exchange -> bids, new_bid);
+		if (ret != 0){
+			fprintf(stderr, "Error: could not insert new bid to exchange table\n");
+			return -1;
+		}
+	}
+
+	return 0;
 }
 
 
-int post_offer(Exchange * exchange, unsigned char * fingerprint, uint64_t location_id, uint64_t addr, uint32_t rkey) {
+int post_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerprint_bytes, uint64_t data_bytes, uint64_t location_id, uint64_t addr, uint32_t rkey) {
+
+	int ret;
 
 	// 1.) Lookup if bid exists. If so, then queue RDMA writes for all (or "available") participants, 
 	//	   and remove participants from bid item (if no participants left, remove item). Free memory appropriately
+	Exchange_Item * found_bid;
+	ret = lookup_bid(exchange, fingerprint, fingerprint_bytes, &found_bid);
+	if (found_bid){
+		Deque * bid_participants = found_bid -> participants;
+		int num_participants = bid_participants -> cnt;
+
+		// FOR NOW: CRUDELY SIMULATING DOING RDMA TRANSFERS
+		// BIG TODO!!!
+		printf("Found %d participants with bids for fingerprint. Would be writing to all of: ");
+		print_hex(fingerprint, fingerprint_bytes);
+		Deque_Item * cur_item = bid_participants -> head;
+		Participant * bid_participant;
+		while (cur_item != NULL){
+			bid_participant = (Participant *) cur_item -> item;
+			printf("\tLocation ID: %lu\n\tAddr: %lu\n\tRkey: %lu\n\n", bid_participant -> location_id, bid_participant -> addr, bid_participant -> rkey);
+			cur_item = cur_item -> next;
+		}
+
+		// SHOULD ALSO BE FREEING MEMORY HERE!
+	}
+
 	// 2.) Build participant
+
+	Particiapnt * new_participant = init_participant(location_id, addr, rkey);
+	if (new_participant == NULL){
+		fprintf(stderr, "Error: could not initialize participant\n");
+		return -1;
+	}
+	
 	// 3.) Lookup offers to see if exchange item exists
 	// 		a.) If Yes, append participant to the deque
 	//		b.) If no, create an exchange item and insert into table
+
+	Exchange_Item * found_offer;
+	ret = lookup_offer(exchange, fingerprint, fingerprint_bytes, &found_offer);
+	if (found_bid){
+		ret = enqueue(found_offer -> participants, new_participant);
+		if (ret != 0){
+			fprintf(stderr, "Error: could not enqueue new participant to exciting participants on offer\n");
+			return -1;
+		}
+	}
+	else{
+		ExchangeItemType item_type = OFFER;
+		Exchange_Item * new_offer = init_exchange_item(fingerprint, fingerprint_bytes, data_bytes, item_type, new_participant);
+		if (new_offer == NULL){
+			fprintf(stderr, "Error: could not initialize new offer exchange item\n");
+			return -1;
+		}
+		ret = insert_item(exchange -> offers, new_offer);
+		if (ret != 0){
+			fprintf(stderr, "Error: could not insert new offer to exchange table\n");
+			return -1;
+		}
+	}
+
+	return 0;
 
 }

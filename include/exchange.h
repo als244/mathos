@@ -22,6 +22,7 @@ typedef struct exchange_item {
 	unsigned char * fingerprint;
 	// could remove this if everyhing is using SHA256, but more general
 	uint8_t fingerprint_bytes;
+	uint64_t data_bytes;
 	ExchangeItemType item_type;
 	Deque * participants;
 	pthread_mutex_t item_lock;
@@ -62,14 +63,10 @@ typedef struct exchange {
 // done after receiving a function request with a fingerprint not found in inventory
 //	- triggers a lookup of offers and if a match is found does an RDMA read to specified addr and rkey
 // 	- might want to consider not supplying a memory location yet because could be outstanding for a while and do not want to reserve destination...
-int post_bid(Exchange * exchange, unsigned char * fingerprint, uint64_t location_id, uint64_t addr, uint32_t rkey);
+int post_bid(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerprint_bytes, uint64_t data_bytes, uint64_t location_id, uint64_t addr, uint32_t rkey);
 // done after receiving a function request with a fingerprint not found in inventory
 //	- triggers a lookup of offers and if a match is found does RDMA writes to matching bids and removes them from exchange
-int post_offer(Exchange * exchange, unsigned char * fingerprint, uint64_t location_id, uint64_t addr, uint32_t rkey);
-
-// needed for the hash tables as part of exchange
-int exchange_item_cmp(void * exchange_item, void * other_item);
-uint64_t exchange_hash_func(void * exchange_item, uint64_t table_size);
+int post_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerprint_bytes, uint64_t data_bytes, uint64_t location_id, uint64_t addr, uint32_t rkey);
 
 
 Exchange * init_exchange(uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers);
