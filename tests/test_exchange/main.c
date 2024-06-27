@@ -46,7 +46,6 @@ int load_shard(char * shard_dir, int shard_id, char ** ret_buffer, uint64_t ** r
 }
 
 
-
 int main(int argc, char * argv[]){
 
 	// CONFIGURATION
@@ -63,24 +62,14 @@ int main(int argc, char * argv[]){
 	uint64_t max_offers = 1 << 36;
 
 
-	// 1.) Getting some data to work with
-	printf("Fetching text from fineweb_edu shards...\n");
-	
-	char * shard_dir = "/mnt/storage/datasets/fineweb_edu/shards/data";
-	int shard_id = 0;
+	// 1.) Getting some axiomatic data to work with 
 
-	char * buffer;
-	uint64_t * record_bytes;
-	uint64_t total_records;
-	uint64_t total_bytes;
 
-	ret = load_shard(shard_dir, shard_id, &buffer, &record_bytes, &total_records, &total_bytes);
-	if (ret != 0){
-		fprintf(stderr, "Error: could not load shard with id: %d\n", shard_id);
-		exit(1);
-	}
 
-	printf("\tRecord Count: %lu\n\tTotal Bytes: %lu\n", total_records, total_bytes);
+
+	// 2.) Calling functions on these data to generate fingerprints for output data that can be used as inputs for future functions
+
+	Function * matmulinit_function(FunctionType function_type, DataType data_type, int num_args, unsigned char ** argument_fingerprints, uint8_t fingerprint_bytes);
 
 
 }
