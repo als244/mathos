@@ -37,6 +37,7 @@ typedef struct function {
 	Function_Metadata * metadata;
 	// here is an array of num_args where each element is a fingerprint
 	unsigned char ** argument_fingerprints;
+	// size of each fingerprint
 	uint8_t fingerprint_bytes;
 	// still need to deal with format for each function type and args...
 	// i.e. dealing with dimensionalities and constant arguments

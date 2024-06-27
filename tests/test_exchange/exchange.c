@@ -120,7 +120,7 @@ uint64_t exchange_hash_func_no_builtin(void * exchange_item, uint64_t table_size
 }
 
 
-Exchange * init_exchange(uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers) {
+Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers) {
 
 	Exchange * exchange = (Exchange *) malloc(sizeof(Exchange));
 	if (exchange_table == NULL){
@@ -128,6 +128,7 @@ Exchange * init_exchange(uint64_t start_val, uint64_t end_val, uint64_t max_bids
 		return NULL;
 	}
 
+	exchange -> id = id;
 	exchange -> start_val = start_val;
 	exchange -> end_val = end_val;
 	exchange -> max_bids = max_bids;
