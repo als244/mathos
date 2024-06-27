@@ -1,6 +1,6 @@
 #include "function.h"
 
-void encode_function(Function * function, unsigned char * ret_fingerprint) {
+int encode_function(Function * function, unsigned char * ret_fingerprint) {
 
 	SHA256_CTX ctx;
 	SHA256_Init(&ctx);
@@ -17,9 +17,9 @@ void encode_function(Function * function, unsigned char * ret_fingerprint) {
 		SHA256_Update(&ctx, argument_fingerprints[i], fingerprint_bytes);
 	}
 
-	SHA256_Final(ret_di, &ctx);
+	SHA256_Final(ret_fingerprint, &ctx);
 
-	return;
+	return 0;
 }
 
 Function * init_function(FunctionType function_type, DataType data_type, int num_args, unsigned char ** argument_fingerprints, uint8_t fingerprint_bytes){
@@ -44,6 +44,7 @@ Function * init_function(FunctionType function_type, DataType data_type, int num
 	f -> argument_fingerprints = argument_fingerprints;
 	f -> fingerprint_bytes = fingerprint_bytes;
 
+	f -> output_fingerprint = malloc(fingerprint_bytes);
 	encode_function(f, f -> output_fingerprint);
 
 	return f;

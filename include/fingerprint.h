@@ -22,6 +22,6 @@ uint64_t fingerprint_to_least_sig64(unsigned char * fingerprint, int fingerprint
 uint8_t get_fingerprint_num_bytes(FingerprintType fingerprint_type);
 char * get_fingerprint_type_name(FingerprintType fingerprint_type);
 void do_fingerprinting(void * data, uint64_t num_bytes, unsigned char * ret_digest, FingerprintType fingerprint_type);
-void do_fingerprinting_evp(void * data, uint64_t num_bytes, unsigned char * ret_digest);
+void do_fingerprinting_evp(void * data, uint64_t num_bytes, unsigned char * ret_digest, FingerprintType fingerprint_type);
 
 #endif

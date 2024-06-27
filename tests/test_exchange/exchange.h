@@ -14,7 +14,7 @@ typedef struct participant {
 
 typedef enum exchange_item_type {
 	BID = 0,
-	OFFER 1
+	OFFER = 1
 } ExchangeItemType;
 
 typedef struct exchange_item {

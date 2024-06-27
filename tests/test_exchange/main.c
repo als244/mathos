@@ -1,4 +1,7 @@
 #include "exchange.h"
+#include "function.h"
+
+#define SEED 1
 
 int * generate_rand_int_matrix(uint64_t m, uint64_t n){
 
@@ -19,7 +22,7 @@ float * generate_rand_float_matrix(uint64_t m, uint64_t n){
 
 	uint64_t num_entries = m * n;
 	for (uint64_t i = 0; i < num_entries; i++){
-		matrix[i] = (float)rand()/(float)(RAND_MAX/a);
+		matrix[i] = (float)rand()/(float)(RAND_MAX);
 	}
 
 	return matrix;
@@ -80,6 +83,7 @@ int main(int argc, char * argv[]){
 	
 
 	// 1.) Create Exchange 
+	printf("Initializing Exchange...\n");
 
 	uint64_t exchange_id = 0;
 
@@ -99,6 +103,8 @@ int main(int argc, char * argv[]){
 
 
 	// 2.) Getting some axiomatic data to work with (ignoring chunks and obj id mappings for now...)
+	printf("Generating Fake Axiomatic Data...\n");
+
 	float * A = generate_rand_float_matrix(4096, 8192);
 	uint64_t A_size = 4096 * 8192 * sizeof(float);
 	float * B = generate_rand_float_matrix(8192, 1024);
@@ -120,15 +126,23 @@ int main(int argc, char * argv[]){
 
 
 	// 3.) Calling functions on these data to generate fingerprints for output data that can be used as inputs for future functions
-
+	printf("Generating Fake Axiomatic Functions...\n");
 	int num_args = 2;
 	FunctionType function_type = MATMUL;
 	DataType data_type = FP32;
 
-	unsigned char ** AB_fingerprints = {A_fingerprint, B_fingerprint};
-	unsigned char ** BC_fingerprints = {B_fingerprint, C_fingerprint};
-	unsigned char ** CD_fingerprints = {C_fingerprint, D_fingerprint};
-	unsigned char ** DA_fingerprints = {D_fingerprint, A_fingerprint};
+	unsigned char ** AB_fingerprints = malloc(2 * sizeof(unsigned char *));
+	AB_fingerprints[0] = A_fingerprint;
+	AB_fingerprints[1] = B_fingerprint;
+	unsigned char ** BC_fingerprints = malloc(2 * sizeof(unsigned char *));
+	BC_fingerprints[0] = B_fingerprint;
+	BC_fingerprints[1] = C_fingerprint;
+	unsigned char ** CD_fingerprints = malloc(2 * sizeof(unsigned char *));
+	CD_fingerprints[0] = C_fingerprint;
+	CD_fingerprints[1] = D_fingerprint;
+	unsigned char ** DA_fingerprints = malloc(2 * sizeof(unsigned char *));
+	DA_fingerprints[0] = D_fingerprint;
+	DA_fingerprints[1] = A_fingerprint;
 
 	Function * f_AB = init_function(function_type, data_type, num_args, AB_fingerprints, fingerprint_bytes);
 	Function * f_BC = init_function(function_type, data_type, num_args, BC_fingerprints, fingerprint_bytes);
@@ -137,7 +151,7 @@ int main(int argc, char * argv[]){
 
 
 	// 3.) Obtaining the output fingerprint for each of these functions...
-
+	printf("Retrieving encoded axiomatic functions => derived objects...\n");
 	unsigned char * out_AB = f_AB -> output_fingerprint;
 	unsigned char * out_BC = f_BC -> output_fingerprint;
 	unsigned char * out_CD = f_CD -> output_fingerprint;
@@ -145,15 +159,17 @@ int main(int argc, char * argv[]){
 
 
 	// 4.) Now create fake memory regions
-	
+	printf("Posting fake bids and offers to exchange...\n");
 	uint64_t client_0_loc_id = 0;
 	uint64_t client_1_loc_id = 1;
 	uint64_t client_2_loc_id = 2;
 
+	// generate random addr and rkeys
 
-	
+	// mimic posting bid's and offer's for out_*	
 
 
+	return 0;
 
 
 

@@ -38,9 +38,9 @@ static const char LogTable512[512] = {
 };
 
 int exchange_item_cmp(void * exchange_item, void * other_item) {
-	uint64_t fingerprint_bytes = (uint64_t) (Exchange_Item *) exchange_item -> fingerprint_bytes;
-	unsigned char * item_fingerprint = (Exchange_Item *) exchange_item -> fingerprint;
-	unsigned char * other_fingerprint = (Exchange_Item *) other_item -> fingerprint;
+	uint64_t fingerprint_bytes = (uint64_t) (((Exchange_Item *) exchange_item) -> fingerprint_bytes);
+	unsigned char * item_fingerprint = ((Exchange_Item *) exchange_item) -> fingerprint;
+	unsigned char * other_fingerprint = ((Exchange_Item *) other_item) -> fingerprint;
 	int cmp_res = memcmp(item_fingerprint, other_fingerprint, fingerprint_bytes);
 	return cmp_res;
 }	
@@ -123,7 +123,7 @@ uint64_t exchange_hash_func_no_builtin(void * exchange_item, uint64_t table_size
 Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers) {
 
 	Exchange * exchange = (Exchange *) malloc(sizeof(Exchange));
-	if (exchange_table == NULL){
+	if (exchange == NULL){
 		fprintf(stderr, "Error: malloc failed allocating exchange table\n");
 		return NULL;
 	}
@@ -135,7 +135,7 @@ Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint
 	exchange -> max_offers = max_offers;
 
 	// DEFAULT hyperparameters for hash tables
-	uint64_t min_items = 1 << 20;
+	uint64_t min_size = 1 << 20;
 	float load_factor = .5f;
 	float shrink_factor = .1f;
 	Hash_Func hash_func = &exchange_hash_func;
@@ -309,13 +309,13 @@ int post_bid(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerpri
 
 		// FOR NOW: CRUDELY SIMULATING DOING RDMA TRANSFERS
 		// BIG TODO!!!
-		printf("Found %d participants with offers for fingerprint. Would be reading from any of: ");
+		printf("Found %d participants with offers for fingerprint. Would be reading from any of: ", num_participants);
 		print_hex(fingerprint, fingerprint_bytes);
 		Deque_Item * cur_item = offer_participants -> head;
 		Participant * offer_participant;
 		while (cur_item != NULL){
 			offer_participant = (Participant *) cur_item -> item;
-			printf("\tLocation ID: %lu\n\tAddr: %lu\n\tRkey: %lu\n\n", offer_participant -> location_id, offer_participant -> addr, offer_participant -> rkey);
+			printf("\tLocation ID: %lu\n\tAddr: %lu\n\tRkey: %u\n\n", offer_participant -> location_id, offer_participant -> addr, offer_participant -> rkey);
 			cur_item = cur_item -> next;
 		}
 		return 0;
@@ -324,7 +324,7 @@ int post_bid(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerpri
 	// Otherwise...
 	// 2.) Build participant
 
-	Particiapnt * new_participant = init_participant(location_id, addr, rkey);
+	Participant * new_participant = init_participant(location_id, addr, rkey);
 	if (new_participant == NULL){
 		fprintf(stderr, "Error: could not initialize participant\n");
 		return -1;
@@ -375,13 +375,13 @@ int post_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerp
 
 		// FOR NOW: CRUDELY SIMULATING DOING RDMA TRANSFERS
 		// BIG TODO!!!
-		printf("Found %d participants with bids for fingerprint. Would be writing to all of: ");
+		printf("Found %d participants with bids for fingerprint. Would be writing to all of: ", num_participants);
 		print_hex(fingerprint, fingerprint_bytes);
 		Deque_Item * cur_item = bid_participants -> head;
 		Participant * bid_participant;
 		while (cur_item != NULL){
 			bid_participant = (Participant *) cur_item -> item;
-			printf("\tLocation ID: %lu\n\tAddr: %lu\n\tRkey: %lu\n\n", bid_participant -> location_id, bid_participant -> addr, bid_participant -> rkey);
+			printf("\tLocation ID: %lu\n\tAddr: %lu\n\tRkey: %u\n\n", bid_participant -> location_id, bid_participant -> addr, bid_participant -> rkey);
 			cur_item = cur_item -> next;
 		}
 
@@ -390,7 +390,7 @@ int post_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerp
 
 	// 2.) Build participant
 
-	Particiapnt * new_participant = init_participant(location_id, addr, rkey);
+	Participant * new_participant = init_participant(location_id, addr, rkey);
 	if (new_participant == NULL){
 		fprintf(stderr, "Error: could not initialize participant\n");
 		return -1;

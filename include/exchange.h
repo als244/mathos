@@ -14,7 +14,7 @@ typedef struct participant {
 
 typedef enum exchange_item_type {
 	BID = 0,
-	OFFER 1
+	OFFER = 1
 } ExchangeItemType;
 
 typedef struct exchange_item {
@@ -36,6 +36,7 @@ typedef struct exchange {
 	// start_val and end_val represent the range of objects' least sig 64 bits that this table will hold
 	// doesn't necessarily have to be uniform across nodes (different system RAM capacities), but needs
 	// to be specified at configuration so other nodes know where to look up
+	uint64_t id;
 	uint64_t start_val;
 	uint64_t end_val;
 	uint64_t max_bids;
@@ -68,7 +69,7 @@ int post_bid(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerpri
 int post_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerprint_bytes, uint64_t data_bytes, uint64_t location_id, uint64_t addr, uint32_t rkey);
 
 
-Exchange * init_exchange(uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers);
+Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers);
 
 
 
