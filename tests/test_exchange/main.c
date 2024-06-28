@@ -168,23 +168,25 @@ int main(int argc, char * argv[]){
 	// 4.) Now create fake memory regions
 	//printf("Posting fake bids and offers to exchange...\n");
 
-	printf("Posting initial bid...\n\n");
+	printf("1.) Posting initial bid...\n\n");
 	// mimic posting bid's and offer's for out_*
-	ret = post_bid(exchange, out_BC, fingerprint_bytes, BC_size, 0, 42, 12);    	
+
+	// uin
+	ret = post_bid(exchange, out_BC, fingerprint_bytes, BC_size, 0, 42);    	
 	if (ret != 0){
 		fprintf(stderr, "Error: could not post bid\n");
 		exit(1);
 	}
 
-	printf("Posting matching offer against bid...\n\n");
+	printf("2.) Posting matching offer against bid...\n\n");
 	ret = post_offer(exchange, out_BC, fingerprint_bytes, BC_size, 1, 35, 16);    	
 	if (ret != 0){
 		fprintf(stderr, "Error: could not post bid\n");
 		exit(1);
 	}
 
-	printf("Now posting matching bid against offer...\n\n");
-	ret = post_bid(exchange, out_BC, fingerprint_bytes, BC_size, 2, 7, 8);    	
+	printf("3.) Now posting matching bid against offer...\n\n");
+	ret = post_bid(exchange, out_BC, fingerprint_bytes, BC_size, 2, 7);    	
 	if (ret != 0){
 		fprintf(stderr, "Error: could not post bid\n");
 		exit(1);

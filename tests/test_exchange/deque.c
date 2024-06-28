@@ -18,8 +18,14 @@ Deque * init_deque() {
 
 }
 
-void destroy_deque(Deque * deque) {
-	fprintf(stderr, "Destroy Deque: Unimplemented Error\n");
+// Can only destroy empty deque because don't know what to do with exchange items
+int destroy_deque(Deque * deque) {
+	if (!is_deque_empty(deque)){
+		fprintf(stderr, "Error: trying to destroy non-empty deque\n");
+		return -1;
+	}
+	free(deque);
+	return 0;
 }
 
 int enqueue(Deque * deque, void * item){
@@ -89,8 +95,11 @@ int dequeue(Deque * deque, void ** ret_item){
 	Deque_Item * new_head = deque -> head -> next;
 	
 	free(deque -> head);
+
 	deque -> head = new_head;
-	deque -> head -> prev = NULL;
+	if (new_head != NULL){
+		deque -> head -> prev = NULL;
+	}
 
 	deque -> cnt -= 1;
 
@@ -111,7 +120,9 @@ int dequeue_rear(Deque * deque, void ** ret_item){
 	Deque_Item * new_tail = deque -> tail -> prev;
 	free(deque -> tail);
 	deque -> tail = new_tail;
-	deque -> tail -> next = NULL;
+	if (new_tail != NULL){
+		deque -> tail -> next = NULL;
+	}
 
 	deque -> cnt -= 1;
 

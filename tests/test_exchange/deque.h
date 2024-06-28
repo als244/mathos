@@ -26,7 +26,7 @@ typedef struct deque {
 // Functions to export:
 
 Deque * init_deque();
-void destroy_deque(Deque * deque);
+int destroy_deque(Deque * deque);
 int enqueue(Deque * deque, void * item);
 int enqueue_front(Deque * deque, void * item);
 int dequeue(Deque * deque, void ** ret_item);
