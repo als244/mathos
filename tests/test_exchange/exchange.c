@@ -309,13 +309,14 @@ int post_bid(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerpri
 
 		// FOR NOW: CRUDELY SIMULATING DOING RDMA TRANSFERS
 		// BIG TODO!!!
-		printf("Found %d participants with offers for fingerprint. Would be reading from any of: ", num_participants);
+		printf("Found %d participants with offers for fingerprint: ", num_participants);
 		print_hex(fingerprint, fingerprint_bytes);
+		printf("Would be reading from any of:\n");
 		Deque_Item * cur_item = offer_participants -> head;
 		Participant * offer_participant;
 		while (cur_item != NULL){
 			offer_participant = (Participant *) cur_item -> item;
-			printf("\tLocation ID: %lu\n\tAddr: %lu\n\tRkey: %u\n\n", offer_participant -> location_id, offer_participant -> addr, offer_participant -> rkey);
+			printf("\tLocation ID: %lu\n\tAddr: %lu\n\tRkey: %u\n\tData Bytes: %lu\n\n", offer_participant -> location_id, offer_participant -> addr, offer_participant -> rkey, found_offer -> data_bytes);
 			cur_item = cur_item -> next;
 		}
 		return 0;
@@ -375,13 +376,14 @@ int post_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerp
 
 		// FOR NOW: CRUDELY SIMULATING DOING RDMA TRANSFERS
 		// BIG TODO!!!
-		printf("Found %d participants with bids for fingerprint. Would be writing to all of: ", num_participants);
+		printf("Found %d participants with bids for fingerprint: ", num_participants);
 		print_hex(fingerprint, fingerprint_bytes);
+		printf("Would be writing to all of:\n"); 
 		Deque_Item * cur_item = bid_participants -> head;
 		Participant * bid_participant;
 		while (cur_item != NULL){
 			bid_participant = (Participant *) cur_item -> item;
-			printf("\tLocation ID: %lu\n\tAddr: %lu\n\tRkey: %u\n\n", bid_participant -> location_id, bid_participant -> addr, bid_participant -> rkey);
+			printf("\tLocation ID: %lu\n\tAddr: %lu\n\tRkey: %u\n\tData Bytes: %lu\n\n", bid_participant -> location_id, bid_participant -> addr, bid_participant -> rkey, found_bid -> data_bytes);
 			cur_item = cur_item -> next;
 		}
 
@@ -402,7 +404,7 @@ int post_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerp
 
 	Exchange_Item * found_offer;
 	ret = lookup_offer(exchange, fingerprint, fingerprint_bytes, &found_offer);
-	if (found_bid){
+	if (found_offer){
 		ret = enqueue(found_offer -> participants, new_participant);
 		if (ret != 0){
 			fprintf(stderr, "Error: could not enqueue new participant to exciting participants on offer\n");

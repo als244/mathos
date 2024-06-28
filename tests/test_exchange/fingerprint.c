@@ -2,7 +2,7 @@
 
 void print_hex(unsigned char * fingerprint, int num_bytes){
 	for (int i = 0; i < num_bytes; i++){
-		printf("%02hhux", fingerprint[i]);
+		printf("%02x", fingerprint[i]);
 	}
 	printf("\n");
 }

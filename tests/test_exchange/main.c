@@ -76,6 +76,8 @@ int load_shard(char * shard_dir, int shard_id, char ** ret_buffer, uint64_t ** r
 
 int main(int argc, char * argv[]){
 
+	int ret;
+
 	// CONFIGURATION
 	srand(SEED);
 	FingerprintType fingerprint_type = SHA256_HASH;
@@ -83,7 +85,7 @@ int main(int argc, char * argv[]){
 	
 
 	// 1.) Create Exchange 
-	printf("Initializing Exchange...\n");
+	//printf("Initializing Exchange...\n");
 
 	uint64_t exchange_id = 0;
 
@@ -103,7 +105,7 @@ int main(int argc, char * argv[]){
 
 
 	// 2.) Getting some axiomatic data to work with (ignoring chunks and obj id mappings for now...)
-	printf("Generating Fake Axiomatic Data...\n");
+	//printf("Generating Fake Axiomatic Data...\n");
 
 	float * A = generate_rand_float_matrix(4096, 8192);
 	uint64_t A_size = 4096 * 8192 * sizeof(float);
@@ -126,7 +128,7 @@ int main(int argc, char * argv[]){
 
 
 	// 3.) Calling functions on these data to generate fingerprints for output data that can be used as inputs for future functions
-	printf("Generating Fake Axiomatic Functions...\n");
+	//printf("Generating Fake Axiomatic Functions...\n");
 	int num_args = 2;
 	FunctionType function_type = MATMUL;
 	DataType data_type = FP32;
@@ -151,22 +153,43 @@ int main(int argc, char * argv[]){
 
 
 	// 3.) Obtaining the output fingerprint for each of these functions...
-	printf("Retrieving encoded axiomatic functions => derived objects...\n");
+	//printf("Retrieving encoded axiomatic functions => derived objects...\n");
 	unsigned char * out_AB = f_AB -> output_fingerprint;
 	unsigned char * out_BC = f_BC -> output_fingerprint;
 	unsigned char * out_CD = f_CD -> output_fingerprint;
 	unsigned char * out_DA = f_DA -> output_fingerprint;
 
+	uint64_t AB_size = 4096 * 1024 * sizeof(float);
+	uint64_t BC_size = 8192 * 2048 * sizeof(float);
+	uint64_t CD_size = 1024 * 4096 * sizeof(float);
+	uint64_t DA_size = 2048 * 8192 * sizeof(float);
+
 
 	// 4.) Now create fake memory regions
-	printf("Posting fake bids and offers to exchange...\n");
-	uint64_t client_0_loc_id = 0;
-	uint64_t client_1_loc_id = 1;
-	uint64_t client_2_loc_id = 2;
+	//printf("Posting fake bids and offers to exchange...\n");
 
-	// generate random addr and rkeys
+	printf("Posting initial bid...\n\n");
+	// mimic posting bid's and offer's for out_*
+	ret = post_bid(exchange, out_BC, fingerprint_bytes, BC_size, 0, 42, 12);    	
+	if (ret != 0){
+		fprintf(stderr, "Error: could not post bid\n");
+		exit(1);
+	}
 
-	// mimic posting bid's and offer's for out_*	
+	printf("Posting matching offer against bid...\n\n");
+	ret = post_offer(exchange, out_BC, fingerprint_bytes, BC_size, 1, 35, 16);    	
+	if (ret != 0){
+		fprintf(stderr, "Error: could not post bid\n");
+		exit(1);
+	}
+
+	printf("Now posting matching bid against offer...\n\n");
+	ret = post_bid(exchange, out_BC, fingerprint_bytes, BC_size, 2, 7, 8);    	
+	if (ret != 0){
+		fprintf(stderr, "Error: could not post bid\n");
+		exit(1);
+	}
+
 
 
 	return 0;
