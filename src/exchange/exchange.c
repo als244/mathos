@@ -160,7 +160,10 @@ Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint
 // exchange items are initialized if fingerprint not found, 
 // then create item based on whoever called post_bid or post_offer
 // exchange items should only exist with >= 1 participants
-Exchange_Item * init_exchange_item(unsigned char * fingerprint, uint8_t fingerprint_bytes, uint64_t data_bytes, ExchangeItemType item_type, Participant * participant){
+
+// participant is either of type (Bid_Participant or Offer_Participant)
+// but doesn't matter for enqueing to deque which assumes void *
+Exchange_Item * init_exchange_item(unsigned char * fingerprint, uint8_t fingerprint_bytes, uint64_t data_bytes, ExchangeItemType item_type, void * participant){
 
 	int ret;
 
@@ -170,7 +173,8 @@ Exchange_Item * init_exchange_item(unsigned char * fingerprint, uint8_t fingerpr
 		return NULL;
 	}
 
-	exchange_item -> fingerprint = fingerprint;
+	exchange_item -> fingerprint = malloc(fingerprint_bytes);
+	memcpy(exchange_item -> fingerprint, fingerprint, fingerprint_bytes);
 	exchange_item -> fingerprint_bytes = fingerprint_bytes;
 	exchange_item -> data_bytes = data_bytes;
 	exchange_item -> item_type = item_type;
@@ -195,9 +199,23 @@ Exchange_Item * init_exchange_item(unsigned char * fingerprint, uint8_t fingerpr
 }
 
 
-Participant * init_participant(uint64_t location_id, uint64_t addr, uint32_t rkey){
+Bid_Participant * init_bid_participant(uint64_t location_id, uint64_t wr_id){
 
-	Participant * participant = (Participant *) malloc(sizeof(Participant));
+	Bid_Participant * participant = (Bid_Participant *) malloc(sizeof(Bid_Participant));
+	if (participant == NULL){
+		fprintf(stderr, "Error: malloc failed allocating participant\n");
+		return NULL;
+	}
+
+	participant -> location_id = location_id;
+	participant -> wr_id = wr_id;
+
+	return participant;
+}
+
+Offer_Participant * init_offer_participant(uint64_t location_id, uint64_t addr, uint32_t rkey){
+
+	Offer_Participant * participant = (Offer_Participant *) malloc(sizeof(Offer_Participant));
 	if (participant == NULL){
 		fprintf(stderr, "Error: malloc failed allocating participant\n");
 		return NULL;
@@ -296,7 +314,7 @@ int remove_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t finge
 
 
 
-int post_bid(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerprint_bytes, uint64_t data_bytes, uint64_t location_id, uint64_t addr, uint32_t rkey) {
+int post_bid(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerprint_bytes, uint64_t data_bytes, uint64_t location_id, uint64_t wr_id) {
 
 	int ret;
 
@@ -309,13 +327,20 @@ int post_bid(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerpri
 
 		// FOR NOW: CRUDELY SIMULATING DOING RDMA TRANSFERS
 		// BIG TODO!!!
-		printf("Found %d participants with offers for fingerprint. Would be reading from any of: ", num_participants);
+		printf("Found %d participants with offers for fingerprint: ", num_participants);
 		print_hex(fingerprint, fingerprint_bytes);
+		printf("Would be posting sends (& reading from) any of:\n");
 		Deque_Item * cur_item = offer_participants -> head;
-		Participant * offer_participant;
+		Offer_Participant * offer_participant;
+
+		// FOR NOW PRINTING ALL PARTICIPANTS AND POSTING SEND WR_ID with details of tail of queue 
+		// BUT MIGHT WANT TO CHANGE BASED ON TOPOLOGY!
 		while (cur_item != NULL){
-			offer_participant = (Participant *) cur_item -> item;
-			printf("\tLocation ID: %lu\n\tAddr: %lu\n\tRkey: %u\n\n", offer_participant -> location_id, offer_participant -> addr, offer_participant -> rkey);
+			offer_participant = (Offer_Participant *) cur_item -> item;
+			printf("\tLocation ID: %lu\n\tAddr: %lu\n\tRkey: %u\n\tData Bytes: %lu\n\n", offer_participant -> location_id, offer_participant -> addr, offer_participant -> rkey, found_offer -> data_bytes);
+			
+			// SHOULD BE POSTING SEND HERE WITH data = (Location ID + Addr + Rkey) of offer_participant and sending to the function args (location_id, wr_id)
+
 			cur_item = cur_item -> next;
 		}
 		return 0;
@@ -324,7 +349,7 @@ int post_bid(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerpri
 	// Otherwise...
 	// 2.) Build participant
 
-	Participant * new_participant = init_participant(location_id, addr, rkey);
+	Bid_Participant * new_participant = init_bid_participant(location_id, wr_id);
 	if (new_participant == NULL){
 		fprintf(stderr, "Error: could not initialize participant\n");
 		return -1;
@@ -365,45 +390,24 @@ int post_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerp
 
 	int ret;
 
-	// 1.) Lookup if bid exists. If so, then queue RDMA writes for all (or "available") participants, 
-	//	   and remove participants from bid item (if no participants left, remove item). Free memory appropriately
-	Exchange_Item * found_bid;
-	ret = lookup_bid(exchange, fingerprint, fingerprint_bytes, &found_bid);
-	if (found_bid){
-		Deque * bid_participants = found_bid -> participants;
-		int num_participants = bid_participants -> cnt;
+	// 1.) Build participant
 
-		// FOR NOW: CRUDELY SIMULATING DOING RDMA TRANSFERS
-		// BIG TODO!!!
-		printf("Found %d participants with bids for fingerprint. Would be writing to all of: ", num_participants);
-		print_hex(fingerprint, fingerprint_bytes);
-		Deque_Item * cur_item = bid_participants -> head;
-		Participant * bid_participant;
-		while (cur_item != NULL){
-			bid_participant = (Participant *) cur_item -> item;
-			printf("\tLocation ID: %lu\n\tAddr: %lu\n\tRkey: %u\n\n", bid_participant -> location_id, bid_participant -> addr, bid_participant -> rkey);
-			cur_item = cur_item -> next;
-		}
-
-		// SHOULD ALSO BE FREEING MEMORY HERE!
-	}
-
-	// 2.) Build participant
-
-	Participant * new_participant = init_participant(location_id, addr, rkey);
+	Offer_Participant * new_participant = init_offer_participant(location_id, addr, rkey);
 	if (new_participant == NULL){
 		fprintf(stderr, "Error: could not initialize participant\n");
 		return -1;
 	}
 	
-	// 3.) Lookup offers to see if exchange item exists
+	// 2.) Lookup offers to see if exchange item exists
 	// 		a.) If Yes, append participant to the deque
 	//		b.) If no, create an exchange item and insert into table
 
 	Exchange_Item * found_offer;
+	Deque * offer_participants;
 	ret = lookup_offer(exchange, fingerprint, fingerprint_bytes, &found_offer);
-	if (found_bid){
-		ret = enqueue(found_offer -> participants, new_participant);
+	if (found_offer){
+		offer_participants = found_offer -> participants;
+		ret = enqueue(offer_participants, new_participant);
 		if (ret != 0){
 			fprintf(stderr, "Error: could not enqueue new participant to exciting participants on offer\n");
 			return -1;
@@ -421,7 +425,56 @@ int post_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerp
 			fprintf(stderr, "Error: could not insert new offer to exchange table\n");
 			return -1;
 		}
+		offer_participants = new_offer -> participants;
 	}
+
+
+
+	// 3.) Lookup if bid exists. If so, then queue post_sends to for all (or "available") bid participants informing them of location of objects, 
+	//	   and remove participants from bid item (if no participants left, remove item). Free memory appropriately
+	Exchange_Item * found_bid;
+	ret = lookup_bid(exchange, fingerprint, fingerprint_bytes, &found_bid);
+	if (found_bid){
+		Deque * bid_participants = found_bid -> participants;
+		int num_participants = bid_participants -> cnt;
+
+		printf("Found %d participants with bids for fingerprint: ", num_participants);
+		print_hex(fingerprint, fingerprint_bytes);
+		printf("Would be posting sends to all of:\n"); 
+		void * bid_participant;
+
+		// FOR NOW REMOVING ALL BID PARTICIPANTS BUT MIGHT WANT TO CHANGE BASED ON TOPOLOGY!
+		while (!is_deque_empty(bid_participants)){
+			ret = dequeue(bid_participants, &bid_participant);
+			if (ret != 0){
+				fprintf(stderr, "Error: could not dequeue bid participant\n");
+				return -1;
+			}
+
+			
+			printf("\tLocation ID: %lu\n\tWork Request ID: %lu\n\tData Bytes: %lu\n\n", ((Bid_Participant *) bid_participant) -> location_id, ((Bid_Participant *) bid_participant) -> wr_id, found_bid -> data_bytes);
+			
+			// SHOULD BE POSTING SEND HERE WITH data = (Location ID + Addr + Rkey) of new offer (function args) and sending to (location_id, wr_id)
+
+			// because we already sent info, we can free the bid participant
+			free(bid_participant);
+		}
+
+		// Now bid is empty, so remove it
+		Exchange_Item * removed_bid = remove_item(exchange -> bids, found_bid);
+		
+		// assert(removed_bid == found_bid)
+
+		// free fingerprint and destroy deque
+		free(removed_bid -> fingerprint);
+		// should be the same pointer as bid_participants above
+		destroy_deque(removed_bid -> participants);
+
+		// now can free the exchange item
+		free(removed_bid);
+	}
+
+
 
 	return 0;
 

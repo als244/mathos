@@ -2,7 +2,7 @@
 
 void print_hex(unsigned char * digest, int num_bytes){
 	for (int i = 0; i < num_bytes; i++){
-		printf("%02hhux", digest[i]);
+		printf("%02x", digest[i]);
 	}
 	printf("\n");
 }
