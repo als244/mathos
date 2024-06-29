@@ -347,14 +347,14 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
                 break;
         }
 
-        // free resources tied to event
-        rdma_ack_cm_event(event);
-
         // THERE WAS A PROBLEM IN DISPACT, RETURN
         if (ret != 0){
             fprintf(stderr, "Error: could not handle event\n");
             return -1;
         }
+
+        // free resources tied to event
+        rdma_ack_cm_event(event);
     }
 
     printf("Connection Established!\n");
