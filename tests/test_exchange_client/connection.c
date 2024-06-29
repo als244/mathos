@@ -189,7 +189,7 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
     // conn_params.initiator_depth=1;
     
     if (is_server){
-        //conn_params.qp_num = conn_client -> cm_id -> qp -> qp_num;
+        conn_params.qp_num = conn_client -> cm_id -> qp -> qp_num;
         ret = rdma_accept(conn_client -> cm_id, &conn_params);
         if (ret != 0){
             fprintf(stderr, "Error: rdma_accept failed\n");
@@ -197,8 +197,8 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
         }
     }
     else{
-        // conn_params.private_data = rai->ai_connect;
-        // conn_params.private_data_len = rai->ai_connect_len;
+        conn_params.private_data = rai->ai_connect;
+        conn_params.private_data_len = rai->ai_connect_len;
         ret = rdma_connect(conn_client -> cm_id, &conn_params);
         if (ret != 0){
             fprintf(stderr, "Error: could not do rdma_connect\n");
