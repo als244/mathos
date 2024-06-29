@@ -323,18 +323,15 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
                 conn_client -> cm_id = event -> id;
                 printf("Saw connect_request event\n");
                 ret = init_connection(connection_type, conn_server, conn_client, server_qp, client_qp, &conn_params, ret_connection);
-                //ret = rdma_notify((*ret_connection) -> cm_id, IBV_EVENT_COMM_EST);
-                ret = ibv_query_port((*ret_connection)->cm_id->verbs, (*ret_connection)->cm_id->port_num, &port_attr);
-                if (ret != 0){
-                    fprintf(stderr, "Port query may have failed after init connection\n");
-                }
                 break;
             case RDMA_CM_EVENT_ESTABLISHED:
                 /* can start communication! Returning from this connection handling loop */
-                // Both Sides
+                // Both Sides for RC, only Active side for UD
                 // set the loop to be done...
                 printf("Saw established\n");
-                ret = establish_connection(*ret_connection, event, connection_type);
+                if (connection_type == RDMA_UD){
+                    ret = establish_connection(*ret_connection, event, connection_type);
+                }
                 is_done = 1;
                 break;
             case RDMA_CM_EVENT_UNREACHABLE:
