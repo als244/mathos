@@ -7,7 +7,7 @@ int exch_connection_item_cmp(void * connection_item, void * other_item) {
 }
 
 uint64_t exch_connection_hash_func(void * connection_item, uint64_t table_size) {
-	uint64_t key = ((Exchange_Connection *) connection_item) -> id;
+	uint64_t key = ((Exchange_Connection *) connection_item) -> exchange_id;
 	// Taken from "https://github.com/shenwei356/uint64-hash-bench?tab=readme-ov-file"
 	// Credit: Thomas Wang
 	key = (key << 21) - key - 1;
@@ -76,6 +76,10 @@ Exchanges_Client * init_exchanges_client(uint64_t max_exchanges, uint64_t max_ou
 
 
 	uint64_t min_outstanding_bids_size = 1 << 10;
+	if (min_outstanding_bids_size < max_outstanding_bids){
+		min_outstanding_bids_size = max_outstanding_bids;
+	}
+
 	Hash_Func hash_func_bid = &bid_hash_func;
 	Item_Cmp item_cmp_bid = &bid_item_cmp;
 
@@ -154,11 +158,13 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exch
 	exchange_connection -> connection = connection;
 
 	// now add the connection to table so we can lookup the connection by exchange_id (aka destination metadata-shard) when we need to query object locations
-	ret = insert_item(exchange_client -> exchanges, exchange_connection);
+	ret = insert_item(exchanges_client -> exchanges, exchange_connection);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not add exchange connection to exchanges table\n");
 		return -1;
 	}
+
+	exchanges_client -> num_exchanges += 1;
 
 	return 0;
 

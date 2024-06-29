@@ -157,15 +157,22 @@ Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint
 	exchange -> max_offers = max_offers;
 
 	// DEFAULT hyperparameters for hash tables
-	uint64_t min_size = 1 << 20;
+	uint64_t min_bid_size = 1 << 20;
+	if (min_bid_size > max_bids){
+		min_bid_size = max_bids;
+	}
+	uint64_t min_offer_size = 1 << 20;
+	if (min_offer_size > max_offers){
+		min_offer_size = max_offers;
+	}
 	float load_factor = .5f;
 	float shrink_factor = .1f;
 	Hash_Func hash_func = &exchange_hash_func;
 	Item_Cmp item_cmp = &exchange_item_cmp;
 
 	// init bids and offers table
-	Table * bids = init_table(min_size, max_bids, load_factor, shrink_factor, hash_func, item_cmp);
-	Table * offers = init_table(min_size, max_offers, load_factor, shrink_factor, hash_func, item_cmp);
+	Table * bids = init_table(min_bid_size, max_bids, load_factor, shrink_factor, hash_func, item_cmp);
+	Table * offers = init_table(min_offer_size, max_offers, load_factor, shrink_factor, hash_func, item_cmp);
 	if ((bids == NULL) || (offers == NULL)){
 		fprintf(stderr, "Error: could not initialize bids and offer tables\n");
 		return NULL;
@@ -178,6 +185,9 @@ Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint
 
 
 	uint64_t client_table_min_size = 1 << 6;
+	if (client_table_min_size > max_clients){
+		client_table_min_size = max_clients;
+	}
 	Hash_Func hash_func_client = &client_hash_func;
 	Item_Cmp item_cmp_client = &client_item_cmp; 
 	Table * clients = init_table(client_table_min_size, max_clients, load_factor, shrink_factor, hash_func_client, item_cmp_client);
