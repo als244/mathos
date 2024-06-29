@@ -11,7 +11,7 @@
 // returns id of new connection added to all_connections, -1 if error
 // If Passive side (server side) => connection_server is populated, and connection_client -> cm_id is rdma_accept
 // If active side (client side) => connection_server is NULL and connection_client -> cm_id is sent to rdma_connect
-int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_server, ConnectionClient * conn_client, struct ibv_qp * server_qp, struct ibv_qp * client_qp, struct rdma_addrinfo * rai, Connection ** ret_connection){
+int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_server, ConnectionClient * conn_client, struct ibv_qp * server_qp, struct ibv_qp * client_qp, struct rdma_conn_param * conn_params, Connection ** ret_connection){
     
     int ret;
     
@@ -171,8 +171,6 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
     // If active-side (client) then connect
     // If passive-side (server) then accept
 
-    struct rdma_conn_param conn_params;
-    memset(&conn_params, 0, sizeof(conn_params));
 
     // // for this simple example, do doing any sync with posting send/recv so just retry a lot...
     // conn_params.rnr_retry_count=100;
@@ -189,22 +187,17 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
     // conn_params.initiator_depth=1;
     
     if (is_server){
-        conn_params.qp_num = conn_client -> cm_id -> qp -> qp_num;
-        ret = rdma_accept(conn_client -> cm_id, &conn_params);
+        // conn_params.qp_num = conn_client -> cm_id -> qp -> qp_num;
+        ret = rdma_accept(conn_client -> cm_id, conn_params);
         if (ret != 0){
             fprintf(stderr, "Error: rdma_accept failed\n");
             return -1;
         }
-        ret = rdma_notify(conn_client -> cm_id, RDMA_CM_EVENT_ESTABLISHED);
-        if (ret != 0){
-            fprintf(stderr, "Error: could not do rdma notify\n");
-            return -1;
-        }
     }
     else{
-        conn_params.private_data = rai->ai_connect;
-        conn_params.private_data_len = rai->ai_connect_len;
-        ret = rdma_connect(conn_client -> cm_id, &conn_params);
+        // conn_params.private_data = rai->ai_connect;
+        // conn_params.private_data_len = rai->ai_connect_len;
+        ret = rdma_connect(conn_client -> cm_id, conn_params);
         if (ret != 0){
             fprintf(stderr, "Error: could not do rdma_connect\n");
             return -1;
@@ -214,6 +207,7 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
     // set the cm_id from within the connection struct to retrieve queue pairs
     // both active and passive used the client cm_id (sever-side clien cm_id is retrieved through RDMA CM event)
     connection -> cm_id = conn_client -> cm_id;
+    connection -> connection_type = connection_type;
 
     // POPULATE THE REST OF THE CONNECTION FIELDS!
     
@@ -265,7 +259,6 @@ int establish_connection(Connection * connection, struct rdma_cm_event * event, 
     connection -> remote_qpn = remote_qpn;
     connection -> remote_qkey = remote_qkey;
     connection -> ah = ah;
-    connection -> connection_type = connection_type;
 
     return 0;
 }
@@ -294,6 +287,10 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
 
     printf("Waiting for CM events...\n");
 
+
+    struct rdma_conn_param conn_params;
+    memset(&conn_params, 0, sizeof(conn_params));
+
     while (!is_done){
 
         // WAIT FOR EVENT 
@@ -318,14 +315,14 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
                 // Active Side
                 // Here conn_server -> cm_id == NULL
                 printf("Saw route_resolved event\n");
-                ret = init_connection(connection_type, conn_server, conn_client, server_qp, client_qp, rai, ret_connection);
+                ret = init_connection(connection_type, conn_server, conn_client, server_qp, client_qp, &conn_params, ret_connection);
                 break;
             case RDMA_CM_EVENT_CONNECT_REQUEST:
                 // Passive / Server side
 		        // Here conn_client -> cm_id is not-populated so ensure to do so
                 conn_client -> cm_id = event -> id;
                 printf("Saw connect_request event\n");
-                ret = init_connection(connection_type, conn_server, conn_client, server_qp, client_qp, rai, ret_connection);
+                ret = init_connection(connection_type, conn_server, conn_client, server_qp, client_qp, &conn_params, ret_connection);
                 break;
             case RDMA_CM_EVENT_ESTABLISHED:
                 /* can start communication! Returning from this connection handling loop */
