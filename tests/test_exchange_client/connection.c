@@ -207,7 +207,7 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
     }
     else{
         conn_params.private_data = rai->ai_connect;
-        conn_params.private_data = rai->ai_connect_len;
+        conn_params.private_data_len = rai->ai_connect_len;
         ret = rdma_connect(conn_client -> cm_id, &conn_params);
         if (ret != 0){
             fprintf(stderr, "Error: could not do rdma_connect\n");
