@@ -73,11 +73,10 @@ typedef enum rdma_connection_type {
 typedef struct connection {
 	uint64_t src_id;
 	char * src_ip;
-	char * src_port;
 	// global dest id
 	uint64_t dest_id;
 	char * dest_ip;
-	char * dest_port;
+	char * server_port;
 	// the local cm_id with queue pairs at cm_id -> qp
 	struct rdma_cm_id *cm_id;
 	struct ibv_pd *pd;
@@ -91,7 +90,6 @@ typedef struct connection {
 typedef struct connection_client {
 	uint64_t id;
 	char *ip;
-	char *port;
 	struct rdma_cm_id *cm_id;
 } ConnectionClient;
 
@@ -106,7 +104,7 @@ typedef struct connection_server {
 
 // returns id of new connection added to all_connections, -1 if error
 int setup_connection(RDMAConnectionType connection_type, int is_server, uint64_t server_id, char * server_ip, char * server_port, struct ibv_qp * server_qp, 
-							uint64_t client_id, char * client_ip, char * client_port, struct ibv_qp * client_qp, Connection ** ret_connection);
+							uint64_t client_id, char * client_ip, struct ibv_qp * client_qp, Connection ** ret_connection);
 
 int register_virt_memory(struct ibv_pd * pd, void * addr, size_t size_bytes, struct ibv_mr ** ret_mr);
 int register_dmabuf_memory(struct ibv_pd * pd, int fd, size_t size_bytes, uint64_t offset, uint64_t iova, struct ibv_mr ** ret_mr);

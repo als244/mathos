@@ -44,7 +44,7 @@ Exchanges_Client * init_exchanges_client(uint64_t max_exchanges, uint64_t max_ou
 
 // providing local_id & exchange_id to know which end will serve as the server during connection establishment
 // always saying that smaller id will be the server
-int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exchange_id, char * exchange_ip, char * exchange_port, uint64_t location_id, char * location_ip, char * location_port);
+int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exchange_id, char * exchange_ip, uint64_t location_id, char * location_ip, char * server_port);
 
 
 

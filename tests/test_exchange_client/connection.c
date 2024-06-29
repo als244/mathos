@@ -210,30 +210,27 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
     // POPULATE THE REST OF THE CONNECTION FIELDS!
     
     uint64_t src_id, dest_id;
-    char *src_ip, *src_port, *dest_ip, *dest_port;
+    char *src_ip, *dest_ip, *server_port;
     if (is_server){
         src_id = conn_server -> id;
         src_ip = strdup(conn_server -> ip);
-        src_port = strdup(conn_server -> port);
+        server_port = strdup(conn_server -> port);
         dest_id = conn_client -> id;
         dest_ip = strdup(conn_client -> ip);
-        dest_port = strdup(conn_client -> port);
     }
     else{
         src_id = conn_client -> id;
         src_ip = strdup(conn_client -> ip);
-        src_port = strdup(conn_client -> port);
         dest_id = conn_server -> id;
         dest_ip = strdup(conn_server -> ip);
-        dest_port = strdup(conn_server -> port);
+        server_port = strdup(conn_server -> port);
     }
     
     connection -> src_id = src_id;
     connection -> dest_id = dest_id;
     connection -> src_ip = src_ip;
-    connection -> src_port = src_port;
     connection -> dest_ip = dest_ip;
-    connection -> dest_port = dest_port;
+    connection -> server_port = server_port;
 
     *ret_connection = connection;
 
@@ -780,7 +777,7 @@ int register_dmabuf_memory(struct ibv_pd * pd, int fd, size_t size_bytes, uint64
 // BLOCKS UNTIL CONNECTION IS SET UP!
 // due to "handle_connection_events"
 int setup_connection(RDMAConnectionType connection_type, int is_server, uint64_t server_id, char * server_ip, char * server_port, struct ibv_qp * server_qp, 
-                        uint64_t client_id, char * client_ip, char * client_port, struct ibv_qp * client_qp, Connection ** ret_connection){
+                        uint64_t client_id, char * client_ip, struct ibv_qp * client_qp, Connection ** ret_connection){
 
     int ret;
 
@@ -802,7 +799,6 @@ int setup_connection(RDMAConnectionType connection_type, int is_server, uint64_t
 
     conn_client -> id = client_id;
     conn_client -> ip = client_ip;
-    conn_client -> port = client_port;
     conn_client -> cm_id = NULL;
 
     // 2.) Initialize event channel

@@ -68,7 +68,7 @@ typedef struct exchange {
 
 Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers, uint64_t max_clients);
 
-int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * exchange_ip, char * exchange_port, uint64_t location_id, char * location_ip, char * location_port);
+int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * exchange_ip, uint64_t location_id, char * location_ip, char * server_port);
 
 
 // NEED TO CONSIDER THE SYNCHONIZATION / ORDERING WHEN CACHING OCCURS AND ADDR+RKEY no longer valid!

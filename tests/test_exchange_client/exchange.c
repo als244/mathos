@@ -526,7 +526,7 @@ int post_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerp
 
 
 // The corresponding function to "setup_exchange_connection" from exchange_client.c
-int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * exchange_ip, char * exchange_port, uint64_t location_id, char * location_ip, char * location_port) {
+int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * exchange_ip, uint64_t location_id, char * location_ip, char * server_port) {
 
 	int ret;
 
@@ -542,37 +542,33 @@ int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * ex
 
 	//RDMAConnectionType exchange_connection_type = RDMA_UD;
 	// FOR NOW MAKING IT RDMA_RC FOR EASIER ESTABLISHMENT BUT WILL BE RDMA_UD
-	RDMAConnectionType exchange_connection_type = RDMA_UD;
+	RDMAConnectionType exchange_connection_type = RDMA_RC;
 
 	int is_server;
 	uint64_t server_id, client_id;
-	char *server_ip, *server_port, *client_ip, *client_port;
+	char *server_ip, *client_ip;
 	struct ibv_qp *server_qp, *client_qp;
 	if (location_id < exchange_id){
 		is_server = 0;
 		server_id = location_id;
 		server_ip = location_ip;
-		server_port = location_port;
 		server_qp = NULL;
 		client_id = exchange_id;
 		client_ip = exchange_ip;
-		client_port = exchange_port;
 		client_qp = exchange -> exchange_qp;
 	}
 	else{
 		is_server = 1;
 		server_id = exchange_id;
 		server_ip = exchange_ip;
-		server_port = exchange_port;
 		server_qp = exchange -> exchange_qp;
 		client_id = location_id;
 		client_ip = location_ip;
-		client_port = location_port;
 		client_qp = NULL;
 	}
 
 	ret = setup_connection(exchange_connection_type, is_server, server_id, server_ip, server_port, server_qp, 
-							client_id, client_ip, client_port, client_qp, &connection);
+							client_id, client_ip, client_qp, &connection);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not setup exchange connection\n");
 		return -1;
