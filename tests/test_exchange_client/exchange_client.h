@@ -18,7 +18,7 @@ typedef struct Bid {
 } Bid;
 
 typedef struct Exchange_Connection {
-	uint64_t id;
+	uint64_t exchange_id;
 	uint64_t start_val;
 	uint64_t end_val;
 	Connection * connection;
@@ -34,6 +34,8 @@ typedef struct Exchanges_Client {
 	Table * outstanding_bids;
 	// not sure what this might be needed for yet...
 	pthread_mutex_t exchanges_client_lock;
+	// initialized upon first connection and then reused to connect to other exchanges
+	struct ibv_qp * exchange_client_qp;
 } Exchanges_Client;
 
 
@@ -42,7 +44,7 @@ Exchanges_Client * init_exchanges_client(uint64_t max_exchanges, uint64_t max_ou
 
 // providing local_id & exchange_id to know which end will serve as the server during connection establishment
 // always saying that smaller id will be the server
-int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exchange_id, char * exchange_ip, char * exchange_port, uint64_t client_id, char * client_ip, char * client_port);
+int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exchange_id, char * exchange_ip, char * exchange_port, uint64_t location_id, char * location_ip, char * location_port);
 
 
 

@@ -188,6 +188,8 @@ Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint
 
 	exchange -> clients = clients;
 
+	exchange -> exchange_qp = NULL;
+
 	return exchange;
 }
 
@@ -508,7 +510,70 @@ int post_offer(Exchange * exchange, unsigned char * fingerprint, uint8_t fingerp
 		free(removed_bid);
 	}
 
+	return 0;
 
+}
+
+
+// The corresponding function to "setup_exchange_connection" from exchange_client.c
+int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * exchange_ip, char * exchange_port, uint64_t location_id, char * location_ip, char * location_port) {
+
+	int ret;
+
+	Client_Connection * client_connection = (Client_Connection *) malloc(sizeof(Client_Connection));
+	if (client_connection == NULL){
+		fprintf(stderr, "Error: malloc failed when allocating client connection\n");
+		return -1;
+	}
+
+	client_connection -> location_id = location_id;
+
+	Connection * connection;
+	RDMAConnectionType exchange_connection_type = RDMA_UD;
+
+	int is_server;
+	uint64_t server_id, client_id;
+	char *server_ip, *server_port, *client_ip, *client_port;
+	struct ibv_qp *server_qp, *client_qp;
+	if (location_id < exchange_id){
+		is_server = 0;
+		server_id = location_id;
+		server_ip = location_ip;
+		server_port = location_port;
+		server_qp = NULL;
+		client_id = exchange_id;
+		client_ip = exchange_ip;
+		client_port = exchange_port;
+		client_qp = exchange -> exchange_qp;
+	}
+	else{
+		is_server = 1;
+		server_id = exchange_id;
+		server_ip = exchange_ip;
+		server_port = exchange_port;
+		server_qp = exchange -> exchange_qp;
+		client_id = location_id;
+		client_ip = location_ip;
+		client_port = location_port;
+		client_qp = NULL;
+	}
+
+	ret = setup_connection(exchange_connection_type, is_server, server_id, server_ip, server_port, server_qp, 
+							client_id, client_ip, client_port, client_qp, &connection);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not setup exchange connection\n");
+		return -1;
+	}
+
+
+	client_connection -> connection = connection;
+
+	// now add the connection to table so we can lookup the connection by exchange_id (aka destination metadata-shard) when we need to query object locations
+	ret = insert_item(exchange -> clients, client_connection);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not add client connection to clients table\n");
+		return -1;
+	}
 
 	return 0;
 
