@@ -1,4 +1,5 @@
 #include "connection.h"
+#include <errno.h>
 
 #define TO_PRINT 0
 
@@ -187,7 +188,6 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
     // conn_params.initiator_depth=1;
     
     if (is_server){
-        // conn_params.qp_num = conn_client -> cm_id -> qp -> qp_num;
         ret = rdma_accept(conn_client -> cm_id, conn_params);
         if (ret != 0){
             fprintf(stderr, "Error: rdma_accept failed\n");
@@ -195,8 +195,6 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
         }
     }
     else{
-        // conn_params.private_data = rai->ai_connect;
-        // conn_params.private_data_len = rai->ai_connect_len;
         ret = rdma_connect(conn_client -> cm_id, conn_params);
         if (ret != 0){
             fprintf(stderr, "Error: could not do rdma_connect\n");
@@ -291,6 +289,8 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
     struct rdma_conn_param conn_params;
     memset(&conn_params, 0, sizeof(conn_params));
 
+    struct ibv_port_attr port_attr;
+
     while (!is_done){
 
         // WAIT FOR EVENT 
@@ -323,6 +323,11 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
                 conn_client -> cm_id = event -> id;
                 printf("Saw connect_request event\n");
                 ret = init_connection(connection_type, conn_server, conn_client, server_qp, client_qp, &conn_params, ret_connection);
+                //ret = rdma_notify((*ret_connection) -> cm_id, IBV_EVENT_COMM_EST);
+                ret = ibv_query_port((*ret_connection)->cm_id->verbs, (*ret_connection)->cm_id->port_num, &port_attr);
+                if (ret != 0){
+                    fprintf(stderr, "Port query may have failed after init connection\n");
+                }
                 break;
             case RDMA_CM_EVENT_ESTABLISHED:
                 /* can start communication! Returning from this connection handling loop */
@@ -357,6 +362,9 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
 
         // free resources tied to event
         rdma_ack_cm_event(event);
+
+
+
     }
 
     printf("Connection Established!\n");
