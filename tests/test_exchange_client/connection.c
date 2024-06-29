@@ -195,6 +195,11 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
             fprintf(stderr, "Error: rdma_accept failed\n");
             return -1;
         }
+        ret = rdma_notify(conn_client -> cm_id, RDMA_CM_EVENT_ESTABLISHED);
+        if (ret != 0){
+            fprintf(stderr, "Error: could not do rdma notify\n");
+            return -1;
+        }
     }
     else{
         conn_params.private_data = rai->ai_connect;
