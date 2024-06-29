@@ -11,7 +11,7 @@
 // returns id of new connection added to all_connections, -1 if error
 // If Passive side (server side) => connection_server is populated, and connection_client -> cm_id is rdma_accept
 // If active side (client side) => connection_server is NULL and connection_client -> cm_id is sent to rdma_connect
-int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_server, ConnectionClient * conn_client, struct ibv_qp * server_qp, struct ibv_qp * client_qp, struct rdma_conn_param *conn_params, Connection ** ret_connection){
+int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_server, ConnectionClient * conn_client, struct ibv_qp * server_qp, struct ibv_qp * client_qp, struct rdma_addrinfo * rai, Connection ** ret_connection){
     
     int ret;
     
@@ -180,15 +180,35 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
     // If active-side (client) then connect
     // If passive-side (server) then accept
 
+    struct rdma_conn_param conn_params;
+    memset(&conn_params, 0, sizeof(conn_params));
+
+    // for this simple example, do doing any sync with posting send/recv so just retry a lot...
+    conn_params.rnr_retry_count=100;
+    // ensure that connection can deal with RDMA read and atomic
+    //
+    // The maximum number of outstanding RDMA read and atomic 
+    // operations that the local side will accept from the remote side.
+    // must be <= device attribute of max_qp_rd_atom
+    conn_params.responder_resources = 1;
+
+    // The maximum number of outstanding RDMA read and atomic
+    // operations that the local side will have to the remote side.
+    // must be <= device attribute of max_qp_init_rd_atom
+    conn_params.initiator_depth=1;
+    
     if (is_server){
-        ret = rdma_accept(conn_client -> cm_id, conn_params);
+        conn_params.qp_num = conn_client -> cm_id -> qp -> qp_num;
+        ret = rdma_accept(conn_client -> cm_id, &conn_params);
         if (ret != 0){
             fprintf(stderr, "Error: rdma_accept failed\n");
             return -1;
         }
     }
     else{
-        ret = rdma_connect(conn_client -> cm_id, conn_params);
+        conn_params.private_data = rai->ai_connect;
+        conn_params.private_data = rai->ai_connect_len;
+        ret = rdma_connect(conn_client -> cm_id, &conn_params);
         if (ret != 0){
             fprintf(stderr, "Error: could not do rdma_connect\n");
             return -1;
@@ -268,30 +288,13 @@ int establish_connection(Connection * connection, struct rdma_cm_event * event, 
 // AFTER SUCCESSFUL CONNECTION NEED TO SETUP MAILBOXES!
 // ASSUME THAT UPON CONNECTION SETUP THAT BOTH SIDES POST A RECEIVE WORK REQUEST THAT WILL TRANSFER MEMORY REGION DATA!
 int handle_connection_events(RDMAConnectionType connection_type, ConnectionServer * conn_server, ConnectionClient * conn_client, struct rdma_event_channel * channel, 
-                                struct ibv_qp * server_qp, struct ibv_qp * client_qp, Connection ** ret_connection){
+                                struct ibv_qp * server_qp, struct ibv_qp * client_qp, struct rdma_addrinfo * rai, Connection ** ret_connection){
     
     int ret;
     struct rdma_cm_event * event;
     int timeout_ms = 2000;
 
     int is_done = 0;
-
-    struct rdma_conn_param conn_params;
-    memset(&conn_params, 0, sizeof(conn_params));
-
-    // for this simple example, do doing any sync with posting send/recv so just retry a lot...
-    conn_params.rnr_retry_count=100;
-    // ensure that connection can deal with RDMA read and atomic
-    //
-    // The maximum number of outstanding RDMA read and atomic 
-    // operations that the local side will accept from the remote side.
-    // must be <= device attribute of max_qp_rd_atom
-    conn_params.responder_resources = 1;
-
-    // The maximum number of outstanding RDMA read and atomic
-    // operations that the local side will have to the remote side.
-    // must be <= device attribute of max_qp_init_rd_atom
-    conn_params.initiator_depth=1;
 
     printf("Waiting for CM events...\n");
 
@@ -319,14 +322,14 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
                 // Active Side
                 // Here conn_server -> cm_id == NULL
                 printf("Saw route_resolved event\n");
-                ret = init_connection(connection_type, conn_server, conn_client, server_qp, client_qp, &conn_params, ret_connection);
+                ret = init_connection(connection_type, conn_server, conn_client, server_qp, client_qp, rai, ret_connection);
                 break;
             case RDMA_CM_EVENT_CONNECT_REQUEST:
                 // Passive / Server side
 		        // Here conn_client -> cm_id is not-populated so ensure to do so
                 conn_client -> cm_id = event -> id;
                 printf("Saw connect_request event\n");
-                ret = init_connection(connection_type, conn_server, conn_client, server_qp, client_qp, &(event -> param).conn, ret_connection);
+                ret = init_connection(connection_type, conn_server, conn_client, server_qp, client_qp, rai, ret_connection);
                 break;
             case RDMA_CM_EVENT_ESTABLISHED:
                 /* can start communication! Returning from this connection handling loop */
@@ -894,7 +897,7 @@ int setup_connection(RDMAConnectionType connection_type, int is_server, uint64_t
     // Responsible for initiatizating connections
     // Upon connection creation post a receive work request from the other side's id to retrieve their mailbox mr info
 
-    ret = handle_connection_events(connection_type, conn_server, conn_client, channel, server_qp, client_qp, ret_connection);
+    ret = handle_connection_events(connection_type, conn_server, conn_client, channel, server_qp, client_qp, rai, ret_connection);
     if (ret != 0){
         fprintf(stderr, "Error, could not handle connection events, exiting...\n");
         return -1;
