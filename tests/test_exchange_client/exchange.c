@@ -539,6 +539,9 @@ int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * ex
 	client_connection -> location_id = location_id;
 
 	Connection * connection;
+
+	//RDMAConnectionType exchange_connection_type = RDMA_UD;
+	// FOR NOW MAKING IT RDMA_RC FOR EASIER ESTABLISHMENT BUT WILL BE RDMA_UD
 	RDMAConnectionType exchange_connection_type = RDMA_UD;
 
 	int is_server;

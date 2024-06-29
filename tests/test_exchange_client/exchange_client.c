@@ -118,6 +118,8 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exch
 
 
 	Connection * connection;
+	//RDMAConnectionType exchange_connection_type = RDMA_UD;
+	// FOR NOW MAKING IT RDMA_RC FOR EASIER ESTABLISHMENT BUT WILL BE RDMA_UD
 	RDMAConnectionType exchange_connection_type = RDMA_UD;
 
 	int is_server;
