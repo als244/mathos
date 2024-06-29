@@ -62,15 +62,14 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
 
 
     // 4.) (Optionally) Create Queue Pair
-    bool to_create_qp = true;
     if ((is_server) && (server_qp != NULL)) {
-        to_create_qp = false;
+        conn_client -> cm_id -> qp = server_qp;
     }
-    if ((!is_server) && (client_qp != NULL)) {
-        to_create_qp = false;
+    else if ((!is_server) && (client_qp != NULL)) {
+        conn_client -> cm_id -> qp = client_qp;
     }
 
-    if (to_create_qp){
+    else {
 
         enum ibv_qp_type qp_type;
         if (connection_type == RDMA_RC){
@@ -110,14 +109,6 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
         if (ret != 0){
             fprintf(stderr, "Error: could not create queue pair\n");
             return -1;
-        }
-    }
-    else{
-        if (is_server){
-            conn_client -> cm_id -> qp = server_qp;
-        }
-        else{
-            conn_client -> cm_id -> qp = client_qp;
         }
     }
 
@@ -183,22 +174,22 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
     struct rdma_conn_param conn_params;
     memset(&conn_params, 0, sizeof(conn_params));
 
-    // for this simple example, do doing any sync with posting send/recv so just retry a lot...
-    conn_params.rnr_retry_count=100;
-    // ensure that connection can deal with RDMA read and atomic
-    //
-    // The maximum number of outstanding RDMA read and atomic 
-    // operations that the local side will accept from the remote side.
-    // must be <= device attribute of max_qp_rd_atom
-    conn_params.responder_resources = 1;
+    // // for this simple example, do doing any sync with posting send/recv so just retry a lot...
+    // conn_params.rnr_retry_count=100;
+    // // ensure that connection can deal with RDMA read and atomic
+    // //
+    // // The maximum number of outstanding RDMA read and atomic 
+    // // operations that the local side will accept from the remote side.
+    // // must be <= device attribute of max_qp_rd_atom
+    // conn_params.responder_resources = 1;
 
-    // The maximum number of outstanding RDMA read and atomic
-    // operations that the local side will have to the remote side.
-    // must be <= device attribute of max_qp_init_rd_atom
-    conn_params.initiator_depth=1;
+    // // The maximum number of outstanding RDMA read and atomic
+    // // operations that the local side will have to the remote side.
+    // // must be <= device attribute of max_qp_init_rd_atom
+    // conn_params.initiator_depth=1;
     
     if (is_server){
-        conn_params.qp_num = conn_client -> cm_id -> qp -> qp_num;
+        //conn_params.qp_num = conn_client -> cm_id -> qp -> qp_num;
         ret = rdma_accept(conn_client -> cm_id, &conn_params);
         if (ret != 0){
             fprintf(stderr, "Error: rdma_accept failed\n");
@@ -206,8 +197,8 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
         }
     }
     else{
-        conn_params.private_data = rai->ai_connect;
-        conn_params.private_data_len = rai->ai_connect_len;
+        // conn_params.private_data = rai->ai_connect;
+        // conn_params.private_data_len = rai->ai_connect_len;
         ret = rdma_connect(conn_client -> cm_id, &conn_params);
         if (ret != 0){
             fprintf(stderr, "Error: could not do rdma_connect\n");
