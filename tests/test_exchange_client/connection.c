@@ -341,7 +341,8 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
                 break;
             case RDMA_CM_EVENT_UNREACHABLE:
                 /* should error handle */
-                printf("Saw unreachable\n");
+                printf("Saw unreachable, trying again...\n");
+                handle_connection_events(connection_type, conn_server, conn_client, channel, server_qp, client_qp, ret_connection);
                 break;
             case RDMA_CM_EVENT_REJECTED:
                 /* should error handle */
