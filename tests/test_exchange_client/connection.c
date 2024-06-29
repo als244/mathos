@@ -94,7 +94,7 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
         qp_attr.cap.max_recv_sge = 1; // increase if you allow receive work requests to have multiple scatter gather entry (SGE).
         //qp_attr.cap.max_inline_data = 1000;
         uint64_t send_ops_flags;
-        if (connection_type == RDMA_UD){
+        if (connection_type == RDMA_RC){
             send_ops_flags = IBV_QP_EX_WITH_RDMA_WRITE | IBV_QP_EX_WITH_RDMA_READ | IBV_QP_EX_WITH_SEND |
                                     IBV_QP_EX_WITH_ATOMIC_CMP_AND_SWP | IBV_QP_EX_WITH_ATOMIC_FETCH_AND_ADD;
         }
