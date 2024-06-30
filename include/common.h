@@ -18,6 +18,6 @@
 #include <semaphore.h>
 #include <unistd.h>
 
-#define HASH_DIGEST_LEN_BYTES 32
+#define FINGERPRINT_NUM_BYTES 32
 
 #endif
