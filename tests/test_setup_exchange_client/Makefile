@@ -3,10 +3,10 @@ CFLAGS = -g -Wall -pedantic
 
 all: testExchangeClient_0 testExchangeClient_1
 
-testExchangeClient_0: main_0.c table.o deque.o ring_buffer.o fingerprint.o communicate.o exchange.o exchange_client.o channel.o
+testSetupExchangeClient_0: main_0.c table.o deque.o ring_buffer.o fingerprint.o communicate.o exchange.o exchange_client.o channel.o
 	${CC} ${CFLAGS} $^ -o $@ -lcrypto -lm -libverbs -lrdmacm
 
-testExchangeClient_1: main_1.c table.o deque.o ring_buffer.o fingerprint.o communicate.o exchange.o exchange_client.o channel.o
+testSetupExchangeClient_1: main_1.c table.o deque.o ring_buffer.o fingerprint.o communicate.o exchange.o exchange_client.o channel.o
 	${CC} ${CFLAGS} $^ -o $@ -lcrypto -lm -libverbs -lrdmacm
 
 table.o: table.c
@@ -34,4 +34,4 @@ channel.o: channel.c
 	${CC} ${CFLAGS} -c $^
 
 clean:
-	rm -f testExchangeClient_0 testExchangeClient_1 *.o
+	rm -f testSetupExchangeClient_0 testSetupExchangeClient_1 *.o
