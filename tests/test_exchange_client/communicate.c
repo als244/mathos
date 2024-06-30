@@ -111,6 +111,14 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
             fprintf(stderr, "Error: could not create queue pair\n");
             return -1;
         }
+
+        // now set qp for future use
+        if (is_server){
+            server_qp = conn_client -> cm_id -> qp;
+        }
+        else{
+            client_qp = conn_client -> cm_id -> qp;
+        }
     }
 
     /* IGNORING MAILBOX AND DOORBELL STUFF FOR NOW!
@@ -272,7 +280,7 @@ int establish_connection(Connection * connection, struct rdma_cm_event * event, 
 // AFTER SUCCESSFUL CONNECTION NEED TO SETUP MAILBOXES!
 // ASSUME THAT UPON CONNECTION SETUP THAT BOTH SIDES POST A RECEIVE WORK REQUEST THAT WILL TRANSFER MEMORY REGION DATA!
 int handle_connection_events(RDMAConnectionType connection_type, ConnectionServer * conn_server, ConnectionClient * conn_client, struct rdma_event_channel * channel, 
-                                struct ibv_qp * server_qp, struct ibv_qp * client_qp, struct rdma_addrinfo * rai, Connection ** ret_connection){
+                                struct ibv_qp * server_qp, struct ibv_qp * client_qp, Connection ** ret_connection){
     
     int ret;
     struct rdma_cm_event * event;
@@ -951,7 +959,7 @@ int setup_connection(RDMAConnectionType connection_type, int is_server, uint64_t
     // Responsible for initiatizating connections
     // Upon connection creation post a receive work request from the other side's id to retrieve their mailbox mr info
 
-    ret = handle_connection_events(connection_type, conn_server, conn_client, channel, server_qp, client_qp, rai, ret_connection);
+    ret = handle_connection_events(connection_type, conn_server, conn_client, channel, server_qp, client_qp, ret_connection);
     if (ret != 0){
         fprintf(stderr, "Error, could not handle connection events, exiting...\n");
         return -1;

@@ -145,6 +145,7 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exch
 		client_qp = exchanges_client -> exchange_client_qp;
 	}
 
+	// if exchange_client_qp is null, then it will be set, otherwise connection will use that qp
 	ret = setup_connection(exchange_connection_type, is_server, server_id, server_ip, server_port, server_qp, 
 							client_id, client_ip, client_qp, &connection);
 	if (ret != 0){
