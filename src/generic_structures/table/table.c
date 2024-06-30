@@ -113,7 +113,7 @@ int resize_table(Table * table, uint64_t new_size) {
 
 
 // return -1 upon error
-int insert_item(Table * table, void * item) {
+int insert_item_table(Table * table, void * item) {
 
 	if (table == NULL){
 		fprintf(stderr, "Error in insert_item, item table is null\n");
@@ -175,7 +175,7 @@ int insert_item(Table * table, void * item) {
 }
 
 
-void * find_item(Table * table, void * item){
+void * find_item_table(Table * table, void * item){
 
 	if (table == NULL){
 		fprintf(stderr, "Error in find_item, item table is null\n");
@@ -200,7 +200,7 @@ void * find_item(Table * table, void * item){
 }
 
 // remove from table and return pointer to item (can be used later for destroying)
-void * remove_item(Table * table, void * item) {
+void * remove_item_table(Table * table, void * item) {
 	
 	if (table == NULL){
 		fprintf(stderr, "Error in remove_item, item table is null\n");
