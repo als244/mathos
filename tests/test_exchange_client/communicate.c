@@ -111,14 +111,6 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
             fprintf(stderr, "Error: could not create queue pair\n");
             return -1;
         }
-
-        // now set qp for future use
-        if (is_server){
-            server_qp = conn_client -> cm_id -> qp;
-        }
-        else{
-            client_qp = conn_client -> cm_id -> qp;
-        }
     }
 
     /* IGNORING MAILBOX AND DOORBELL STUFF FOR NOW!
