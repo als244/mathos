@@ -1,5 +1,5 @@
-#ifndef CONNECTION_H
-#define CONNECTION_H
+#ifndef COMMUNICATE_H
+#define COMMUNICATE_H
 
 #include "common.h"
 
@@ -109,12 +109,8 @@ int setup_connection(RDMAConnectionType connection_type, int is_server, uint64_t
 int register_virt_memory(struct ibv_pd * pd, void * addr, size_t size_bytes, struct ibv_mr ** ret_mr);
 int register_dmabuf_memory(struct ibv_pd * pd, int fd, size_t size_bytes, uint64_t offset, uint64_t iova, struct ibv_mr ** ret_mr);
 
-int post_recv_work_request(struct rdma_cm_id * cm_id, struct ibv_mr * mr, uint64_t wr_id);
-int post_send_work_request(struct rdma_cm_id * cm_id, struct ibv_mr * mr, uint64_t wr_id);
-int post_rdma_read_work_request(struct rdma_cm_id * cm_id, struct ibv_mr * mr, uint64_t wr_id, uint32_t rkey, uint64_t remote_addr);
-int post_rdma_write_work_request(struct rdma_cm_id * cm_id, struct ibv_mr * mr, uint64_t wr_id, uint32_t rkey, uint64_t remote_addr);
-
-int post_cmp_swap_send_work_request(struct rdma_cm_id * cm_id, struct ibv_mr * mr, uint64_t wr_id, uint32_t rkey, uint64_t remote_addr, uint64_t compare_val, uint64_t swap_val);
+int post_recv_work_request(struct ibv_qp * qp, uint64_t addr, uint32_t length, uint32_t lkey, uint64_t wr_id);
+int post_send_work_request(struct ibv_qp * qp, uint64_t addr, uint32_t length, uint32_t lkey, uint64_t wr_id);
 
 int poll_cq(struct ibv_cq_ex * cq, uint64_t duration_ns);
 int block_for_wr_comp(struct ibv_cq_ex * cq, uint64_t target_wr_id);

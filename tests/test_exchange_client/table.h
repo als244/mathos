@@ -34,8 +34,8 @@ typedef struct table {
 Table * init_table(uint64_t min_size, uint64_t max_size, float load_factor, float shrink_factor, Hash_Func hash_func, Item_Cmp item_cmp);
 void destroy_table(Table * table);
 // enforce the caller supplied item_key because don't want to defrence void * 
-int insert_item(Table * table, void * item);
-void * find_item(Table * table, void * item);
-void * remove_item(Table * table, void * item);
+int insert_item_table(Table * table, void * item);
+void * find_item_table(Table * table, void * item);
+void * remove_item_table(Table * table, void * item);
 
 #endif

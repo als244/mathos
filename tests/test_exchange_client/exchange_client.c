@@ -22,13 +22,13 @@ uint64_t exch_connection_hash_func(void * connection_item, uint64_t table_size) 
 
 
 int bid_item_cmp(void * bid_item, void * other_item) {
-	uint64_t wr_id_a = ((Bid *) bid_item) -> wr_id;
-	uint64_t wr_id_b = ((Bid *) other_item) -> wr_id;
+	uint64_t wr_id_a = ((Outstanding_Bid *) bid_item) -> wr_id;
+	uint64_t wr_id_b = ((Outstanding_Bid *) other_item) -> wr_id;
 	return wr_id_a - wr_id_b;
 }
 
 uint64_t bid_hash_func(void * bid_item, uint64_t table_size) {
-	uint64_t key = ((Bid *) bid_item) -> wr_id;
+	uint64_t key = ((Outstanding_Bid *) bid_item) -> wr_id;
 	// Taken from "https://github.com/shenwei356/uint64-hash-bench?tab=readme-ov-file"
 	// Credit: Thomas Wang
 	key = (key << 21) - key - 1;
@@ -101,7 +101,7 @@ Exchanges_Client * init_exchanges_client(uint64_t max_exchanges, uint64_t max_ou
 
 
 // the smaller of exchange_id and local_id will serve as the "server" when establishing RDMA connection
-int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exchange_id, char * exchange_ip, uint64_t location_id, char * location_ip, char * server_port) {
+int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exchange_id, char * exchange_ip, uint64_t location_id, char * location_ip, char * server_port, uint16_t capacity_channels) {
 
 	int ret;
 
@@ -155,8 +155,23 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exch
 
 	exchange_connection -> connection = connection;
 
+	// now we need to allocate and register ring buffers to receive incoming orders
+	exchange_connection -> capacity_channels = capacity_channels;
+
+	exchange_connection -> out_bid_orders = init_channel(location_id, exchange_id, capacity_channels, BID_ORDER, sizeof(Bid_Order), false, connection -> pd, exchanges_client -> exchange_client_qp);
+	exchange_connection -> out_offer_orders = init_channel(location_id, exchange_id, capacity_channels, OFFER_ORDER, sizeof(Offer_Order), false, connection -> pd, exchanges_client -> exchange_client_qp);
+	exchange_connection -> out_future_orders = init_channel(location_id, exchange_id, capacity_channels, FUTURE_ORDER, sizeof(Future_Order), false, connection -> pd, exchanges_client -> exchange_client_qp);
+	// setting is_recv to true, because we will be posting sends from this channel
+	exchange_connection -> in_bid_matches = init_channel(location_id, exchange_id, capacity_channels, BID_MATCH, sizeof(Bid_Match), true, connection -> pd, exchanges_client -> exchange_client_qp);
+
+	if ((exchange_connection -> out_bid_orders == NULL) || (exchange_connection -> out_offer_orders == NULL) || 
+			(exchange_connection -> out_future_orders == NULL) || (exchange_connection -> in_bid_matches == NULL)){
+		fprintf(stderr, "Error: was unable to initialize channels\n");
+		return -1;
+	}
+
 	// now add the connection to table so we can lookup the connection by exchange_id (aka destination metadata-shard) when we need to query object locations
-	ret = insert_item(exchanges_client -> exchanges, exchange_connection);
+	ret = insert_item_table(exchanges_client -> exchanges, exchange_connection);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not add exchange connection to exchanges table\n");
 		return -1;

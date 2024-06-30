@@ -29,9 +29,11 @@ int main(int argc, char * argv[]){
 
 	uint64_t max_bids = 1UL << 36;
 	uint64_t max_offers = 1UL << 36;
+	uint64_t max_futures = 1UL << 36;
 	uint64_t max_clients = 1UL << 12;
 
-	Exchange * exchange = init_exchange(exchange_id, start_val, end_val, max_bids, max_offers, max_clients);
+
+	Exchange * exchange = init_exchange(exchange_id, start_val, end_val, max_bids, max_offers, max_futures, max_clients);
 	if (exchange == NULL){
 		fprintf(stderr, "Error: could not initialize exchange\n");
 		return -1;
@@ -49,12 +51,14 @@ int main(int argc, char * argv[]){
 	}
 
 
+	uint16_t capacity_channels = 1 << 10;
+
 	// 3.) Setup connection to other exchanges
 	printf("Setting up connection to exchange: %lu\n\n", OTHER_EXCH_ID);
 	//		- currently not asynchronous, so need to do in the proper order, otherwise deadlock
 	//		- aka should be reverse order on the other end (setup_client_connection first)
 	// sets up client connection to exchange
-	ret = setup_exchange_connection(exchanges_client, OTHER_EXCH_ID, OTHER_EXCH_IP, MY_EXCH_ID, MY_EXCH_IP, SERVER_PORT_CLIENT);
+	ret = setup_exchange_connection(exchanges_client, OTHER_EXCH_ID, OTHER_EXCH_IP, MY_EXCH_ID, MY_EXCH_IP, SERVER_PORT_CLIENT, capacity_channels);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not setup exchange connection\n");
 		return -1;
@@ -63,7 +67,7 @@ int main(int argc, char * argv[]){
 	// 4.) Setup connection to client
 	printf("Setting up connection with client: %lu\n\n", OTHER_EXCH_ID);
 	// sets up exchange connection to client
-	ret = setup_client_connection(exchange, MY_EXCH_ID, MY_EXCH_IP, OTHER_EXCH_ID, OTHER_EXCH_IP, SERVER_PORT_EXCH);
+	ret = setup_client_connection(exchange, MY_EXCH_ID, MY_EXCH_IP, OTHER_EXCH_ID, OTHER_EXCH_IP, SERVER_PORT_EXCH, capacity_channels);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not setup client connection\n");
 		return -1;

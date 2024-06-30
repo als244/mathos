@@ -1,4 +1,4 @@
-#include "connection.h"
+#include "communicate.h"
 #include <errno.h>
 
 #define TO_PRINT 0
@@ -286,7 +286,9 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
     struct rdma_conn_param conn_params;
     memset(&conn_params, 0, sizeof(conn_params));
 
-    struct ibv_port_attr port_attr;
+    // for this simple example, do doing any sync with posting send/recv so just retry a lot...
+    conn_params.rnr_retry_count=100;
+
 
     while (!is_done){
 
@@ -379,7 +381,7 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
 // if sge == NULL assume that we will have 1 entry going to specific address
 
 // The receive work request that is posted is waiting until a matching send work request (by work request id) comes in
-int post_recv_work_request(struct rdma_cm_id * cm_id, struct ibv_mr * mr, uint64_t wr_id){
+int post_recv_work_request_mr(struct ibv_qp * qp, struct ibv_mr * mr, uint64_t wr_id){
     
     int ret;
 
@@ -401,7 +403,39 @@ int post_recv_work_request(struct rdma_cm_id * cm_id, struct ibv_mr * mr, uint64
     wr.next = NULL;
 
 
-    ret = ibv_post_recv(cm_id -> qp, &wr, &bad_wr);
+    ret = ibv_post_recv(qp, &wr, &bad_wr);
+    if (ret != 0){
+        fprintf(stderr, "Error: could note post receive work request\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+
+int post_recv_work_request(struct ibv_qp * qp, uint64_t addr, uint32_t length, uint32_t lkey, uint64_t wr_id) {
+    
+    int ret;
+
+    struct ibv_recv_wr wr;
+    memset(&wr, 0, sizeof(struct ibv_recv_wr));
+
+    struct ibv_recv_wr * bad_wr = NULL;
+
+    struct ibv_sge my_sge;
+    memset(&my_sge, 0, sizeof(struct ibv_sge));
+    my_sge.addr = addr;
+    my_sge.length = length;
+    my_sge.lkey = lkey;
+    int num_sge = 1;
+  
+    wr.sg_list = &my_sge;
+    wr.num_sge = num_sge;
+    wr.wr_id = wr_id;
+    wr.next = NULL;
+
+
+    ret = ibv_post_recv(qp, &wr, &bad_wr);
     if (ret != 0){
         fprintf(stderr, "Error: could note post receive work request\n");
         return -1;
@@ -413,11 +447,11 @@ int post_recv_work_request(struct rdma_cm_id * cm_id, struct ibv_mr * mr, uint64
 
 
 // Posting a send work request starts immediately and consumes a receive'd work request
-int post_send_work_request(struct rdma_cm_id * cm_id, struct ibv_mr * mr, uint64_t wr_id) {
+int post_send_work_request_mr(struct ibv_qp * qp, struct ibv_mr * mr, uint64_t wr_id) {
 
     int ret;
 
-    struct ibv_qp_ex * qp_ex = ibv_qp_to_qp_ex(cm_id -> qp);
+    struct ibv_qp_ex * qp_ex = ibv_qp_to_qp_ex(qp);
     ibv_wr_start(qp_ex);
 
     qp_ex -> wr_id = wr_id;
@@ -427,6 +461,32 @@ int post_send_work_request(struct rdma_cm_id * cm_id, struct ibv_mr * mr, uint64
     ibv_wr_send(qp_ex);
 
     ibv_wr_set_sge(qp_ex, mr -> lkey, (uint64_t) mr -> addr, (uint32_t) mr -> length);
+    /* can send discontiguous buffers by using ibv_wr_set_sge_list() */
+    ret = ibv_wr_complete(qp_ex);
+
+    if (ret != 0){
+        fprintf(stderr, "Error: issue with ibv_wr_complete\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+
+int post_send_work_request(struct ibv_qp * qp, uint64_t addr, uint32_t length, uint32_t lkey, uint64_t wr_id) {
+
+    int ret;
+
+    struct ibv_qp_ex * qp_ex = ibv_qp_to_qp_ex(qp);
+    ibv_wr_start(qp_ex);
+
+    qp_ex -> wr_id = wr_id;
+    qp_ex -> wr_flags = 0; /* ordering/fencing etc. */
+    
+    // PEFORM Send
+    ibv_wr_send(qp_ex);
+
+    ibv_wr_set_sge(qp_ex, lkey, addr, length);
     /* can send discontiguous buffers by using ibv_wr_set_sge_list() */
     ret = ibv_wr_complete(qp_ex);
 
