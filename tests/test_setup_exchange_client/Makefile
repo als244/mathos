@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -g -Wall -pedantic
 
-all: testExchangeClient_0 testExchangeClient_1
+all: testSetupExchangeClient_0 testSetupExchangeClient_1
 
 testSetupExchangeClient_0: main_0.c table.o deque.o ring_buffer.o fingerprint.o communicate.o exchange.o exchange_client.o channel.o
 	${CC} ${CFLAGS} $^ -o $@ -lcrypto -lm -libverbs -lrdmacm
