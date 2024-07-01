@@ -24,11 +24,11 @@ typedef struct table {
 
 	// lock to prevent inserting/removing during a re-size 
 	// and to do "atomic" find_items without worrying about re-size
-	pthread_mutex_t size_lock;
+	pthread_spinlock_t size_lock;
 	// lock to read/write each slot
-	pthread_mutex_t * slot_locks;
+	pthread_spinlock_t * slot_locks;
 
-	pthread_mutex_t cnt_lock;
+	pthread_spinlock_t cnt_lock;
 	
 	// Function pointer to retrieve the key of objects inserted into table
 	//	- which is then passed the hash function

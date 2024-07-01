@@ -25,22 +25,22 @@ Table * init_table(uint64_t min_size, uint64_t max_size, float load_factor, floa
 	}
 	tab -> table = table;
 
-	ret = pthread_mutex_init(&(tab -> size_lock), NULL);
+	ret = pthread_spin_init(&(tab -> size_lock), PTHREAD_PROCESS_PRIVATE);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not init table lock\n");
 		return NULL;
 	}
 
 
-	ret = pthread_mutex_init(&(tab -> cnt_lock), NULL);
+	ret = pthread_spin_init(&(tab -> cnt_lock), PTHREAD_PROCESS_PRIVATE);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not init cnt lock\n");
 		return NULL;
 	}
 
-	pthread_mutex_t * slot_locks = (pthread_mutex_t *) malloc(min_size * sizeof(pthread_mutex_t));
+	pthread_spinlock_t * slot_locks = (pthread_spinlock_t *) malloc(min_size * sizeof(pthread_spinlock_t));
 	for (uint64_t i = 0; i < min_size; i++){
-		ret = pthread_mutex_init(&(slot_locks[i]), NULL);
+		ret = pthread_spin_init(&(slot_locks[i]), NULL);
 		if (ret != 0){
 			fprintf(stderr, "Error: could not slock lock\n");
 			return NULL;
@@ -89,43 +89,43 @@ int resize_table(Table * table, uint64_t new_size) {
 	}
 
 	void ** old_table = table -> table;
-	pthread_mutex_t * old_slot_locks = table -> slot_locks;
+	pthread_spinlock_t * old_slot_locks = table -> slot_locks;
 	uint64_t old_size = table -> size;
 
 	// create new table that will replace old one
 	// ensure new table is initialized to all null, otherwise placement errors
 	void ** new_table = (void **) calloc(new_size, sizeof(void *));
-	pthread_mutex_t * new_slot_locks = malloc(new_size * sizeof(pthread_mutex_t));
+	pthread_spinlock_t * new_slot_locks = malloc(new_size * sizeof(pthread_spinlock_t));
 	for (uint64_t i = 0; i < new_size; i++){
-		pthread_mutex_init(&(new_slot_locks[i]), NULL);
+		pthread_spin_init(&(new_slot_locks[i]), NULL);
 	}
 
 	// re-hash all the items into new table
 	uint64_t hash_ind, table_ind;
 	for (uint64_t i = 0; i < old_size; i++){
-		//pthread_mutex_lock(&(old_slot_locks[i]));
+		//pthread_spin_lock(&(old_slot_locks[i]));
 		if (old_table[i] == NULL){
-			//pthread_mutex_unlock(&(old_slot_locks[i]));
+			//pthread_spin_unlock(&(old_slot_locks[i]));
 			continue;
 		}
 		hash_ind = (table -> hash_func)(old_table[i], new_size);
 		// do open addressing insert
 		for (uint64_t j = hash_ind; j < hash_ind + new_size; j++){
 			table_ind = j % new_size;
-			//pthread_mutex_lock(&(new_slot_locks[table_ind]));
+			//pthread_spin_lock(&(new_slot_locks[table_ind]));
 
 			// found empty slot to insert
 			if (new_table[table_ind] == NULL) {
 				new_table[table_ind] = old_table[i];
 				// inserted new item so break from inner loop
-				//pthread_mutex_unlock(&(new_slot_locks[table_ind]));
+				//pthread_spin_unlock(&(new_slot_locks[table_ind]));
 				break;
 			}
 			else{
-				//pthread_mutex_unlock(&(new_slot_locks[table_ind]));
+				//pthread_spin_unlock(&(new_slot_locks[table_ind]));
 			}
 		}
-		//pthread_mutex_unlock(&(old_slot_locks[i]));
+		//pthread_spin_unlock(&(old_slot_locks[i]));
 	}
 
 	// only need to modify the table field and size field
@@ -134,7 +134,7 @@ int resize_table(Table * table, uint64_t new_size) {
 	table -> size = new_size;
 
 	for (uint64_t i = 0; i < old_size; i++){
-		pthread_mutex_destroy(&(old_slot_locks[i]));
+		pthread_spin_destroy(&(old_slot_locks[i]));
 	}
 
 	free(old_slot_locks);
@@ -163,19 +163,19 @@ int insert_item_table(Table * table, void * item, int thread_num) {
 
 
 	// make sure types are correct when multiplying uint64_t by float
-	pthread_mutex_lock(&(table -> size_lock));
+	pthread_spin_lock(&(table -> size_lock));
 	uint64_t size = table -> size;
 	
-	pthread_mutex_lock(&(table -> cnt_lock));
+	pthread_spin_lock(&(table -> cnt_lock));
 	uint64_t cnt = table -> cnt;
-	pthread_mutex_unlock(&(table -> cnt_lock));
+	pthread_spin_unlock(&(table -> cnt_lock));
 
 	
 	// should only happen when cnt = max_size
 	uint64_t max_size = table -> max_size;
 	if ((cnt + 1) > max_size){
 		printf("Greater than max size\n");
-		pthread_mutex_unlock(&(table -> size_lock));
+		pthread_spin_unlock(&(table -> size_lock));
 		return -1;
 	} 
 	// check if we exceed load and are below max cap
@@ -195,11 +195,11 @@ int insert_item_table(Table * table, void * item, int thread_num) {
 		// check if there was an error growing table
 		if (ret == -1){
 			printf("Resize failed\n");
-			pthread_mutex_unlock(&(table -> size_lock));
+			pthread_spin_unlock(&(table -> size_lock));
 			return -1;
 		}
 	}
-	pthread_mutex_unlock(&(table -> size_lock));
+	pthread_spin_unlock(&(table -> size_lock));
 
 	
 	uint64_t hash_ind = (table -> hash_func)(item, size);
@@ -207,21 +207,21 @@ int insert_item_table(Table * table, void * item, int thread_num) {
 	// doing the Linear Probing
 	// worst case O(size) insert time
 	void ** tab = table -> table;
-	pthread_mutex_t * slot_locks = table -> slot_locks;
+	pthread_spinlock_t * slot_locks = table -> slot_locks;
 	for (uint64_t i = hash_ind; i < hash_ind + size; i++){
 		table_ind = i % size;
-		pthread_mutex_lock(&(slot_locks[table_ind]));
+		pthread_spin_lock(&(slot_locks[table_ind]));
 		// there is a free slot to insert
 		if (tab[table_ind] == NULL) {
 			tab[table_ind] = item;
-			pthread_mutex_lock(&(table -> cnt_lock));
+			pthread_spin_lock(&(table -> cnt_lock));
 			table -> cnt += 1;
-			pthread_mutex_unlock(&(table -> cnt_lock));
-			pthread_mutex_unlock(&(slot_locks[table_ind]));
+			pthread_spin_unlock(&(table -> cnt_lock));
+			pthread_spin_unlock(&(slot_locks[table_ind]));
 			break;
 		}
 		else{
-			pthread_mutex_unlock(&(slot_locks[table_ind]));
+			pthread_spin_unlock(&(slot_locks[table_ind]));
 		}
 	}
 
@@ -240,28 +240,28 @@ void * find_item_table(Table * table, void * item){
 	
 	// for simplicity we are saying that find_item needs the table lock
 	// (i.e. when there is an on-going find, no inserts/removes can happen because they might trigger a resize)
-	pthread_mutex_lock(&(table -> size_lock));
+	pthread_spin_lock(&(table -> size_lock));
 	uint64_t size = table -> size;
 	uint64_t hash_ind = (table -> hash_func)(item, size);
 	void ** tab = table -> table;
 	void * found_item;
-	pthread_mutex_t * slot_locks = table -> slot_locks;
+	pthread_spinlock_t * slot_locks = table -> slot_locks;
 	uint64_t table_ind;
 	// do linear scan
 	for (uint64_t i = hash_ind; i < hash_ind + size; i++){
 		table_ind = i % size;
-		pthread_mutex_lock(&(slot_locks[table_ind]));
+		pthread_spin_lock(&(slot_locks[table_ind]));
 		if ((tab[table_ind] != NULL) && ((table -> item_cmp)(item, tab[table_ind]) == 0)){
-			pthread_mutex_unlock(&(slot_locks[table_ind]));
+			pthread_spin_unlock(&(slot_locks[table_ind]));
 			found_item = tab[table_ind];
-			pthread_mutex_unlock(&(table -> size_lock));
+			pthread_spin_unlock(&(table -> size_lock));
 			return found_item;
 		}
 		else{
-			pthread_mutex_unlock(&(slot_locks[table_ind]));
+			pthread_spin_unlock(&(slot_locks[table_ind]));
 		}
 	}
-	pthread_mutex_unlock(&(table -> size_lock));
+	pthread_spin_unlock(&(table -> size_lock));
 	// didn't find item
 	return NULL;
 }
@@ -282,16 +282,16 @@ void * remove_item_table(Table * table, void * item) {
 
 	// check if we should shrink if we would have removed item
 	// make sure types are correct when multiplying uint64_t by float
-	pthread_mutex_lock(&(table -> size_lock));
+	pthread_spin_lock(&(table -> size_lock));
 	uint64_t size = table -> size;
 
-	pthread_mutex_lock(&(table -> cnt_lock));
+	pthread_spin_lock(&(table -> cnt_lock));
 	uint64_t cnt = table -> cnt;
-	pthread_mutex_unlock(&(table -> cnt_lock));
+	pthread_spin_unlock(&(table -> cnt_lock));
 
 	// if there are no items then we can shortcut everything
 	if (cnt == 0){
-		pthread_mutex_unlock(&(table -> size_lock));
+		pthread_spin_unlock(&(table -> size_lock));
 		return NULL;
 	}
 	uint64_t shrink_cap = (uint64_t) (size * shrink_factor);
@@ -305,11 +305,11 @@ void * remove_item_table(Table * table, void * item) {
 		ret = resize_table(table, size);
 		// check if there was an error growing table
 		if (ret == -1){
-			pthread_mutex_unlock(&(table -> size_lock));
+			pthread_spin_unlock(&(table -> size_lock));
 			return NULL;
 		}
 	}
-	pthread_mutex_unlock(&(table -> size_lock));
+	pthread_spin_unlock(&(table -> size_lock));
 
 		
 	uint64_t hash_ind = (table -> hash_func)(item, size);
@@ -320,26 +320,26 @@ void * remove_item_table(Table * table, void * item) {
 	uint64_t table_ind;
 	// do linear scan
 	void ** tab = table -> table;
-	pthread_mutex_t * slot_locks = table -> slot_locks;
+	pthread_spinlock_t * slot_locks = table -> slot_locks;
 	for (uint64_t i = hash_ind; i < hash_ind + size; i++){
 		table_ind = i % size;
 		// check if we found item, remember its contents and make room in table
 		// use function pointer to check for item key
-		pthread_mutex_lock(&(slot_locks[table_ind]));
+		pthread_spin_lock(&(slot_locks[table_ind]));
 		if ((tab[table_ind] != NULL) && ((table -> item_cmp)(item, tab[table_ind]) == 0)){
 			// set item to be the item removed so we can return it
 			ret_item = tab[table_ind];
 			// remove reference from table
 			tab[table_ind] = NULL;
-			pthread_mutex_lock(&(table -> cnt_lock));
+			pthread_spin_lock(&(table -> cnt_lock));
 			table -> cnt -= 1;
-			pthread_mutex_unlock(&(table -> cnt_lock));
+			pthread_spin_unlock(&(table -> cnt_lock));
 			// found item so break
-			pthread_mutex_unlock(&(slot_locks[table_ind]));
+			pthread_spin_unlock(&(slot_locks[table_ind]));
 			break;
 		}
 		else{
-			pthread_mutex_unlock(&(slot_locks[table_ind]));
+			pthread_spin_unlock(&(slot_locks[table_ind]));
 		}
 		
 	}
