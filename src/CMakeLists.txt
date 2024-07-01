@@ -15,11 +15,11 @@ add_subdirectory(backends)
 add_subdirectory(sched)
 add_subdirectory(inventory)
 add_subdirectory(caching)
-add_subdirectory(communication)
+add_subdirectory(communicate)
 add_subdirectory(exchange)
 add_subdirectory(client)
 
-target_link_libraries(example_client PRIVATE generic_structures utils system_config system_init request_handler function fingerprint backend_init phys_chunk chunk_pool compute sched inventory caching communication exchange
+target_link_libraries(example_client PRIVATE generic_structures utils system_config system_init request_handler function fingerprint backend_init phys_chunk chunk_pool compute sched inventory caching communicate exchange
 									 INTERFACE backends
 									 PUBLIC client)
 
