@@ -88,8 +88,8 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
         qp_attr.sq_sig_all = 1;       // if not set 0, all work requests submitted to SQ will always generate a Work Completion.
         qp_attr.send_cq = ibv_cq_ex_to_cq(cq);         // completion queue can be shared or you can use distinct completion queues.
         qp_attr.recv_cq = ibv_cq_ex_to_cq(cq);         // completion queue can be shared or you can use distinct completion queues.
-        qp_attr.cap.max_send_wr = 1U << 8;  // increase if you want to keep more send work requests in the SQ.
-        qp_attr.cap.max_recv_wr = 1U << 8;  // increase if you want to keep more receive work requests in the RQ.
+        qp_attr.cap.max_send_wr = 1U << 12;  // increase if you want to keep more send work requests in the SQ.
+        qp_attr.cap.max_recv_wr = 1U << 12;  // increase if you want to keep more receive work requests in the RQ.
         qp_attr.cap.max_send_sge = 1; // increase if you allow send work requests to have multiple scatter gather entry (SGE).
         qp_attr.cap.max_recv_sge = 1; // increase if you allow receive work requests to have multiple scatter gather entry (SGE).
         //qp_attr.cap.max_inline_data = 1000;
