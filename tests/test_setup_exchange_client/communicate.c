@@ -88,8 +88,8 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
         qp_attr.sq_sig_all = 1;       // if not set 0, all work requests submitted to SQ will always generate a Work Completion.
         qp_attr.send_cq = ibv_cq_ex_to_cq(cq);         // completion queue can be shared or you can use distinct completion queues.
         qp_attr.recv_cq = ibv_cq_ex_to_cq(cq);         // completion queue can be shared or you can use distinct completion queues.
-        qp_attr.cap.max_send_wr = 10;  // increase if you want to keep more send work requests in the SQ.
-        qp_attr.cap.max_recv_wr = 10;  // increase if you want to keep more receive work requests in the RQ.
+        qp_attr.cap.max_send_wr = 1U << 12;  // increase if you want to keep more send work requests in the SQ.
+        qp_attr.cap.max_recv_wr = 1U << 12;  // increase if you want to keep more receive work requests in the RQ.
         qp_attr.cap.max_send_sge = 1; // increase if you allow send work requests to have multiple scatter gather entry (SGE).
         qp_attr.cap.max_recv_sge = 1; // increase if you allow receive work requests to have multiple scatter gather entry (SGE).
         //qp_attr.cap.max_inline_data = 1000;
@@ -272,7 +272,7 @@ int establish_connection(Connection * connection, struct rdma_cm_event * event, 
 // AFTER SUCCESSFUL CONNECTION NEED TO SETUP MAILBOXES!
 // ASSUME THAT UPON CONNECTION SETUP THAT BOTH SIDES POST A RECEIVE WORK REQUEST THAT WILL TRANSFER MEMORY REGION DATA!
 int handle_connection_events(RDMAConnectionType connection_type, ConnectionServer * conn_server, ConnectionClient * conn_client, struct rdma_event_channel * channel, 
-                                struct ibv_qp * server_qp, struct ibv_qp * client_qp, struct rdma_addrinfo * rai, Connection ** ret_connection){
+                                struct ibv_qp * server_qp, struct ibv_qp * client_qp, Connection ** ret_connection){
     
     int ret;
     struct rdma_cm_event * event;
@@ -951,7 +951,7 @@ int setup_connection(RDMAConnectionType connection_type, int is_server, uint64_t
     // Responsible for initiatizating connections
     // Upon connection creation post a receive work request from the other side's id to retrieve their mailbox mr info
 
-    ret = handle_connection_events(connection_type, conn_server, conn_client, channel, server_qp, client_qp, rai, ret_connection);
+    ret = handle_connection_events(connection_type, conn_server, conn_client, channel, server_qp, client_qp, ret_connection);
     if (ret != 0){
         fprintf(stderr, "Error, could not handle connection events, exiting...\n");
         return -1;

@@ -611,11 +611,17 @@ int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * ex
 		client_qp = NULL;
 	}
 
+	// if exchange_qp is null, then it will be created, otherwise connection will use that qp
 	ret = setup_connection(exchange_connection_type, is_server, server_id, server_ip, server_port, server_qp, 
 							client_id, client_ip, client_qp, &connection);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not setup exchange connection\n");
 		return -1;
+	}
+
+	// set exchange_qp if null
+	if (exchange -> exchange_qp == NULL){
+		exchange -> exchange_qp = connection -> cm_id -> qp;
 	}
 
 
