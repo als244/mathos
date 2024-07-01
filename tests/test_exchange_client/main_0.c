@@ -41,7 +41,7 @@ int main(int argc, char * argv[]){
 	// 2.) Initialize Own Exchanges_Client
 	printf("Initializing Exchanges Client...\n\n");
 	uint64_t max_exchanges = 1;
-	uint64_t max_outstanding_bids = 1UL << 12;
+	uint64_t max_outstanding_bids = 1UL << 8;
 	Exchanges_Client * exchanges_client = init_exchanges_client(max_exchanges, max_outstanding_bids);
 	if (exchanges_client == NULL){
 		fprintf(stderr, "Error: could not initialize exchanges client\n");
@@ -49,7 +49,7 @@ int main(int argc, char * argv[]){
 	}
 
 
-	uint16_t capacity_channels = 1 << 12;
+	uint16_t capacity_channels = 1 << 8;
 
 	// 3.) Setup connection to other exchanges
 	printf("Setting up connection to exchange: %lu\n\n", OTHER_EXCH_ID);
