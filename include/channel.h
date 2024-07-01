@@ -6,7 +6,7 @@
 #include "communicate.h"
 
 typedef enum message_type {
-	DATA_INITIATE,
+	DATA_REQUEST,
 	DATA_RESPONSE,
 	BID_ORDER,
 	BID_MATCH,
@@ -55,6 +55,12 @@ typedef struct future_order {
 typedef struct Bid_Match{
 	uint64_t location_id;
 } Bid_Match;
+
+
+typedef struct data_request {
+	uint64_t wr_id;
+	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
+} Data_Request;
 
 
 typedef struct channel {
