@@ -1,10 +1,10 @@
 #include "exchange_client.h"
 
 
-#define MY_EXCH_ID 0UL
-#define MY_EXCH_IP "192.168.50.23"
-#define OTHER_EXCH_ID 1UL
-#define OTHER_EXCH_IP "192.168.50.32"
+#define MY_ID 0UL
+#define MY_IP "192.168.50.23"
+#define OTHER_ID 1UL
+#define OTHER_IP "192.168.50.32"
 #define SERVER_PORT_EXCH "7471"
 #define SERVER_PORT_CLIENT "7472"
 
@@ -18,12 +18,12 @@ int main(int argc, char * argv[]){
 
 	// 1.) Create Own Exchange 
 	printf("Initializing Exchange...\n");
-	uint64_t exchange_id = MY_EXCH_ID;
+	uint64_t exchange_id = MY_ID;
 
 	// Only 1 exchange so doing full range	
 	uint64_t start_val = 0;
 	// wrap around, max value
-	uint64_t end_val = -1;
+	uint64_t end_val = (1UL << 63) - 1;
 
 	uint64_t max_bids = 1UL << 36;
 	uint64_t max_offers = 1UL << 36;
@@ -67,26 +67,38 @@ int main(int argc, char * argv[]){
 	uint16_t capacity_channels = 1U << 12;
 
 	// 3.) Setup connection to other exchanges
-	printf("Setting up connection to exchange: %lu\n\n", OTHER_EXCH_ID);
+	printf("Setting up connection to exchange: %lu\n\n", OTHER_ID);
 	//		- currently not asynchronous, so need to do in the proper order, otherwise deadlock
 	//		- aka should be reverse order on the other end (setup_client_connection first)
 	// sets up client connection to exchange
-	ret = setup_exchange_connection(exchanges_client, OTHER_EXCH_ID, OTHER_EXCH_IP, MY_EXCH_ID, MY_EXCH_IP, SERVER_PORT_CLIENT, capacity_channels);
+	ret = setup_exchange_connection(exchanges_client, OTHER_ID, OTHER_IP, MY_ID, MY_IP, SERVER_PORT_CLIENT, capacity_channels);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not setup exchange connection\n");
 		return -1;
 	}
 
 	// 4.) Setup connection to client
-	printf("Setting up connection with client: %lu\n\n", OTHER_EXCH_ID);
+	printf("Setting up connection with client: %lu\n\n", OTHER_ID);
 	// sets up exchange connection to client
-	ret = setup_client_connection(exchange, MY_EXCH_ID, MY_EXCH_IP, OTHER_EXCH_ID, OTHER_EXCH_IP, SERVER_PORT_EXCH, capacity_channels);
+	ret = setup_client_connection(exchange, MY_ID, MY_IP, OTHER_ID, OTHER_IP, SERVER_PORT_EXCH, capacity_channels);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not setup client connection\n");
 		return -1;
 	}
 
-	printf("SUCCESS!!!\n\n");
+	// 5.) Submit messages
+
+	uint8_t * example_fingerprint = (uint8_t *) malloc(FINGERPRINT_NUM_BYTES);
+	for (int i = 0; i < FINGERPRINT_NUM_BYTES; i++){
+		example_fingerprint[i] = (uint8_t) i;
+	}
+
+	uint64_t bid_match_wr_id;
+	ret = submit_bid(exchanges_client, MY_ID, example_fingerprint, &bid_match_wr_id);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not submit bid\n");
+		return -1;
+	}
 
 	return 0;
 

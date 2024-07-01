@@ -2,7 +2,7 @@
 #define CHANNEL_H
 
 #include "common.h"
-#include "ring_buffer.h"
+#include "table.h"
 #include "communicate.h"
 
 typedef enum message_type {
@@ -57,21 +57,33 @@ typedef struct Bid_Match{
 } Bid_Match;
 
 
+typedef struct Channel_Item {
+	uint64_t wr_id;
+} Channel_Item;
+
+
 typedef struct channel {
 	uint64_t self_id;
 	uint64_t peer_id;
 	uint64_t message_size;
 	MessageType message_type;
 	uint16_t capacity;
-	uint16_t count;
-	Ring_Buffer * ring_buffer;
+	uint16_t cnt;
+	// will be of size capacity * message_size
+	void * buffer;
+	// will store wr_id's and will call "find_item_index_table(wr_id)"
+	// this is a safe operation because we know that the table won't grow/shrink 
+	// to get the location within buffer
+	// (either of contents if outbound, or reservation area if inbound)
+	Table * buffer_table;
 	// needed to register the memory region
 	struct ibv_pd * pd;
-	// registered ring_buffer -> items, and contains lkey needed
+	// registered "buffer", and contains lkey needed
 	struct ibv_mr * mr;
 	// needed for posting requests!
 	struct ibv_qp * qp;
-	bool is_recv;
+	bool is_inbound;
+	pthread_mutex_t cnt_lock;
 } Channel;
 
 
@@ -89,10 +101,14 @@ typedef struct channel {
 //				- After consuming a ring_buffer item, re-populate a recveive work request with new location and incremented buffer count
 // 56 - 64: message_type (so as to digsinguish the wr_ids and keep seperate counts)
 
-
-Channel * init_channel(uint64_t self_id, uint64_t peer_id, uint16_t capacity, MessageType message_type, uint64_t message_size, bool is_recv, struct ibv_pd * pd, struct ibv_qp * qp);
-
-
 uint64_t encode_wr_id(uint64_t sender_id, uint64_t channel_count, MessageType message_type);
+
+Channel * init_channel(uint64_t self_id, uint64_t peer_id, uint16_t capacity, MessageType message_type, uint64_t message_size, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp);
+
+// For in channels
+int submit_in_channel_reservation(Channel * channel, uint64_t * ret_wr_id, uint64_t * ret_addr);
+
+// For out channels (need to pass in values)
+int submit_out_channel_message(Channel * channel, void * message, uint64_t * ret_wr_id, uint64_t * ret_addr);
 
 #endif
