@@ -50,7 +50,7 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	uint16_t capacity_channels = 1U << 12;
+	uint16_t capacity_channels = 1 << 12;
 
 	// 3.) Setup connection to client
 	printf("Setting up connection with client: %lu\n\n", OTHER_EXCH_ID);

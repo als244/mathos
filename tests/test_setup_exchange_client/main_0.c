@@ -49,7 +49,7 @@ int main(int argc, char * argv[]){
 	}
 
 
-	uint16_t capacity_channels = 1U << 12;
+	uint16_t capacity_channels = 1 << 12;
 
 	// 3.) Setup connection to other exchanges
 	printf("Setting up connection to exchange: %lu\n\n", OTHER_EXCH_ID);
