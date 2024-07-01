@@ -313,7 +313,7 @@ int main(int argc, char * argv[]){
 		search_perf_ns[i] = elapsed_ns;
 
 		if (search_ret == NULL){
-			fprintf(stderr, "Error: could not find item with id (on record insert of %lu): %lu\n", rand_search_item_id, i);
+			fprintf(stderr, "Error: could not find item with id (on record insert of %lu): %lu\n", i, rand_search_item_id);
 			exit(1);
 		}
 
@@ -322,9 +322,9 @@ int main(int argc, char * argv[]){
 
 
 		// F.) Print out update of how many records have been inserted
-		if ((i + 1) % 1 == 0){
-			printf("Hashed/Inserted/Searched: %lu\n", i);
-		}
+		// if ((i + 1) % 1 == 0){
+		// 	printf("Hashed/Inserted/Searched: %lu\n", i);
+		// }
 	}
 
 	clock_gettime(CLOCK_MONOTONIC, &total_stop);
