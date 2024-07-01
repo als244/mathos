@@ -15,6 +15,30 @@ int main(int argc, char * argv[]){
 
 	int ret;
 
+	// OPEN IB DEVICE CONTEXT. USE DEVICE 0 FOR TESTING
+	// Needed for initializing exchanges_client
+
+	int num_devices;
+	struct ibv_device ** devices = ibv_get_device_list(&num_devices);
+	if (devices == NULL){
+		fprintf(stderr, "Error: could not get ibv_device list\n");
+		return -1;
+	}
+
+	if (num_devices == 0){
+		fprintf(stderr, "Error: no rdma device fonud\n");
+		return -1;
+	}
+
+	struct ibv_device * device = devices[0];
+	
+	struct ibv_context * ibv_dev_ctx = ibv_open_device(device);
+	if (ibv_dev_ctx == NULL){
+		fprintf(stderr, "Error: could not open device to get ibv context\n");
+		return -1;
+	}
+
+
 
 	// 1.) Create Own Exchange 
 	printf("Initializing Exchange...\n");
@@ -42,7 +66,7 @@ int main(int argc, char * argv[]){
 	printf("Initializing Exchanges Client...\n\n");
 	uint64_t max_exchanges = 1;
 	uint64_t max_outstanding_bids = 1UL << 12;
-	Exchanges_Client * exchanges_client = init_exchanges_client(max_exchanges, max_outstanding_bids);
+	Exchanges_Client * exchanges_client = init_exchanges_client(max_exchanges, max_outstanding_bids, exchange_id, exchange, ibv_dev_ctx);
 	if (exchanges_client == NULL){
 		fprintf(stderr, "Error: could not initialize exchanges client\n");
 		return -1;
@@ -94,8 +118,10 @@ int main(int argc, char * argv[]){
 		example_fingerprint[i] = (uint8_t) 255;
 	}
 
+	uint64_t example_data_bytes = 100;
+
 	uint64_t bid_match_wr_id;
-	ret = submit_bid(exchanges_client, MY_ID, example_fingerprint, &bid_match_wr_id);
+	ret = submit_bid(exchanges_client, MY_ID, example_fingerprint, example_data_bytes, &bid_match_wr_id, NULL);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not submit bid\n");
 		return -1;

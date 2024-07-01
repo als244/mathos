@@ -69,6 +69,7 @@ typedef struct exchange {
 	Table * futures;
 	Table * clients;
 	pthread_mutex_t exchange_lock;
+	struct ibv_pd * exchange_pd;
 	// initialized upon first connection and then reused to connect to other clients
 	struct ibv_qp * exchange_qp;
 	// initialized upon first connection and then resused with other clients
