@@ -42,17 +42,21 @@ int main(int argc, char * argv[]){
 
 	// 1.) Create Own Exchange 
 	printf("Initializing Exchange...\n");
+
+	uint64_t num_exchanges = 2;
 	uint64_t exchange_id = MY_ID;
 
 	// Only 1 exchange so doing full range	
-	uint64_t start_val = 0;
+	uint64_t start_val = get_start_val_from_exch_id(num_exchanges, exchange_id);
 	// wrap around, max value
-	uint64_t end_val = (1UL << 63) - 1;
+	uint64_t end_val = get_end_val_from_exch_id(num_exchanges, exchange_id);
 
 	uint64_t max_bids = 1UL << 36;
 	uint64_t max_offers = 1UL << 36;
 	uint64_t max_futures = 1UL << 36;
-	uint64_t max_clients = 1UL << 12;
+
+	// really should be num_exchanges - 1
+	uint64_t max_clients = num_exchanges;
 
 
 	Exchange * exchange = init_exchange(exchange_id, start_val, end_val, max_bids, max_offers, max_futures, max_clients);
@@ -64,9 +68,8 @@ int main(int argc, char * argv[]){
 
 	// 2.) Initialize Own Exchanges_Client
 	printf("Initializing Exchanges Client...\n\n");
-	uint64_t max_exchanges = 1;
 	uint64_t max_outstanding_bids = 1UL << 12;
-	Exchanges_Client * exchanges_client = init_exchanges_client(max_exchanges, max_outstanding_bids, exchange_id, exchange, ibv_dev_ctx);
+	Exchanges_Client * exchanges_client = init_exchanges_client(num_exchanges, max_outstanding_bids, exchange_id, exchange, ibv_dev_ctx);
 	if (exchanges_client == NULL){
 		fprintf(stderr, "Error: could not initialize exchanges client\n");
 		return -1;

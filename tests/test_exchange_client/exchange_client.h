@@ -53,6 +53,10 @@ typedef struct Exchanges_Client {
 
 
 
+uint64_t get_start_val_from_exch_id(uint64_t num_exchanges, uint64_t exchange_id);
+uint64_t get_end_val_from_exch_id(uint64_t num_exchanges, uint64_t exchange_id);
+
+
 Exchanges_Client * init_exchanges_client(uint64_t max_exchanges, uint64_t max_outstanding_bids, uint64_t self_exchange_id, Exchange * self_exchange, struct ibv_context * ibv_ctx);
 
 // providing local_id & exchange_id to know which end will serve as the server during connection establishment
