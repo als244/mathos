@@ -40,10 +40,10 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
     
     // 2.) (Optionally) Create Protection Domain
     struct ibv_pd * pd;
-    if ((is_server) && (server_cq != NULL)) {
+    if ((is_server) && (server_pd != NULL)) {
         pd = server_pd;
     }
-    else if ((!is_server) && (client_qp != NULL)) {
+    else if ((!is_server) && (client_pd != NULL)) {
         pd = client_pd;
     }
     else{
