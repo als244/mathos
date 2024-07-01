@@ -14,9 +14,9 @@
 int main(int argc, char * argv[]){
 
 	int ret;
-
+	
 	// OPEN IB DEVICE CONTEXT. USE DEVICE 0 FOR TESTING
-	// Needed for initializing exchanges_client
+	// Needed for initializing exchange & exchanges_client PD, CQ, and QPs
 
 	int num_devices;
 	struct ibv_device ** devices = ibv_get_device_list(&num_devices);
@@ -40,7 +40,6 @@ int main(int argc, char * argv[]){
 
 
 
-
 	// 1.) Create Own Exchange 
 	printf("Initializing Exchange...\n");
 
@@ -59,7 +58,8 @@ int main(int argc, char * argv[]){
 	// really should be num_exchanges - 1
 	uint64_t max_clients = num_exchanges;
 
-	Exchange * exchange = init_exchange(exchange_id, start_val, end_val, max_bids, max_offers, max_futures, max_clients);
+
+	Exchange * exchange = init_exchange(exchange_id, start_val, end_val, max_bids, max_offers, max_futures, max_clients, ibv_dev_ctx);
 	if (exchange == NULL){
 		fprintf(stderr, "Error: could not initialize exchange\n");
 		return -1;

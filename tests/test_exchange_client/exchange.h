@@ -80,7 +80,7 @@ typedef struct exchange {
 // One bid/offer per fingerprint!!!
 
 
-Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers, uint64_t max_futures, uint64_t max_clients);
+Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers, uint64_t max_futures, uint64_t max_clients, struct ibv_context * ibv_ctx);
 
 int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * exchange_ip, uint64_t location_id, char * location_ip, char * server_port, uint16_t capacity_channels);
 

@@ -139,7 +139,7 @@ uint64_t exchange_hash_func_no_builtin(void * exchange_item, uint64_t table_size
 }
 
 
-Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers, uint64_t max_futures, uint64_t max_clients) {
+Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers, uint64_t max_futures, uint64_t max_clients, struct ibv_context * ibv_ctx) {
 
 	Exchange * exchange = (Exchange *) malloc(sizeof(Exchange));
 	if (exchange == NULL){
@@ -200,7 +200,84 @@ Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint
 
 	exchange -> clients = clients;
 
-	exchange -> exchange_qp = NULL;
+	// Setting up based on context of exchange
+	// Need to intialize PD, CQ, and QP here
+
+	// 1.) PD based on inputted configuration
+	struct ibv_pd * pd = ibv_alloc_pd(ibv_ctx);
+	if (pd == NULL) {
+		fprintf(stderr, "Error: could not allocate pd for exchanges_client\n");
+		return NULL;
+	}
+
+	// 2.) CQ based on inputted configuration
+	int num_cq_entries = 1U << 15;
+
+	/* "The pointer cq_context will be used to set user context pointer of the cq structure" */
+	
+	// SHOULD BE THE EXCHANGE_CLIENT COMPLETITION HANDLER 
+	void * cq_context = NULL;
+
+	struct ibv_cq_init_attr_ex cq_attr;
+	memset(&cq_attr, 0, sizeof(cq_attr));
+	cq_attr.cqe = num_cq_entries;
+	cq_attr.cq_context = cq_context;
+	
+	struct ibv_cq_ex * cq = ibv_create_cq_ex(ibv_ctx, &cq_attr);
+	if (cq == NULL){
+		fprintf(stderr, "Error: could not create cq for exchanges_client\n");
+		return NULL;
+	}
+
+	// 3.) NOW create QP
+	// SHOULD BE OF UD type but for now just saying RC for simplicity
+
+	// really should be RDMA_UD
+	RDMAConnectionType connection_type = RDMA_RC;
+	enum ibv_qp_type qp_type;
+	if (connection_type == RDMA_RC){
+		qp_type = IBV_QPT_RC;
+	}
+	if (connection_type == RDMA_UD){
+		qp_type = IBV_QPT_UD;
+	}
+	
+	struct ibv_qp_init_attr_ex qp_attr;
+	memset(&qp_attr, 0, sizeof(qp_attr));
+
+	qp_attr.pd = pd; // Setting Protection Domain
+	qp_attr.qp_type = qp_type; // Using Reliable-Connection
+	qp_attr.sq_sig_all = 1;       // if not set 0, all work requests submitted to SQ will always generate a Work Completion.
+	qp_attr.send_cq = ibv_cq_ex_to_cq(cq);         // completion queue can be shared or you can use distinct completion queues.
+	qp_attr.recv_cq = ibv_cq_ex_to_cq(cq);         // completion queue can be shared or you can use distinct completion queues.
+
+	// Device cap of 2^15 for each side of QP's outstanding work requests...
+	qp_attr.cap.max_send_wr = 1U << 15;  // increase if you want to keep more send work requests in the SQ.
+	qp_attr.cap.max_recv_wr = 1U << 15;  // increase if you want to keep more receive work requests in the RQ.
+	qp_attr.cap.max_send_sge = 1; // increase if you allow send work requests to have multiple scatter gather entry (SGE).
+	qp_attr.cap.max_recv_sge = 1; // increase if you allow receive work requests to have multiple scatter gather entry (SGE).
+	//qp_attr.cap.max_inline_data = 1000;
+	uint64_t send_ops_flags;
+	if (connection_type == RDMA_RC){
+		send_ops_flags = IBV_QP_EX_WITH_RDMA_WRITE | IBV_QP_EX_WITH_RDMA_READ | IBV_QP_EX_WITH_SEND |
+								IBV_QP_EX_WITH_ATOMIC_CMP_AND_SWP | IBV_QP_EX_WITH_ATOMIC_FETCH_AND_ADD;
+	}
+	// UD queue pairs can only do Sends, not RDMA or Atomics
+	else{
+		send_ops_flags = IBV_QP_EX_WITH_SEND;
+	}
+	qp_attr.send_ops_flags |= send_ops_flags;
+	qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
+
+	struct ibv_qp * qp = ibv_create_qp_ex(ibv_ctx, &qp_attr);
+	if (qp == NULL){
+		fprintf(stderr, "Error: could not create qp for exchanges_client\n");
+		return NULL;
+	}
+
+	exchange -> exchange_pd = pd;
+	exchange -> exchange_cq = cq;
+	exchange -> exchange_qp = qp;
 
 	return exchange;
 }
