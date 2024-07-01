@@ -259,7 +259,7 @@ int insert_item_get_index_table(Table * table, void * item, uint64_t * ret_index
 			table -> cnt += 1;
 			pthread_mutex_unlock(&(table -> cnt_lock));
 			pthread_mutex_unlock(&(slot_locks[table_ind]));
-			break;
+			return 0;
 		}
 		else{
 			pthread_mutex_unlock(&(slot_locks[table_ind]));
