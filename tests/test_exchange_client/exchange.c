@@ -709,10 +709,10 @@ int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * ex
 	if (exchange -> exchange_qp == NULL){
 		exchange -> exchange_qp = connection -> cm_id -> qp;
 	}
-	if (exchange -> exchange_cq = NULL){
+	if (exchange -> exchange_cq == NULL){
 		exchange -> exchange_cq = connection -> cq;
 	}
-	if (exchange -> exchange_pd = NULL){
+	if (exchange -> exchange_pd == NULL){
 		exchange -> exchange_pd = connection -> pd;
 	}
 
