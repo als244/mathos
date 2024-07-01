@@ -14,7 +14,7 @@
 int main(int argc, char * argv[]){
 
 	int ret;
-	
+
 	// OPEN IB DEVICE CONTEXT. USE DEVICE 0 FOR TESTING
 	// Needed for initializing exchange & exchanges_client PD, CQ, and QPs
 
@@ -113,6 +113,7 @@ int main(int argc, char * argv[]){
 	}
 
 	// 5.) Submit messages
+	printf("\n\nNow actually submiting orders...!\n");
 
 	uint8_t * example_fingerprint = (uint8_t *) malloc(FINGERPRINT_NUM_BYTES);
 	// for now assume that we will be sending to exchange 1 (in the upper half of 0xFFFF)
