@@ -82,6 +82,9 @@ typedef struct channel {
 	struct ibv_mr * mr;
 	// needed for posting requests!
 	struct ibv_qp * qp;
+	// needed for handling events
+	// this cq is almost certainly shared among many channels
+	struct ibv_cq_ex * cq;
 	bool is_inbound;
 	pthread_mutex_t cnt_lock;
 } Channel;
@@ -103,7 +106,7 @@ typedef struct channel {
 
 uint64_t encode_wr_id(uint64_t sender_id, uint64_t channel_count, MessageType message_type);
 
-Channel * init_channel(uint64_t self_id, uint64_t peer_id, uint16_t capacity, MessageType message_type, uint64_t message_size, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp);
+Channel * init_channel(uint64_t self_id, uint64_t peer_id, uint16_t capacity, MessageType message_type, uint64_t message_size, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp, struct ibv_cq_ex * cq);
 
 // For in channels
 int submit_in_channel_reservation(Channel * channel, uint64_t * ret_wr_id, uint64_t * ret_addr);

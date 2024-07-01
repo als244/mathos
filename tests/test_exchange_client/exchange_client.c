@@ -126,28 +126,33 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exch
 	uint64_t server_id, client_id;
 	char *server_ip, *client_ip;
 	struct ibv_qp *server_qp, *client_qp;
+	struct ibv_cq_ex *server_cq, *client_cq;
 	if (location_id < exchange_id){
 		is_server = 1;
 		server_id = location_id;
 		server_ip = location_ip;
 		server_qp = exchanges_client -> exchange_client_qp;
+		server_cq = exchanges_client -> exchange_client_cq;
 		client_id = exchange_id;
 		client_ip = exchange_ip;
 		client_qp = NULL;
+		client_cq = NULL;
 	}
 	else{
 		is_server = 0;
 		server_id = exchange_id;
 		server_ip = exchange_ip;
 		server_qp = NULL;
+		server_cq = NULL;
 		client_id = location_id;
 		client_ip = location_ip;
 		client_qp = exchanges_client -> exchange_client_qp;
+		client_cq = exchanges_client -> exchange_client_cq;
 	}
 
 	// if exchange_client_qp is null, then it will be created, otherwise connection will use that qp
-	ret = setup_connection(exchange_connection_type, is_server, server_id, server_ip, server_port, server_qp, 
-							client_id, client_ip, client_qp, &connection);
+	ret = setup_connection(exchange_connection_type, is_server, server_id, server_ip, server_port, server_qp, server_cq,
+							client_id, client_ip, client_qp, client_cq, &connection);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not setup exchange connection\n");
 		return -1;
@@ -157,6 +162,9 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exch
 	if (exchanges_client -> exchange_client_qp == NULL){
 		exchanges_client -> exchange_client_qp = connection -> cm_id -> qp;
 	}
+	if (exchanges_client -> exchange_client_cq == NULL){
+		exchanges_client -> exchange_client_cq = connection -> cq;
+	}
 
 
 	exchange_connection -> connection = connection;
@@ -164,11 +172,11 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exch
 	// now we need to allocate and register ring buffers to receive incoming orders
 	exchange_connection -> capacity_channels = capacity_channels;
 
-	exchange_connection -> out_bid_orders = init_channel(location_id, exchange_id, capacity_channels, BID_ORDER, sizeof(Bid_Order), false, false, connection -> pd, exchanges_client -> exchange_client_qp);
-	exchange_connection -> out_offer_orders = init_channel(location_id, exchange_id, capacity_channels, OFFER_ORDER, sizeof(Offer_Order), false, false, connection -> pd, exchanges_client -> exchange_client_qp);
-	exchange_connection -> out_future_orders = init_channel(location_id, exchange_id, capacity_channels, FUTURE_ORDER, sizeof(Future_Order), false, false, connection -> pd, exchanges_client -> exchange_client_qp);
+	exchange_connection -> out_bid_orders = init_channel(location_id, exchange_id, capacity_channels, BID_ORDER, sizeof(Bid_Order), false, false, connection -> pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
+	exchange_connection -> out_offer_orders = init_channel(location_id, exchange_id, capacity_channels, OFFER_ORDER, sizeof(Offer_Order), false, false, connection -> pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
+	exchange_connection -> out_future_orders = init_channel(location_id, exchange_id, capacity_channels, FUTURE_ORDER, sizeof(Future_Order), false, false, connection -> pd, exchanges_client -> exchange_client_qp , exchanges_client -> exchange_client_cq);
 	// setting is_recv to true, because we will be posting sends from this channel
-	exchange_connection -> in_bid_matches = init_channel(location_id, exchange_id, capacity_channels, BID_MATCH, sizeof(Bid_Match), true, false, connection -> pd, exchanges_client -> exchange_client_qp);
+	exchange_connection -> in_bid_matches = init_channel(location_id, exchange_id, capacity_channels, BID_MATCH, sizeof(Bid_Match), true, false, connection -> pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
 
 	if ((exchange_connection -> out_bid_orders == NULL) || (exchange_connection -> out_offer_orders == NULL) || 
 			(exchange_connection -> out_future_orders == NULL) || (exchange_connection -> in_bid_matches == NULL)){
@@ -254,6 +262,12 @@ int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_
 	*ret_bid_match_wr_id = bid_match_wr_id;
 
 	return 0;
+}
+
+int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_t * fingerprint, uint64_t * ret_bid_match_wr_id){
+
+	fprintf(stderr, "Error: SUBMIT_OFFER not implemented yet\n");
+	return -1;
 }
 
 

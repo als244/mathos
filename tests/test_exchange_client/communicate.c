@@ -12,7 +12,7 @@
 // returns id of new connection added to all_connections, -1 if error
 // If Passive side (server side) => connection_server is populated, and connection_client -> cm_id is rdma_accept
 // If active side (client side) => connection_server is NULL and connection_client -> cm_id is sent to rdma_connect
-int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_server, ConnectionClient * conn_client, struct ibv_qp * server_qp, struct ibv_qp * client_qp, struct rdma_conn_param * conn_params, Connection ** ret_connection){
+int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_server, ConnectionClient * conn_client, struct ibv_qp * server_qp, struct ibv_qp * client_qp, struct ibv_cq_ex *server_cq, struct ibv_cq_ex *client_cq, struct rdma_conn_param * conn_params, Connection ** ret_connection){
     
     int ret;
     
@@ -48,16 +48,25 @@ int init_connection(RDMAConnectionType connection_type, ConnectionServer * conn_
     connection -> pd = pd;
 
 
-    // 3.) Create Completition Queue
-    int num_cq_entries = 100;
-    /* "The pointer cq_context will be used to set user context pointer of the cq structure" */
-    void * cq_context = connection;
-    
-    struct ibv_cq_init_attr_ex cq_attr;
-    memset(&cq_attr, 0, sizeof(cq_attr));
-    cq_attr.cqe = num_cq_entries;
-    cq_attr.cq_context = cq_context;
-    struct ibv_cq_ex* cq =  ibv_create_cq_ex(verbs_context, &cq_attr);
+    // 3.) (Optionally Create Completition Queue
+    struct ibv_cq_ex* cq;
+    if ((is_server) && (server_cq != NULL)) {
+        cq = server_cq;
+    }
+    else if ((!is_server) && (client_qp != NULL)) {
+        cq = client_cq;
+    }
+    else {
+        int num_cq_entries = 1U << 15;
+        /* "The pointer cq_context will be used to set user context pointer of the cq structure" */
+        void * cq_context = connection;
+        
+        struct ibv_cq_init_attr_ex cq_attr;
+        memset(&cq_attr, 0, sizeof(cq_attr));
+        cq_attr.cqe = num_cq_entries;
+        cq_attr.cq_context = cq_context;
+        cq =  ibv_create_cq_ex(verbs_context, &cq_attr);
+    }
 
     connection -> cq = cq;
 
@@ -275,7 +284,7 @@ int establish_connection(Connection * connection, struct rdma_cm_event * event, 
 // AFTER SUCCESSFUL CONNECTION NEED TO SETUP MAILBOXES!
 // ASSUME THAT UPON CONNECTION SETUP THAT BOTH SIDES POST A RECEIVE WORK REQUEST THAT WILL TRANSFER MEMORY REGION DATA!
 int handle_connection_events(RDMAConnectionType connection_type, ConnectionServer * conn_server, ConnectionClient * conn_client, struct rdma_event_channel * channel, 
-                                struct ibv_qp * server_qp, struct ibv_qp * client_qp, Connection ** ret_connection){
+                                struct ibv_qp * server_qp, struct ibv_qp * client_qp,  struct ibv_cq_ex * server_cq, struct ibv_cq_ex * client_cq, Connection ** ret_connection){
     
     int ret;
     struct rdma_cm_event * event;
@@ -317,14 +326,14 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
                 // Active Side
                 // Here conn_server -> cm_id == NULL
                 printf("Saw route_resolved event\n");
-                ret = init_connection(connection_type, conn_server, conn_client, server_qp, client_qp, &conn_params, ret_connection);
+                ret = init_connection(connection_type, conn_server, conn_client, server_qp, client_qp, server_cq, client_cq, &conn_params, ret_connection);
                 break;
             case RDMA_CM_EVENT_CONNECT_REQUEST:
                 // Passive / Server side
 		        // Here conn_client -> cm_id is not-populated so ensure to do so
                 conn_client -> cm_id = event -> id;
                 printf("Saw connect_request event\n");
-                ret = init_connection(connection_type, conn_server, conn_client, server_qp, client_qp, &conn_params, ret_connection);
+                ret = init_connection(connection_type, conn_server, conn_client, server_qp, client_qp, server_cq, client_cq, &conn_params, ret_connection);
                 break;
             case RDMA_CM_EVENT_ESTABLISHED:
                 /* can start communication! Returning from this connection handling loop */
@@ -840,7 +849,7 @@ int register_dmabuf_memory(struct ibv_pd * pd, int fd, size_t size_bytes, uint64
 // BLOCKS UNTIL CONNECTION IS SET UP!
 // due to "handle_connection_events"
 int setup_connection(RDMAConnectionType connection_type, int is_server, uint64_t server_id, char * server_ip, char * server_port, struct ibv_qp * server_qp, 
-                        uint64_t client_id, char * client_ip, struct ibv_qp * client_qp, Connection ** ret_connection){
+                        struct ibv_cq_ex * server_cq, uint64_t client_id, char * client_ip, struct ibv_qp * client_qp, struct ibv_cq_ex * client_cq, Connection ** ret_connection){
 
     int ret;
 
@@ -954,7 +963,7 @@ int setup_connection(RDMAConnectionType connection_type, int is_server, uint64_t
     // Responsible for initiatizating connections
     // Upon connection creation post a receive work request from the other side's id to retrieve their mailbox mr info
 
-    ret = handle_connection_events(connection_type, conn_server, conn_client, channel, server_qp, client_qp, ret_connection);
+    ret = handle_connection_events(connection_type, conn_server, conn_client, channel, server_qp, client_qp, server_cq, client_cq, ret_connection);
     if (ret != 0){
         fprintf(stderr, "Error, could not handle connection events, exiting...\n");
         return -1;

@@ -89,8 +89,9 @@ int main(int argc, char * argv[]){
 	// 5.) Submit messages
 
 	uint8_t * example_fingerprint = (uint8_t *) malloc(FINGERPRINT_NUM_BYTES);
+	// for now assume that we will be sending to exchange 1 (in the upper half of 0xFFFF)
 	for (int i = 0; i < FINGERPRINT_NUM_BYTES; i++){
-		example_fingerprint[i] = (uint8_t) i;
+		example_fingerprint[i] = (uint8_t) 255;
 	}
 
 	uint64_t bid_match_wr_id;

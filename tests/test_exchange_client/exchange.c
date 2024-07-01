@@ -592,28 +592,33 @@ int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * ex
 	uint64_t server_id, client_id;
 	char *server_ip, *client_ip;
 	struct ibv_qp *server_qp, *client_qp;
+	struct ibv_cq_ex *server_cq, *client_cq;
 	if (location_id < exchange_id){
 		is_server = 0;
 		server_id = location_id;
 		server_ip = location_ip;
 		server_qp = NULL;
+		server_cq = NULL;
 		client_id = exchange_id;
 		client_ip = exchange_ip;
 		client_qp = exchange -> exchange_qp;
+		client_cq = exchange -> exchange_cq;
 	}
 	else{
 		is_server = 1;
 		server_id = exchange_id;
 		server_ip = exchange_ip;
 		server_qp = exchange -> exchange_qp;
+		server_cq = exchange -> exchange_cq;
 		client_id = location_id;
 		client_ip = location_ip;
 		client_qp = NULL;
+		client_cq = NULL;
 	}
 
 	// if exchange_qp is null, then it will be created, otherwise connection will use that qp
-	ret = setup_connection(exchange_connection_type, is_server, server_id, server_ip, server_port, server_qp, 
-							client_id, client_ip, client_qp, &connection);
+	ret = setup_connection(exchange_connection_type, is_server, server_id, server_ip, server_port, server_qp, server_cq,
+							client_id, client_ip, client_qp, client_cq, &connection);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not setup exchange connection\n");
 		return -1;
@@ -623,6 +628,9 @@ int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * ex
 	if (exchange -> exchange_qp == NULL){
 		exchange -> exchange_qp = connection -> cm_id -> qp;
 	}
+	if (exchange -> exchange_cq = NULL){
+		exchange -> exchange_cq = connection -> cq;
+	}
 
 
 	client_connection -> connection = connection;
@@ -631,11 +639,11 @@ int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * ex
 	// now we need to allocate and register ring buffers to receive incoming orders
 	client_connection -> capacity_channels = capacity_channels;
 
-	client_connection -> in_bid_orders = init_channel(exchange_id, location_id, capacity_channels, BID_ORDER, sizeof(Bid_Order), true, true, connection -> pd, exchange -> exchange_qp);
-	client_connection -> in_offer_orders = init_channel(exchange_id, location_id, capacity_channels, OFFER_ORDER, sizeof(Offer_Order), true, true, connection -> pd, exchange -> exchange_qp);
-	client_connection -> in_future_orders = init_channel(exchange_id, location_id, capacity_channels, FUTURE_ORDER, sizeof(Future_Order), true, true, connection -> pd, exchange -> exchange_qp);
+	client_connection -> in_bid_orders = init_channel(exchange_id, location_id, capacity_channels, BID_ORDER, sizeof(Bid_Order), true, true, connection -> pd, exchange -> exchange_qp, exchange -> exchange_cq);
+	client_connection -> in_offer_orders = init_channel(exchange_id, location_id, capacity_channels, OFFER_ORDER, sizeof(Offer_Order), true, true, connection -> pd, exchange -> exchange_qp, exchange -> exchange_cq);
+	client_connection -> in_future_orders = init_channel(exchange_id, location_id, capacity_channels, FUTURE_ORDER, sizeof(Future_Order), true, true, connection -> pd, exchange -> exchange_qp, exchange -> exchange_cq);
 	// setting is_recv to false, because we will be posting sends from this channel
-	client_connection -> out_bid_matches = init_channel(exchange_id, location_id, capacity_channels, BID_MATCH, sizeof(Bid_Match), false, false, connection -> pd, exchange -> exchange_qp);
+	client_connection -> out_bid_matches = init_channel(exchange_id, location_id, capacity_channels, BID_MATCH, sizeof(Bid_Match), false, false, connection -> pd, exchange -> exchange_qp, exchange -> exchange_cq);
 
 	if ((client_connection -> in_bid_orders == NULL) || (client_connection -> in_offer_orders == NULL) || 
 			(client_connection -> in_future_orders == NULL) || (client_connection -> out_bid_matches == NULL)){

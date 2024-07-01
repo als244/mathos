@@ -104,7 +104,7 @@ typedef struct connection_server {
 
 // returns id of new connection added to all_connections, -1 if error
 int setup_connection(RDMAConnectionType connection_type, int is_server, uint64_t server_id, char * server_ip, char * server_port, struct ibv_qp * server_qp, 
-							uint64_t client_id, char * client_ip, struct ibv_qp * client_qp, Connection ** ret_connection);
+							struct ibv_cq_ex * server_cq, uint64_t client_id, char * client_ip, struct ibv_qp * client_qp, struct ibv_cq_ex * client_cq, Connection ** ret_connection);
 
 int register_virt_memory(struct ibv_pd * pd, void * addr, size_t size_bytes, struct ibv_mr ** ret_mr);
 int register_dmabuf_memory(struct ibv_pd * pd, int fd, size_t size_bytes, uint64_t offset, uint64_t iova, struct ibv_mr ** ret_mr);

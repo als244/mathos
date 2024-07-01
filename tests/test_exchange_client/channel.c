@@ -30,7 +30,7 @@ uint64_t channel_item_hash_func(void * channel_item, uint64_t table_size) {
 
 
 
-Channel * init_channel(uint64_t self_id, uint64_t peer_id, uint16_t capacity, MessageType message_type, uint64_t message_size, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp) {
+Channel * init_channel(uint64_t self_id, uint64_t peer_id, uint16_t capacity, MessageType message_type, uint64_t message_size, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp, struct ibv_cq_ex * cq) {
 
 	Channel * channel = (Channel *) malloc(sizeof(Channel));
 	if (channel == NULL){
@@ -46,6 +46,7 @@ Channel * init_channel(uint64_t self_id, uint64_t peer_id, uint16_t capacity, Me
 	channel -> is_inbound = is_inbound;
 	channel -> pd = pd;
 	channel -> qp = qp;
+	channel -> cq = cq;
 
 	uint64_t min_size = capacity;
 	uint64_t max_size = capacity;
