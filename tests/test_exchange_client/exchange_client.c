@@ -93,7 +93,7 @@ Exchange_Connection * init_self_connection(Exchange * exchange, Exchanges_Client
 
 
 
-Exchanges_Client * init_exchanges_client(uint64_t max_exchanges, uint64_t max_outstanding_bids, uint64_t self_exchange_id, Exchange * self_exchange, struct ibv_context * ibv_ctx) {
+Exchanges_Client * init_exchanges_client(uint64_t num_exchanges, uint64_t max_exchanges, uint64_t max_outstanding_bids, uint64_t self_exchange_id, Exchange * self_exchange, struct ibv_context * ibv_ctx) {
 
 	Exchanges_Client * exchanges_client = (Exchanges_Client *) malloc(sizeof(Exchanges_Client));
 	if (exchanges_client == NULL){
@@ -102,7 +102,7 @@ Exchanges_Client * init_exchanges_client(uint64_t max_exchanges, uint64_t max_ou
 	}
 
 	// eventually will grow such that num_exchanges == max_exchanges
-	exchanges_client -> num_exchanges = 0;
+	exchanges_client -> num_exchanges = num_exchanges;
 	exchanges_client -> max_exchanges = max_exchanges;
 	exchanges_client -> max_outstanding_bids = max_outstanding_bids;
 

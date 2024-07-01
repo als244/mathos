@@ -68,9 +68,9 @@ int main(int argc, char * argv[]){
 
 	// 2.) Initialize Own Exchanges_Client
 	printf("Initializing Exchanges Client...\n\n");
-	uint64_t max_exchanges = 1;
 	uint64_t max_outstanding_bids = 1UL << 12;
-	Exchanges_Client * exchanges_client = init_exchanges_client(max_exchanges, max_outstanding_bids, exchange_id, exchange, ibv_dev_ctx);
+	uint64_t max_exchanges = num_exchanges;
+	Exchanges_Client * exchanges_client = init_exchanges_client(num_exchanges, max_exchanges, max_outstanding_bids, exchange_id, exchange, ibv_dev_ctx);
 	if (exchanges_client == NULL){
 		fprintf(stderr, "Error: could not initialize exchanges client\n");
 		return -1;
