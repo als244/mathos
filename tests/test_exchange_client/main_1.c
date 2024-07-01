@@ -88,7 +88,13 @@ int main(int argc, char * argv[]){
 
 	// 5.) Submit messages
 
-	printf("SUCCESS!!!\n\n");
+	// TODO
+
+	// 6.) SHOULD BE POLLING TO ACTUALLY CONFIRM HANDLING!
+
+
+
+	printf("\n\nSUCCESS!!!\n\n");
 
 	return 0;
 

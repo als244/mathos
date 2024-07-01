@@ -145,11 +145,17 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exch
 		client_qp = exchanges_client -> exchange_client_qp;
 	}
 
+	// if exchange_client_qp is null, then it will be created, otherwise connection will use that qp
 	ret = setup_connection(exchange_connection_type, is_server, server_id, server_ip, server_port, server_qp, 
 							client_id, client_ip, client_qp, &connection);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not setup exchange connection\n");
 		return -1;
+	}
+
+	// set exchange_client_qp if null
+	if (exchanges_client -> exchange_client_qp == NULL){
+		exchanges_client -> exchange_client_qp = connection -> cm_id -> qp;
 	}
 
 
@@ -158,11 +164,11 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exch
 	// now we need to allocate and register ring buffers to receive incoming orders
 	exchange_connection -> capacity_channels = capacity_channels;
 
-	exchange_connection -> out_bid_orders = init_channel(location_id, exchange_id, capacity_channels, BID_ORDER, sizeof(Bid_Order), false, connection -> pd, exchanges_client -> exchange_client_qp);
-	exchange_connection -> out_offer_orders = init_channel(location_id, exchange_id, capacity_channels, OFFER_ORDER, sizeof(Offer_Order), false, connection -> pd, exchanges_client -> exchange_client_qp);
-	exchange_connection -> out_future_orders = init_channel(location_id, exchange_id, capacity_channels, FUTURE_ORDER, sizeof(Future_Order), false, connection -> pd, exchanges_client -> exchange_client_qp);
+	exchange_connection -> out_bid_orders = init_channel(location_id, exchange_id, capacity_channels, BID_ORDER, sizeof(Bid_Order), false, false, connection -> pd, exchanges_client -> exchange_client_qp);
+	exchange_connection -> out_offer_orders = init_channel(location_id, exchange_id, capacity_channels, OFFER_ORDER, sizeof(Offer_Order), false, false, connection -> pd, exchanges_client -> exchange_client_qp);
+	exchange_connection -> out_future_orders = init_channel(location_id, exchange_id, capacity_channels, FUTURE_ORDER, sizeof(Future_Order), false, false, connection -> pd, exchanges_client -> exchange_client_qp);
 	// setting is_recv to true, because we will be posting sends from this channel
-	exchange_connection -> in_bid_matches = init_channel(location_id, exchange_id, capacity_channels, BID_MATCH, sizeof(Bid_Match), true, connection -> pd, exchanges_client -> exchange_client_qp);
+	exchange_connection -> in_bid_matches = init_channel(location_id, exchange_id, capacity_channels, BID_MATCH, sizeof(Bid_Match), true, false, connection -> pd, exchanges_client -> exchange_client_qp);
 
 	if ((exchange_connection -> out_bid_orders == NULL) || (exchange_connection -> out_offer_orders == NULL) || 
 			(exchange_connection -> out_future_orders == NULL) || (exchange_connection -> in_bid_matches == NULL)){
@@ -182,3 +188,72 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exch
 	return 0;
 
 }
+
+
+int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_t * fingerprint, uint64_t * ret_bid_match_wr_id) {
+
+	int ret;
+
+	// 1.) Determine what exchange connection to use
+	//		- for now equally partitioning across number of exchanges the lower 64 bits of fingerprint
+	uint64_t num_exchanges = exchanges_client -> num_exchanges;
+	uint64_t least_sig64 = fingerprint_to_least_sig64(fingerprint, FINGERPRINT_NUM_BYTES);
+	uint64_t dest_exchange_id = least_sig64 % num_exchanges;
+	Exchange_Connection target_exch;
+	target_exch.exchange_id = dest_exchange_id;
+
+	// FOR NOW HARDCODING TO BE 1
+	target_exch.exchange_id = 1;
+
+	Exchange_Connection * dest_exchange_connection = find_item_table(exchanges_client -> exchanges, &target_exch);
+	
+	// HANDLE SPECIAL CASE OF SELF HERE...
+
+	if (dest_exchange_connection == NULL){
+		fprintf(stderr, "Error: could not find target exchange connection with id: %lu\n", dest_exchange_id);
+		return -1;
+	}
+
+
+	// 2.) Ensure that we would be able to receive a response, by submitting item to in channel
+	Channel * in_bid_matches = dest_exchange_connection -> in_bid_matches;
+	uint64_t bid_match_wr_id;
+	uint64_t bid_match_addr;
+	ret = submit_in_channel_reservation(in_bid_matches, &bid_match_wr_id, &bid_match_addr);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not submit inbound channel reservation for bid match\n");
+		return -1;
+	}
+
+	// 3.) Now we can populate our bid_order telling the exchange the wr_id to send when it finds match
+
+	Bid_Order bid_order;
+
+	// copy the fingerprint to this bid order
+	memcpy(bid_order.fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
+
+	bid_order.location_id = location_id;
+	bid_order.wr_id = bid_match_wr_id;
+
+
+	// 4.) We can submit this bid order message now
+	Channel * out_bid_orders = dest_exchange_connection -> out_bid_orders;
+	uint64_t bid_order_wr_id;
+	uint64_t bid_order_addr;
+	ret = submit_out_channel_message(out_bid_orders, &bid_order, &bid_order_wr_id, &bid_order_addr);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not submit out channel message with bid order\n");
+		return -1;
+	}
+
+
+	// TODO?.) Do we need to add to the outstanding bids table?
+	//	   Or are the channels already taking care of that?
+	//		We can mark this bid (by wr_id) as outstanding
+
+	*ret_bid_match_wr_id = bid_match_wr_id;
+
+	return 0;
+}
+
+

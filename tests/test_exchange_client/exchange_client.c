@@ -202,7 +202,13 @@ int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_
 	Exchange_Connection target_exch;
 	target_exch.exchange_id = dest_exchange_id;
 
+	// FOR NOW HARDCODING TO BE 1
+	target_exch.exchange_id = 1;
+
 	Exchange_Connection * dest_exchange_connection = find_item_table(exchanges_client -> exchanges, &target_exch);
+	
+	// HANDLE SPECIAL CASE OF SELF HERE...
+
 	if (dest_exchange_connection == NULL){
 		fprintf(stderr, "Error: could not find target exchange connection with id: %lu\n", dest_exchange_id);
 		return -1;

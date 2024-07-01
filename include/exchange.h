@@ -4,7 +4,6 @@
 #include "common.h"
 #include "table.h"
 #include "deque.h"
-#include "ring_buffer.h"
 #include "fingerprint.h"
 #include "communicate.h"
 #include "channel.h"

@@ -39,6 +39,7 @@ typedef struct Exchanges_Client {
 	// not sure what this might be needed for yet...
 	pthread_mutex_t exchanges_client_lock;
 	// initialized upon first connection and then reused to connect to other exchanges
+	// may want to shard across a few...
 	struct ibv_qp * exchange_client_qp;
 } Exchanges_Client;
 
@@ -50,6 +51,6 @@ Exchanges_Client * init_exchanges_client(uint64_t max_exchanges, uint64_t max_ou
 // always saying that smaller id will be the server
 int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exchange_id, char * exchange_ip, uint64_t location_id, char * location_ip, char * server_port, uint16_t capacity_channels);
 
-
+int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_t * fingerprint, uint64_t * ret_bid_match_wr_id);
 
 #endif
