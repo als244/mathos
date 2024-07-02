@@ -68,6 +68,6 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exch
 int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_t * fingerprint, uint64_t data_bytes, uint64_t * ret_bid_match_wr_id, uint64_t * dest_exchange_id);
 
 // The last 2 arguments are optional 
-int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_t * fingerprint, uint64_t data_bytes, uint64_t * ret_bid_match_wr_id, uint64_t * dest_exchange_id);
+int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_t * fingerprint, uint64_t data_bytes, uint64_t * ret_offer_resp_wr_id, uint64_t * dest_exchange_id);
 
 #endif

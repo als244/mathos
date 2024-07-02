@@ -344,8 +344,6 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exch
 		return -1;
 	}
 
-	exchanges_client -> num_exchanges += 1;
-
 	return 0;
 
 }
@@ -441,10 +439,84 @@ int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_
 }
 
 // For now having 
-int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_t * fingerprint, uint64_t data_bytes, uint64_t * ret_bid_match_wr_id, uint64_t * dest_exchange_id){
+int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_t * fingerprint, uint64_t data_bytes, uint64_t * ret_offer_resp_wr_id, uint64_t * dest_exchange_id){
 
-	fprintf(stderr, "Unimplemented Error: SUBMIT_OFFER\n");
-	return -1;
+	int ret;
+
+	// 1.) Determine what exchange connection to use
+	//		- for now equally partitioning across number of exchanges the lower 64 bits of fingerprint
+	
+	uint64_t self_exchange_id = exchanges_client -> self_exchange_id;
+
+	// -a.) Optionally specifiy the target exchange or use default search method
+	uint64_t target_exchange_id;
+	if (dest_exchange_id != NULL){
+		target_exchange_id = *dest_exchange_id;
+	}
+	else{
+		uint64_t num_exchanges = exchanges_client -> num_exchanges;
+		uint64_t least_sig64 = fingerprint_to_least_sig64(fingerprint, FINGERPRINT_NUM_BYTES);
+		target_exchange_id = least_sig64 % num_exchanges;
+	}
+
+	// b.) Either use self-connection or lookup in table
+	Exchange_Connection * target_exchange_connection;
+	if (target_exchange_id == self_exchange_id){
+		target_exchange_connection = exchanges_client -> self_exchange_connection;
+	}
+	else {
+		Exchange_Connection target_exch;
+		target_exch.exchange_id = target_exchange_id;
+		Exchange_Connection * dest_exchange_connection = find_item_table(exchanges_client -> exchanges, &target_exch);
+		if (dest_exchange_connection == NULL){
+			fprintf(stderr, "Error: could not find destination exchange connection with id: %lu\n", target_exchange_id);
+		}
+		target_exchange_connection =  dest_exchange_connection;
+	}
+	
+
+	// 2.) Ensure that we would be able to receive a response, by submitting item to in channel
+	//	   Posts receive item 
+	// SHOULD MAKE AN OFFER RESPONSE (As an ack)
+	//	- TODO
+	uint64_t offer_resp_wr_id = 0;
+
+	// 3.) Now we can populate our offre_order telling the exchange the wr_id to send when it finds match
+	// 		- If self, then just call the post_bid function directly
+	if (target_exchange_id == self_exchange_id){
+		Exchange * exchange = exchanges_client -> self_exchange;
+		ret = post_offer(exchange, fingerprint, data_bytes, location_id);
+		if (ret != 0){
+			fprintf(stderr, "Error: could not post offer to self-exchange\n");
+		}
+	}
+
+	else{
+		Offer_Order offer_order;
+
+		// copy the fingerprint to this bid order
+		memcpy(offer_order.fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
+
+		offer_order.location_id = location_id;
+
+		// 4.) We can submit this bid order message now
+		Channel * out_offer_orders = target_exchange_connection -> out_offer_orders;
+		uint64_t offer_order_wr_id;
+		uint64_t offer_order_addr;
+		ret = submit_out_channel_message(out_offer_orders, &offer_order, &offer_order_wr_id, &offer_order_addr);
+		if (ret != 0){
+			fprintf(stderr, "Error: could not submit out channel message with bid order\n");
+			return -1;
+		}
+	}
+
+	// TODO?.) Do we need to add to the outstanding bids table?
+		//	   Or are the channels already taking care of that?
+		//		We can mark this bid (by wr_id) as outstanding
+
+	if (ret_offer_resp_wr_id != NULL){
+		*ret_offer_resp_wr_id = offer_resp_wr_id;
+	}
 }
 
 
