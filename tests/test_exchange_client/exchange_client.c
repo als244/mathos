@@ -187,15 +187,17 @@ void * exchange_client_completition_handler(void * _thread_data){
         // other fields as well...
         if (seen_new_completition){
 
+        	message_type = decode_wr_id(wr_id, &sender_id);
+
         	/* DO SOMETHING WITH wr_id! */
-            printf("Saw completion of wr_id = %ld\n\tStatus: %d\n", wr_id, status);
+            printf("Saw completion of wr_id = %ld (Sender_ID = %lu, MessageType = %d)\n\tStatus: %d\n\n", wr_id, sender_id, message_type, status);
 
             if (status != IBV_WC_SUCCESS){
                 fprintf(stderr, "Error: work request id %ld had error\n", wr_id);
                 // DO ERROR HANDLING HERE!
             }
 
-        	message_type = decode_wr_id(wr_id, &sender_id);
+        	
         	// for now can ignore the send completitions
         	// eventually need to have an ack in place and also
         	// need to remove the send data from channel's buffer table
