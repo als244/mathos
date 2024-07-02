@@ -242,9 +242,6 @@ int handle_order(Exchange * exchange, Client_Connection * client_connection, uin
 		return -1;
 	}
 
-	printf("Successfully posted order for fingerprint: ");
-	print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
-
 	return 0;
 }
 
@@ -712,12 +709,6 @@ int post_bid(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, ui
 	if (found_offer){
 		Deque * offer_participants = found_offer -> participants;
 		int num_participants = offer_participants -> cnt;
-
-		// FOR NOW: CRUDELY SIMULATING DOING RDMA TRANSFERS
-		// BIG TODO!!!
-		printf("Found %d participants with offers for fingerprint: ", num_participants);
-		print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
-		printf("Would be posting sends (& reading from) any of:\n");
 		Deque_Item * cur_item = offer_participants -> head;
 		Offer_Participant * offer_participant;
 		uint64_t offer_location_id;
@@ -828,10 +819,6 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, 
 	if (found_bid){
 		Deque * bid_participants = found_bid -> participants;
 		int num_participants = bid_participants -> cnt;
-
-		printf("Found %d participants with bids for fingerprint: ", num_participants);
-		print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
-		printf("Would be posting sends to all of:\n"); 
 		void * bid_participant;
 		uint64_t bid_location_id;
 		uint64_t bid_match_wr_id;
