@@ -34,6 +34,7 @@ typedef enum message_type {
 
 typedef struct bid_order {
 	uint64_t location_id;
+	uint64_t data_bytes;
 	// for BIDs upon a match
 	uint64_t wr_id;
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
@@ -41,11 +42,13 @@ typedef struct bid_order {
 
 typedef struct offer_order {
 	uint64_t location_id;
+	uint64_t data_bytes;
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
 } Offer_Order;
 
 typedef struct future_order {
 	uint64_t location_id;
+	uint64_t data_bytes;
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
 } Future_Order;
 

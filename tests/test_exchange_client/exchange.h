@@ -74,7 +74,14 @@ typedef struct exchange {
 	struct ibv_qp * exchange_qp;
 	// initialized upon first connection and then resused with other clients
 	struct ibv_cq_ex * exchange_cq;
+	// number of completion threads should equal number of CQs, likely equal number of QPs...
+	pthread_t * completion_threads;
 } Exchange;
+
+typedef struct exchange_completition {
+	uint64_t completition_thread_id;
+	Exchange * exchange;
+} Exchange_Completition;
 
 
 // One bid/offer per fingerprint!!!

@@ -138,6 +138,199 @@ uint64_t exchange_hash_func_no_builtin(void * exchange_item, uint64_t table_size
 	return hash_ind;
 }
 
+int handle_order(Exchange * exchange, Client_Connection * client_connection, uint64_t order_wr_id, ExchangeItemType order_type){
+
+	int ret;
+
+	Channel * in_channel;
+	uint64_t channel_item_id = order_wr_id;
+	void * client_order;
+	switch(order_type){
+		case BID_ITEM:
+			in_channel = client_connection -> in_bid_orders;
+			Bid_Order bid_order;
+			client_order = &bid_order;
+			break;
+		case OFFER_ITEM:
+			in_channel = client_connection -> in_offer_orders;
+			Offer_Order offer_order;
+			client_order = &offer_order;
+			break;
+		case FUTURE_ITEM:
+			in_channel = client_connection -> in_future_orders;
+			Future_Order future_order;
+			client_order = &future_order;
+			break;
+	}
+		
+	// ensure to post a new receive (reservation within in-channel) now that we have consumed one
+	// Populate client item
+	ret = extract_channel_item(in_channel, channel_item_id, true, client_order);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not extract order from channel when handling\n");
+		return -1;
+	}
+
+
+
+	// actually send item to exchange
+	uint8_t * fingerprint;
+	switch(order_type) {
+		case BID_ITEM:
+			fingerprint = ((Bid_Order *) client_order) -> fingerprint;
+			ret = post_bid(exchange, fingerprint, ((Bid_Order *) client_order) -> data_bytes, 
+							((Bid_Order *) client_order) -> location_id, ((Bid_Order *) client_order) -> wr_id);
+			break;
+		case OFFER_ITEM:
+			fingerprint = ((Offer_Order *) client_order) -> fingerprint;
+			ret = post_offer(exchange, fingerprint, ((Offer_Order *) client_order) -> data_bytes, 
+							((Offer_Order *) client_order) -> location_id);
+			break;
+		case FUTURE_ITEM:
+			fingerprint = ((Future_Order *) client_order) -> fingerprint;
+			ret = post_offer(exchange, fingerprint, ((Future_Order *) client_order) -> data_bytes, 
+							((Future_Order *) client_order) -> location_id);
+			break;
+		default:
+			fprintf(stderr, "Error: order type not supported\n");
+			return -1;
+	}
+
+	if (ret != 0){
+		fprintf(stderr, "Error: unsuccessful in posting order\n");
+		return -1;
+	}
+
+	printf("Successfully posted order for fingerprint: ");
+	print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
+
+	return 0;
+}
+
+// For now only care about receive completitions (aka sender != self) ...
+void * exchange_completition_handler(void * _thread_data){
+
+	int ret;
+
+	Exchange_Completition * completition_handler_data = (Exchange_Completition *) _thread_data;
+
+	uint64_t completition_thread_id = completition_handler_data -> completition_thread_id;
+	Exchange * exchange = completition_handler_data -> exchange;
+
+
+	// really should look up based on completition_thread_id
+	struct ibv_cq_ex * cq = exchange -> exchange_cq;
+
+    struct ibv_poll_cq_attr poll_qp_attr = {};
+    ret = ibv_start_poll(cq, &poll_qp_attr);
+
+    // If Error after start, do not call "end_poll"
+    if ((ret != 0) && (ret != ENOENT)){
+        fprintf(stderr, "Error: could not start poll for completition queue\n");
+        return NULL;
+    }
+
+    // if ret = 0, then ibv_start_poll already consumed an item
+    int seen_new_completition;
+    int is_done = 0;
+    
+    enum ibv_wc_status status;
+    uint64_t wr_id;
+
+    MessageType message_type;
+    uint64_t sender_id;
+
+    uint64_t self_id = exchange -> id;
+
+    
+    Client_Connection * client_connection;
+
+    // used for looking up exchange connections needed to get to channel buffer
+    Table * client_conn_table = exchange -> clients;
+    Client_Connection target_client_conn;
+
+    int handle_ret;
+
+    // For now, infinite loop
+    while (!is_done){
+        // return is 0 if a new item was cosumed, otherwise it equals ENOENT
+        if (ret == 0){
+            seen_new_completition = 1;
+        }
+        else{
+            seen_new_completition = 0;
+        }
+        
+        // Consume the completed work request
+        wr_id = cq -> wr_id;
+        status = cq -> status;
+        // other fields as well...
+        if (seen_new_completition){
+
+        	message_type = decode_wr_id(wr_id, &sender_id);
+
+        	/* DO SOMETHING WITH wr_id! */
+            printf("Saw completion of wr_id = %ld (Sender_ID = %lu, MessageType = %s)\n\tStatus: %d\n\n", wr_id, sender_id, message_type_to_str(message_type), status);
+
+            if (status != IBV_WC_SUCCESS){
+                fprintf(stderr, "Error: work request id %ld had error\n", wr_id);
+                // DO ERROR HANDLING HERE!
+            }
+
+        	
+        	// for now can ignore the send completitions
+        	// eventually need to have an ack in place and also
+        	// need to remove the send data from channel's buffer table
+        	if (sender_id != self_id){
+
+        		// lookup the connection based on sender id
+
+        		target_client_conn.location_id = sender_id;
+
+        		client_connection = find_item_table(client_conn_table, &target_client_conn);
+        		if (client_connection != NULL){
+	        		// MAY WANT TO HAVE SEPERATE THREADS FOR PROCESSING THE WORK DO BE DONE...
+		        	switch(message_type){
+		        		case BID_ORDER:
+		        			handle_ret = handle_order(exchange, client_connection, wr_id, BID_ITEM);
+		        			break;
+		        		case OFFER_ORDER:
+		        			handle_ret = handle_order(exchange, client_connection, wr_id, OFFER_ITEM);
+		        			break;
+		        		case FUTURE_ORDER:
+		        			handle_ret = handle_order(exchange, client_connection, wr_id, FUTURE_ITEM);
+		        			break;
+		        		default:
+		        			fprintf(stderr, "Error: unsupported exchanges client handler message type of: %d\n", message_type);
+		        			break;
+		        	}
+		        	if (handle_ret != 0){
+		        		fprintf(stderr, "Error: exchanges client handler had an error\n");
+		        	}
+		        }
+	        	else{
+	        		fprintf(stderr, "Error: within completition handler, could not find exchange connection with id: %lu\n", sender_id);
+	        	}
+	        }
+        }
+
+        // Check for next completed work request...
+        ret = ibv_next_poll(cq);
+
+        if ((ret != 0) && (ret != ENOENT)){
+            // If Error after next, call "end_poll"
+            ibv_end_poll(cq);
+            fprintf(stderr, "Error: could not do next poll for completition queue\n");
+            return NULL;
+        }
+    }
+
+    // should never get here...
+    ibv_end_poll(cq);
+
+    return NULL;
+}
+
 
 Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers, uint64_t max_futures, uint64_t max_clients, struct ibv_context * ibv_ctx) {
 
@@ -278,6 +471,31 @@ Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint
 	exchange -> exchange_pd = pd;
 	exchange -> exchange_cq = cq;
 	exchange -> exchange_qp = qp;
+
+	// INITIALIZE COMPLETITION QUEUE HANDLER THREADS
+
+	// num threads should equal number of CQs
+	int num_threads = 1;
+	Exchange_Completition * handler_thread_data = malloc(num_threads * sizeof(Exchange_Completition));
+	if (handler_thread_data == NULL){
+		fprintf(stderr, "Error: malloc failed allocating handler thread data\n");
+		return NULL;
+	}
+
+	pthread_t * completion_threads = (pthread_t *) malloc(num_threads * sizeof(pthread_t));
+	if (completion_threads == NULL){
+		fprintf(stderr, "Error: malloc failed allocating pthreads for completition handlers\n");
+		return NULL;
+	}
+
+	exchange -> completion_threads = completion_threads;
+
+	for (int i = 0; i < num_threads; i++){
+		handler_thread_data[i].completition_thread_id = i;
+		handler_thread_data[i].exchange = exchange;
+		// start the completion thread
+		pthread_create(&completion_threads[i], NULL, exchange_completition_handler, (void *) &handler_thread_data[i]);
+	}
 
 	return exchange;
 }

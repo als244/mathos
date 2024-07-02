@@ -225,11 +225,7 @@ void * exchange_client_completition_handler(void * _thread_data){
 	        	else{
 	        		fprintf(stderr, "Error: within completition handler, could not find exchange connection with id: %lu\n", sender_id);
 	        	}
-
-
-
-	        }
-            
+	        }   
         }
 
         // Check for next completed work request...
@@ -243,6 +239,7 @@ void * exchange_client_completition_handler(void * _thread_data){
         }
     }
 
+    // should never get here...
     ibv_end_poll(cq);
 
     return NULL;
@@ -600,6 +597,7 @@ int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_
 		memcpy(bid_order.fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
 
 		bid_order.location_id = location_id;
+		bid_order.data_bytes = data_bytes;
 		bid_order.wr_id = bid_match_wr_id;
 
 		// 4.) We can submit this bid order message now
@@ -692,6 +690,7 @@ int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint
 		memcpy(offer_order.fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
 
 		offer_order.location_id = location_id;
+		offer_order.data_bytes = data_bytes;
 
 		// 4.) We can submit this bid order message now
 		Channel * out_offer_orders = target_exchange_connection -> out_offer_orders;
