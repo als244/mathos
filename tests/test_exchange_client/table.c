@@ -399,7 +399,7 @@ int remove_item_at_index_table(Table * table, void * item, uint64_t index){
 	// acquire lock and confirm correct item
 	pthread_mutex_lock(&(table -> cnt_lock));
 	pthread_mutex_lock(&(slot_locks[index]));
-	if ((tab[index] == NULL) || ((table -> item_cmp)(item, tab[index]) == 0)){
+	if ((tab[index] == NULL) || ((table -> item_cmp)(item, tab[index]) != 0)){
 		fprintf(stderr, "Error: trying to remove at an index that doesn't contain correct item\n");
 		pthread_mutex_unlock(&(slot_locks[index]));
 		pthread_mutex_unlock(&(table -> cnt_lock));
