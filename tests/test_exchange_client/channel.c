@@ -166,7 +166,9 @@ int submit_in_channel_reservation(Channel * channel, uint64_t * ret_wr_id, uint6
 	return 0;
 }
 
-int submit_out_channel_message(Channel * channel, void * message, uint64_t * ret_wr_id, uint64_t * ret_addr) {
+// either send with a specified wr_id, or generate one based on protocol. 
+// optionally returned the wr_id used for sending and the addr of item within channel buffer
+int submit_out_channel_message(Channel * channel, void * message, uint64_t * send_wr_id, uint64_t * ret_wr_id, uint64_t * ret_addr) {
 
 	int ret;
 
@@ -179,8 +181,15 @@ int submit_out_channel_message(Channel * channel, void * message, uint64_t * ret
 	// 2.) get message type
 	MessageType message_type = channel -> message_type;
 
-	// 3.) encode wr id
-	uint64_t encoded_wr_id = encode_wr_id(channel -> self_id, channel_cnt, message_type);
+	// 3.) encode wr id, if not passed in. (for initial out messages like orders, do this. for responding out messages use passed in wr_id)
+	
+	uint64_t encoded_wr_id;
+	if (send_wr_id == NULL){
+		encoded_wr_id = encode_wr_id(channel -> self_id, channel_cnt, message_type);
+	}
+	else{
+		encoded_wr_id = *send_wr_id;
+	}
 
 	// 4.) create item and insert into table
 	Channel_Item * item = malloc(sizeof(Channel_Item));

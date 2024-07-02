@@ -119,7 +119,7 @@ Channel * init_channel(uint64_t self_id, uint64_t peer_id, uint16_t capacity, Me
 int submit_in_channel_reservation(Channel * channel, uint64_t * ret_wr_id, uint64_t * ret_addr);
 
 // For out channels (need to pass in values)
-int submit_out_channel_message(Channel * channel, void * message, uint64_t * ret_wr_id, uint64_t * ret_addr);
+int submit_out_channel_message(Channel * channel, void * message, uint64_t * send_wr_id, uint64_t * ret_wr_id, uint64_t * ret_addr);
 
 int extract_channel_item(Channel * channel, uint64_t id, bool to_replace_reservation, void * ret_item);
 

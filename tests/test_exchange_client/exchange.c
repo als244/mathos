@@ -138,6 +138,44 @@ uint64_t exchange_hash_func_no_builtin(void * exchange_item, uint64_t table_size
 	return hash_ind;
 }
 
+// called internally from post_bid and post_offer
+int handle_bid_match_notify(Exchange * exchange, uint64_t offer_location_id, uint64_t bid_location_id, uint64_t bid_match_wr_id) {
+
+	int ret;
+
+    // used for looking up client connections needed to get to channel buffer to send to bid participant
+    Table * client_conn_table = exchange -> clients;
+    Client_Connection target_client_conn;
+    target_client_conn.location_id = bid_location_id;
+
+    Client_Connection * client_connection = find_item_table(client_conn_table, &target_client_conn);
+
+    if (client_connection == NULL){
+    	fprintf(stderr, "Error: could not find client connection for id: %lu\n", bid_location_id);
+    	return -1;
+    }
+
+    // message to send to bid participant
+    Bid_Match bid_match;
+    bid_match.location_id = offer_location_id;
+
+    Channel * out_bid_matches = client_connection -> out_bid_matches;
+
+    printf("[Exchange %lu]. Sending BID_MATCH notification to: %lu...\n", exchange -> id, bid_location_id);
+
+    // specifying the wr_id to use and don't need the addr of bid_match within registered channel buffer
+    uint64_t wr_id_to_send = bid_match_wr_id;
+	ret = submit_out_channel_message(out_bid_matches, &bid_match, &wr_id_to_send, NULL, NULL);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not submit out channel message with bid order\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+
+// called by the completition handler
 int handle_order(Exchange * exchange, Client_Connection * client_connection, uint64_t order_wr_id, ExchangeItemType order_type){
 
 	int ret;
@@ -175,19 +213,24 @@ int handle_order(Exchange * exchange, Client_Connection * client_connection, uin
 
 	// actually send item to exchange
 	uint8_t * fingerprint;
+
+	print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
 	switch(order_type) {
 		case BID_ITEM:
 			fingerprint = ((Bid_Order *) client_order) -> fingerprint;
+			printf("[Exchange %lu] Posting BID from client: %lu...\n", exchange -> id, ((Bid_Order *) client_order) -> location_id);
 			ret = post_bid(exchange, fingerprint, ((Bid_Order *) client_order) -> data_bytes, 
 							((Bid_Order *) client_order) -> location_id, ((Bid_Order *) client_order) -> wr_id);
 			break;
 		case OFFER_ITEM:
 			fingerprint = ((Offer_Order *) client_order) -> fingerprint;
+			printf("[Exchange %lu] Posting OFFER from client: %lu...\n", exchange -> id, ((Offer_Order *) client_order) -> location_id);
 			ret = post_offer(exchange, fingerprint, ((Offer_Order *) client_order) -> data_bytes, 
 							((Offer_Order *) client_order) -> location_id);
 			break;
 		case FUTURE_ITEM:
 			fingerprint = ((Future_Order *) client_order) -> fingerprint;
+			printf("[Exchange %lu] Posting Future from client: %lu...\n", exchange -> id, ((Future_Order *) client_order) -> location_id);
 			ret = post_offer(exchange, fingerprint, ((Future_Order *) client_order) -> data_bytes, 
 							((Future_Order *) client_order) -> location_id);
 			break;
@@ -679,16 +722,21 @@ int post_bid(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, ui
 		printf("Would be posting sends (& reading from) any of:\n");
 		Deque_Item * cur_item = offer_participants -> head;
 		Offer_Participant * offer_participant;
-
-		// FOR NOW PRINTING ALL PARTICIPANTS AND POSTING SEND WR_ID with details of tail of queue 
+		uint64_t offer_location_id;
+		// FOR NOW PRINTING ALL PARTICIPANTS AND POSTING SEND WR_ID with details of head of queue 
 		// BUT MIGHT WANT TO CHANGE BASED ON TOPOLOGY!
 		while (cur_item != NULL){
 			offer_participant = (Offer_Participant *) cur_item -> item;
-			printf("\tLocation ID: %lu\n\tData Bytes: %lu\n\n", offer_participant -> location_id, found_offer -> data_bytes);
-			
-			// SHOULD BE POSTING SEND HERE WITH data = (Location ID + Addr + Rkey) of offer_participant and sending to the function args (location_id, wr_id)
-
+			offer_location_id = ((Offer_Participant *) offer_participant) -> location_id;
+			ret = handle_bid_match_notify(exchange, offer_location_id, location_id, wr_id);
+			if (ret != 0){
+				fprintf(stderr, "Error: could not handle submitting a bid match notification\n");
+				return -1;
+			}
 			cur_item = cur_item -> next;
+
+			// for now just using the head of the queue to send bid match notif once
+			break;
 		}
 		return 0;
 	}
@@ -787,7 +835,8 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, 
 		print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
 		printf("Would be posting sends to all of:\n"); 
 		void * bid_participant;
-
+		uint64_t bid_location_id;
+		uint64_t bid_match_wr_id;
 		// FOR NOW REMOVING ALL BID PARTICIPANTS BUT MIGHT WANT TO CHANGE BASED ON TOPOLOGY!
 		while (!is_deque_empty(bid_participants)){
 			ret = dequeue(bid_participants, &bid_participant);
@@ -795,12 +844,13 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, 
 				fprintf(stderr, "Error: could not dequeue bid participant\n");
 				return -1;
 			}
-
-			
-			printf("\tLocation ID: %lu\n\tWork Request ID: %lu\n\tData Bytes: %lu\n\n", ((Bid_Participant *) bid_participant) -> location_id, ((Bid_Participant *) bid_participant) -> wr_id, found_bid -> data_bytes);
-			
-			// SHOULD BE POSTING SEND HERE WITH data = (Location ID + Addr + Rkey) of new offer (function args) and sending to (location_id, wr_id)
-
+			bid_location_id = ((Bid_Participant *) bid_participant) -> location_id;
+			bid_match_wr_id =  ((Bid_Participant *) bid_participant) -> wr_id;
+			ret = handle_bid_match_notify(exchange, location_id, bid_location_id, bid_match_wr_id);
+			if (ret != 0){
+				fprintf(stderr, "Error: could not handle submitting a bid match notification\n");
+				return -1;
+			}
 			// because we already sent info, we can free the bid participant
 			free(bid_participant);
 		}

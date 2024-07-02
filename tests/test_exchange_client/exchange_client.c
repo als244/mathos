@@ -90,7 +90,7 @@ Exchange_Connection * init_self_connection(Exchange * exchange, Exchanges_Client
 
 }
 
-int handle_bid_match(Exchanges_Client * exchanges_client, Exchange_Connection * exchange_connection, uint64_t bid_match_wr_id){
+int handle_bid_match_recv(Exchanges_Client * exchanges_client, Exchange_Connection * exchange_connection, uint64_t bid_match_wr_id){
 
 	int ret;
 
@@ -110,7 +110,6 @@ int handle_bid_match(Exchanges_Client * exchanges_client, Exchange_Connection * 
 	print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
 
 	free(outstanding_bid);
-
 
 	// lookup data corresponding to bid match
 	Bid_Match bid_match;
@@ -212,7 +211,7 @@ void * exchange_client_completition_handler(void * _thread_data){
 	        		// MAY WANT TO HAVE SEPERATE THREADS FOR PROCESSING THE WORK DO BE DONE...
 		        	switch(message_type){
 		        		case BID_MATCH:
-		        			handle_ret = handle_bid_match(exchanges_client, exchange_connection, wr_id);
+		        			handle_ret = handle_bid_match_recv(exchanges_client, exchange_connection, wr_id);
 		        			break;
 		        		default:
 		        			fprintf(stderr, "Error: unsupported exchanges client handler message type of: %d\n", message_type);
@@ -584,6 +583,7 @@ int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_
 	// 		- If self, then just call the post_bid function directly
 	if (target_exchange_id == self_exchange_id){
 		Exchange * exchange = exchanges_client -> self_exchange;
+		printf("[Exchange Client %lu]. Posting self-BID...\n", self_exchange_id);
 		ret = post_bid(exchange, fingerprint, data_bytes, location_id, bid_match_wr_id);
 		if (ret != 0){
 			fprintf(stderr, "Error: could not post bid to self-exchange\n");
@@ -604,7 +604,9 @@ int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_
 		Channel * out_bid_orders = target_exchange_connection -> out_bid_orders;
 		uint64_t bid_order_wr_id;
 		uint64_t bid_order_addr;
-		ret = submit_out_channel_message(out_bid_orders, &bid_order, &bid_order_wr_id, &bid_order_addr);
+		printf("[Exchange Client %lu]. Sending BID order to: %lu...\n", self_exchange_id, target_exchange_id);
+		// don't have a known wr_id to send, so using specified protocol and retrieving the wr_id back
+		ret = submit_out_channel_message(out_bid_orders, &bid_order, NULL, &bid_order_wr_id, &bid_order_addr);
 		if (ret != 0){
 			fprintf(stderr, "Error: could not submit out channel message with bid order\n");
 			return -1;
@@ -677,6 +679,7 @@ int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint
 	// 		- If self, then just call the post_bid function directly
 	if (target_exchange_id == self_exchange_id){
 		Exchange * exchange = exchanges_client -> self_exchange;
+		printf("[Exchange Client %lu]. Posting self-OFFER...\n", self_exchange_id);
 		ret = post_offer(exchange, fingerprint, data_bytes, location_id);
 		if (ret != 0){
 			fprintf(stderr, "Error: could not post offer to self-exchange\n");
@@ -696,7 +699,9 @@ int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint
 		Channel * out_offer_orders = target_exchange_connection -> out_offer_orders;
 		uint64_t offer_order_wr_id;
 		uint64_t offer_order_addr;
-		ret = submit_out_channel_message(out_offer_orders, &offer_order, &offer_order_wr_id, &offer_order_addr);
+		printf("[Exchange Client %lu]. Sending OFFER order to: %lu...\n", self_exchange_id, target_exchange_id);
+		// don't have a known wr_id to send, so using specified protocol and retrieving the wr_id back
+		ret = submit_out_channel_message(out_offer_orders, &offer_order, NULL, &offer_order_wr_id, &offer_order_addr);
 		if (ret != 0){
 			fprintf(stderr, "Error: could not submit out channel message with bid order\n");
 			return -1;
