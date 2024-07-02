@@ -106,10 +106,6 @@ int handle_bid_match_recv(Exchanges_Client * exchanges_client, Exchange_Connecti
 
 	uint8_t * fingerprint = outstanding_bid -> fingerprint;
 
-	
-
-	free(outstanding_bid);
-
 	// lookup data corresponding to bid match
 	Bid_Match bid_match;
 
@@ -121,6 +117,9 @@ int handle_bid_match_recv(Exchanges_Client * exchanges_client, Exchange_Connecti
 
 	printf("[Exchange Client %lu]. Recived a MATCH\n\tLocation: %lu\n\tFor fingerprint: ", exchanges_client -> self_exchange_id, bid_match.location_id);
 	print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
+
+	// now can free this because was dynamically allocated when inserted
+	free(outstanding_bid);
 
 	return 0;
 }
