@@ -213,8 +213,6 @@ int handle_order(Exchange * exchange, Client_Connection * client_connection, uin
 
 	// actually send item to exchange
 	uint8_t * fingerprint;
-
-	print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
 	switch(order_type) {
 		case BID_ITEM:
 			fingerprint = ((Bid_Order *) client_order) -> fingerprint;
