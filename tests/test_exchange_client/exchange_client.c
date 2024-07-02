@@ -582,7 +582,7 @@ int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_
 	// 		- If self, then just call the post_bid function directly
 	if (target_exchange_id == self_exchange_id){
 		Exchange * exchange = exchanges_client -> self_exchange;
-		printf("[Exchange Client %lu]. Posting self-BID...\n", self_exchange_id);
+		printf("[Client %lu]. Posting self-BID...\n", self_exchange_id);
 		ret = post_bid(exchange, fingerprint, data_bytes, location_id, bid_match_wr_id);
 		if (ret != 0){
 			fprintf(stderr, "Error: could not post bid to self-exchange\n");
@@ -603,7 +603,7 @@ int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_
 		Channel * out_bid_orders = target_exchange_connection -> out_bid_orders;
 		uint64_t bid_order_wr_id;
 		uint64_t bid_order_addr;
-		printf("[Exchange Client %lu]. Sending BID order to: %lu...\n", self_exchange_id, target_exchange_id);
+		printf("[Client %lu]. Sending BID order to: %lu...\n", self_exchange_id, target_exchange_id);
 		// don't have a known wr_id to send, so using specified protocol and retrieving the wr_id back
 		ret = submit_out_channel_message(out_bid_orders, &bid_order, NULL, &bid_order_wr_id, &bid_order_addr);
 		if (ret != 0){
@@ -678,7 +678,7 @@ int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint
 	// 		- If self, then just call the post_bid function directly
 	if (target_exchange_id == self_exchange_id){
 		Exchange * exchange = exchanges_client -> self_exchange;
-		printf("[Exchange Client %lu]. Posting self-OFFER...\n", self_exchange_id);
+		printf("[Client %lu]. Posting self-OFFER...\n", self_exchange_id);
 		ret = post_offer(exchange, fingerprint, data_bytes, location_id);
 		if (ret != 0){
 			fprintf(stderr, "Error: could not post offer to self-exchange\n");
@@ -698,7 +698,7 @@ int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint
 		Channel * out_offer_orders = target_exchange_connection -> out_offer_orders;
 		uint64_t offer_order_wr_id;
 		uint64_t offer_order_addr;
-		printf("[Exchange Client %lu]. Sending OFFER order to: %lu...\n", self_exchange_id, target_exchange_id);
+		printf("[Client %lu]. Sending OFFER order to: %lu...\n", self_exchange_id, target_exchange_id);
 		// don't have a known wr_id to send, so using specified protocol and retrieving the wr_id back
 		ret = submit_out_channel_message(out_offer_orders, &offer_order, NULL, &offer_order_wr_id, &offer_order_addr);
 		if (ret != 0){
