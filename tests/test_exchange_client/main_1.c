@@ -92,7 +92,7 @@ int main(int argc, char * argv[]){
 	//	- IMPORTANT: need not be symmetric across different types of channels (message types, recv vs. send)
 	//					- in reality we want the number of recv work requests for outstanding bids to be the highest by far!
 
-	uint16_t capacity_channels = 1U << 12;
+	uint16_t capacity_channels = 1U << 10;
 
 	// 3.) Setup connection to client
 	printf("Setting up connection with client: %lu\n\n", OTHER_ID);
