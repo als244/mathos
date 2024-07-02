@@ -124,13 +124,14 @@ int main(int argc, char * argv[]){
 	uint64_t example_data_bytes = 100;
 
 	uint64_t offer_wr_id;
-	printf("Submitting Offer Order for fingerprint: ");
+	printf("Submitting OFFER order for fingerprint: ");
 	print_hex(example_fingerprint, FINGERPRINT_NUM_BYTES);
 	ret = submit_offer(exchanges_client, MY_ID, example_fingerprint, example_data_bytes, &offer_wr_id, NULL);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not submit off\n");
+		fprintf(stderr, "Error: could not submit offer\n\n");
 		return -1;
 	}
+	printf("Successfully submitted offer.\n\n");
 
 	// 6.) SHOULD BE POLLING TO ACTUALLY CONFIRM HANDLING!
 
