@@ -331,6 +331,10 @@ Exchanges_Client * init_exchanges_client(uint64_t num_exchanges, uint64_t max_ex
 	memset(&cq_attr, 0, sizeof(cq_attr));
 	cq_attr.cqe = num_cq_entries;
 	cq_attr.cq_context = cq_context;
+
+	// every cq will be in its own thread...
+	uint32_t cq_create_flags = IBV_CREATE_CQ_ATTR_SINGLE_THREADED;
+	cq_attr.flags = cq_create_flags;
 	
 	struct ibv_cq_ex * cq = ibv_create_cq_ex(ibv_ctx, &cq_attr);
 	if (cq == NULL){
