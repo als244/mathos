@@ -106,8 +106,7 @@ int handle_bid_match_recv(Exchanges_Client * exchanges_client, Exchange_Connecti
 
 	uint8_t * fingerprint = outstanding_bid -> fingerprint;
 
-	printf("Recived a bid match for fingerprint: ");
-	print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
+	
 
 	free(outstanding_bid);
 
@@ -120,7 +119,8 @@ int handle_bid_match_recv(Exchanges_Client * exchanges_client, Exchange_Connecti
 		return -1;
 	}
 
-	printf("\tMatch at location: %lu\n\n", bid_match.location_id);
+	printf("[Exchange Client %lu]. Recived a MATCH\n\tLocation: %lu\n\tFor fingerprint: ", exchanges_client -> self_exchange_id, bid_match.location_id);
+	print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
 
 	return 0;
 }
@@ -189,7 +189,7 @@ void * exchange_client_completition_handler(void * _thread_data){
         	message_type = decode_wr_id(wr_id, &sender_id);
 
         	/* DO SOMETHING WITH wr_id! */
-            printf("Saw completion of wr_id = %ld (Sender_ID = %lu, MessageType = %s)\n\tStatus: %d\n\n", wr_id, sender_id, message_type_to_str(message_type), status);
+            printf("[Exchanges_Client %lu]. Saw completion of wr_id = %ld (Sender_ID = %lu, MessageType = %s)\n\tStatus: %d\n\n", self_id, wr_id, sender_id, message_type_to_str(message_type), status);
 
             if (status != IBV_WC_SUCCESS){
                 fprintf(stderr, "Error: work request id %ld had error\n", wr_id);
