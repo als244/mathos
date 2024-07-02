@@ -126,11 +126,14 @@ int main(int argc, char * argv[]){
 	uint64_t example_data_bytes = 100;
 
 	uint64_t bid_match_wr_id;
+	printf("Submitting Bid Order for fingerprint: ");
+	print_hex(example_fingerprint, FINGERPRINT_NUM_BYTES);
 	ret = submit_bid(exchanges_client, MY_ID, example_fingerprint, example_data_bytes, &bid_match_wr_id, NULL);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not submit bid\n");
 		return -1;
 	}
+	pritnf("Successfully submitted bid. Will be getting a match notification at wr id: %lu\n", bid_match_wr_id);
 
 	// 6.) SHOULD BE POLLING TO ACTUALLY CONFIRM HANDLING!
 
