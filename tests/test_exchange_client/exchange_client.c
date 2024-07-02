@@ -22,13 +22,13 @@ uint64_t exch_connection_hash_func(void * connection_item, uint64_t table_size) 
 
 
 int bid_item_cmp(void * bid_item, void * other_item) {
-	uint64_t wr_id_a = ((Outstanding_Bid *) bid_item) -> wr_id;
-	uint64_t wr_id_b = ((Outstanding_Bid *) other_item) -> wr_id;
+	uint64_t wr_id_a = ((Outstanding_Bid *) bid_item) -> bid_match_wr_id;
+	uint64_t wr_id_b = ((Outstanding_Bid *) other_item) -> bid_match_wr_id;
 	return wr_id_a - wr_id_b;
 }
 
 uint64_t bid_hash_func(void * bid_item, uint64_t table_size) {
-	uint64_t key = ((Outstanding_Bid *) bid_item) -> wr_id;
+	uint64_t key = ((Outstanding_Bid *) bid_item) -> bid_match_wr_id;
 	// Taken from "https://github.com/shenwei356/uint64-hash-bench?tab=readme-ov-file"
 	// Credit: Thomas Wang
 	key = (key << 21) - key - 1;
@@ -88,6 +88,162 @@ Exchange_Connection * init_self_connection(Exchange * exchange, Exchanges_Client
 	// (sends are equivalently to already having the information locally)
 	
 
+}
+
+int handle_bid_match(Exchanges_Client * exchanges_client, Exchange_Connection * exchange_connection, uint64_t bid_match_wr_id){
+
+	int ret;
+
+	Channel * in_bid_matches = exchange_connection -> in_bid_matches;
+
+	// remove outsanding bid from table to get fingerprint
+	Table * outstanding_bids_table = exchanges_client -> outstanding_bids;
+
+	Outstanding_Bid to_remove;
+	to_remove.bid_match_wr_id = bid_match_wr_id;
+
+	Outstanding_Bid * outstanding_bid = remove_item_table(outstanding_bids_table, &to_remove);
+
+	uint8_t * fingerprint = outstanding_bid -> fingerprint;
+
+	printf("Recived a bid match for fingerprint: ");
+	print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
+
+	free(outstanding_bid);
+
+
+	// lookup data corresponding to bid match
+	Bid_Match bid_match;
+
+	ret = extract_channel_item(in_bid_matches, bid_match_wr_id, false, &bid_match);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not extract bid match\n");
+		return -1;
+	}
+
+	printf("\tMatch at location: %lu\n\n", bid_match.location_id);
+
+	return 0;
+}
+
+
+// For now only care about receive completitions (aka sender != self) ...
+void * exchange_client_completition_handler(void * _thread_data){
+
+	int ret;
+
+	Exchanges_Client_Completition * completition_handler_data = (Exchanges_Client_Completition *) _thread_data;
+
+	uint64_t completition_thread_id = completition_handler_data -> completition_thread_id;
+	Exchanges_Client * exchanges_client = completition_handler_data -> exchanges_client;
+
+
+	// really should look up based on completition_thread_id
+	struct ibv_cq_ex * cq = exchanges_client -> exchange_client_cq;
+
+    struct ibv_poll_cq_attr poll_qp_attr = {};
+    ret = ibv_start_poll(cq, &poll_qp_attr);
+
+    // If Error after start, do not call "end_poll"
+    if ((ret != 0) && (ret != ENOENT)){
+        fprintf(stderr, "Error: could not start poll for completition queue\n");
+        return NULL;
+    }
+
+    // if ret = 0, then ibv_start_poll already consumed an item
+    int seen_new_completition;
+    int is_done = 0;
+    
+    enum ibv_wc_status status;
+    uint64_t wr_id;
+
+    MessageType message_type;
+    uint64_t sender_id;
+
+    uint64_t self_id = exchanges_client -> self_exchange_id;
+
+    
+    Exchange_Connection * exchange_connection;
+
+    // used for looking up exchange connections needed to get to channel buffer
+    Table * exchange_conn_table = exchanges_client -> exchanges;
+    Exchange_Connection target_exch_conn;
+
+    int handle_ret;
+
+    // For now, infinite loop
+    while (!is_done){
+        // return is 0 if a new item was cosumed, otherwise it equals ENOENT
+        if (ret == 0){
+            seen_new_completition = 1;
+        }
+        else{
+            seen_new_completition = 0;
+        }
+        
+        // Consume the completed work request
+        wr_id = cq -> wr_id;
+        status = cq -> status;
+        // other fields as well...
+        if (seen_new_completition){
+
+        	/* DO SOMETHING WITH wr_id! */
+            printf("Saw completion of wr_id = %ld\n\tStatus: %d\n", wr_id, status);
+
+            if (status != IBV_WC_SUCCESS){
+                fprintf(stderr, "Error: work request id %ld had error\n", wr_id);
+                // DO ERROR HANDLING HERE!
+            }
+
+        	message_type = decode_wr_id(wr_id, &sender_id);
+        	// for now can ignore the send completitions
+        	// eventually need to have an ack in place and also
+        	// need to remove the send data from channel's buffer table
+        	if (sender_id != self_id){
+
+        		// lookup the connection based on sender id
+
+        		target_exch_conn.exchange_id = sender_id;
+
+        		exchange_connection = find_item_table(exchange_conn_table, &target_exch_conn);
+        		if (exchange_connection != NULL){
+	        		// MAY WANT TO HAVE SEPERATE THREADS FOR PROCESSING THE WORK DO BE DONE...
+		        	switch(message_type){
+		        		case BID_MATCH:
+		        			handle_ret = handle_bid_match(exchanges_client, exchange_connection, wr_id);
+		        			break;
+		        		default:
+		        			fprintf(stderr, "Error: unsupported exchanges client handler message type of: %d\n", message_type);
+		        			break;
+		        	}
+		        	if (handle_ret != 0){
+		        		fprintf(stderr, "Error: exchanges client handler had an error\n");
+		        	}
+		        }
+	        	else{
+	        		fprintf(stderr, "Error: within completition handler, could not find exchange connection with id: %lu\n", sender_id);
+	        	}
+
+
+
+	        }
+            
+        }
+
+        // Check for next completed work request...
+        ret = ibv_next_poll(cq);
+
+        if ((ret != 0) && (ret != ENOENT)){
+            // If Error after next, call "end_poll"
+            ibv_end_poll(cq);
+            fprintf(stderr, "Error: could not do next poll for completition queue\n");
+            return NULL;
+        }
+    }
+
+    ibv_end_poll(cq);
+
+    return NULL;
 }
 
 
@@ -237,6 +393,31 @@ Exchanges_Client * init_exchanges_client(uint64_t num_exchanges, uint64_t max_ex
 	}
 
 	exchanges_client -> self_exchange_connection = self_exchange_connection;
+
+	// INITIALIZE COMPLETITION QUEUE HANDLER THREADS
+
+	// num threads should equal number of CQs
+	int num_threads = 1;
+	Exchanges_Client_Completition * handler_thread_data = malloc(num_threads * sizeof(Exchanges_Client_Completition));
+	if (handler_thread_data == NULL){
+		fprintf(stderr, "Error: malloc failed allocating handler thread data\n");
+		return NULL;
+	}
+
+	pthread_t * completion_threads = (pthread_t *) malloc(num_threads * sizeof(pthread_t));
+	if (completion_threads == NULL){
+		fprintf(stderr, "Error: malloc failed allocating pthreads for completition handlers\n");
+		return NULL;
+	}
+
+	exchanges_client -> completion_threads = completion_threads;
+
+	for (int i = 0; i < num_threads; i++){
+		handler_thread_data[i].completition_thread_id = i;
+		handler_thread_data[i].exchanges_client = exchanges_client;
+		// start the completion thread
+		pthread_create(&completion_threads[i], NULL, exchange_client_completition_handler, (void *) &handler_thread_data[i]);
+	}
 
 	return exchanges_client;
 }
@@ -426,9 +607,16 @@ int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_
 		}
 	}
 
-	// TODO?.) Do we need to add to the outstanding bids table?
-		//	   Or are the channels already taking care of that?
-		//		We can mark this bid (by wr_id) as outstanding
+	// maintain mapping between bid_match_wr_id and fingerprint
+	Outstanding_Bid * outstanding_bid = malloc(sizeof(Outstanding_Bid));
+	outstanding_bid -> bid_match_wr_id = bid_match_wr_id;
+	memcpy(outstanding_bid -> fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
+	
+	ret = insert_item_table(exchanges_client -> outstanding_bids, outstanding_bid);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not insert outstanding bid into table\n");
+		return -1;
+	}
 
 	if (ret_bid_match_wr_id != NULL){
 		*ret_bid_match_wr_id = bid_match_wr_id;
@@ -509,10 +697,6 @@ int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint
 			return -1;
 		}
 	}
-
-	// TODO?.) Do we need to add to the outstanding bids table?
-		//	   Or are the channels already taking care of that?
-		//		We can mark this bid (by wr_id) as outstanding
 
 	if (ret_offer_resp_wr_id != NULL){
 		*ret_offer_resp_wr_id = offer_resp_wr_id;

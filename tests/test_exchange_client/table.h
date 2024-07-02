@@ -47,6 +47,7 @@ int insert_item_get_index_table(Table * table, void * item, uint64_t * ret_index
 void * find_item_table(Table * table, void * item);
 int find_item_index_table(Table * table, void * item, uint64_t * ret_index);
 void * remove_item_table(Table * table, void * item);
-int remove_first_item(Table * table, void ** ret_item, uint64_t * ret_index);
+int remove_item_at_index_table(Table * table, void * item, uint64_t index);
+int remove_random_item(Table * table, void ** ret_item, uint64_t * ret_index);
 
 #endif

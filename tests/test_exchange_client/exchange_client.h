@@ -9,9 +9,8 @@
 
 
 typedef struct outstanding_bid {
-	uint64_t wr_id;
-	uint64_t location_id;
-	uint8_t * fingerprint;
+	uint64_t bid_match_wr_id;
+	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
 } Outstanding_Bid;
 
 
@@ -49,7 +48,14 @@ typedef struct Exchanges_Client {
 	uint64_t self_exchange_id;
 	Exchange * self_exchange;
 	Exchange_Connection * self_exchange_connection;
+	// number of completion threads should equal number of CQs, likely equal number of QPs...
+	pthread_t * completion_threads;
 } Exchanges_Client;
+
+typedef struct exchanges_client_completition {
+	uint64_t completition_thread_id;
+	Exchanges_Client * exchanges_client;
+} Exchanges_Client_Completition;
 
 
 

@@ -8,14 +8,22 @@ uint64_t encode_wr_id(uint64_t sender_id, uint64_t channel_count, MessageType me
 	return wr_id;
 }
 
+MessageType decode_wr_id(uint64_t wr_id, uint64_t * ret_sender_id) {
+	// wr_id is 40 bits, so clear out top 24 and move back
+	uint64_t sender_id = (wr_id << 24) >> 24;
+	*ret_sender_id = sender_id;
+	MessageType message_type = wr_id >> 56;
+	return message_type;
+}
+
 int channel_item_cmp(void * channel_item, void * other_item) {
-	uint64_t id_a = ((Channel_Item *) channel_item) -> wr_id;
-	uint64_t id_b = ((Channel_Item *) other_item) -> wr_id;
+	uint64_t id_a = ((Channel_Item *) channel_item) -> id;
+	uint64_t id_b = ((Channel_Item *) other_item) -> id;
 	return id_a - id_b;
 }
 
 uint64_t channel_item_hash_func(void * channel_item, uint64_t table_size) {
-	uint64_t key = ((Channel_Item *) channel_item) -> wr_id;
+	uint64_t key = ((Channel_Item *) channel_item) -> id;
 	// Taken from "https://github.com/shenwei356/uint64-hash-bench?tab=readme-ov-file"
 	// Credit: Thomas Wang
 	key = (key << 21) - key - 1;
@@ -113,7 +121,7 @@ int submit_in_channel_reservation(Channel * channel, uint64_t * ret_wr_id, uint6
 
 	// 4.) create item and insert into table
 	Channel_Item * item = malloc(sizeof(Channel_Item));
-	item -> wr_id = encoded_wr_id;
+	item -> id = encoded_wr_id;
 	uint64_t item_ind;
 	ret = insert_item_get_index_table(channel -> buffer_table, item, &item_ind);
 	if (ret != 0){
@@ -161,7 +169,7 @@ int submit_out_channel_message(Channel * channel, void * message, uint64_t * ret
 
 	// 4.) create item and insert into table
 	Channel_Item * item = malloc(sizeof(Channel_Item));
-	item -> wr_id = encoded_wr_id;
+	item -> id = encoded_wr_id;
 	uint64_t item_ind;
 	ret = insert_item_get_index_table(channel -> buffer_table, item, &item_ind);
 	if (ret != 0){
@@ -189,6 +197,54 @@ int submit_out_channel_message(Channel * channel, void * message, uint64_t * ret
 	
 	if (ret_addr != NULL){
 		*ret_addr = addr;
+	}
+
+	return 0;
+}
+
+// assume ret_item has memory allocated with channel -> message_bytes # of bytes
+int extract_channel_item(Channel * channel, uint64_t id, bool to_replace_reservation, void * ret_item) {
+
+	int ret;
+
+	Table * buffer_table = channel -> buffer_table;
+
+	Channel_Item channel_item;
+	channel_item.id = id;
+
+	uint64_t index;
+
+	// might just want to remove item here
+	ret = find_item_index_table(buffer_table, &channel_item, &index);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not find item in channel with id: %lu\n", id);
+		return -1;
+	}
+
+	void * channel_buffer = channel -> buffer;
+	uint64_t message_size = channel -> message_size;
+
+	void * addr = channel_buffer + index * message_size;
+	// copy the contents into return location
+	memcpy(ret_item, addr, message_size);
+
+	// now 
+	ret = remove_item_at_index_table(buffer_table, &channel_item, index);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not remove item from channel's buffer table\n");
+		return -1;
+	}
+
+	// reset buffer location
+	memset(addr, 0, message_size);
+
+	// to_replace for initially in-bound messages (which don't care about return addr or wr_id)
+	if (to_replace_reservation) {
+		ret = submit_in_channel_reservation(channel, NULL, NULL);
+		if (ret != 0){
+			fprintf(stderr, "Error: could not replace channel reservation within extract item\n");
+			return -1;
+		}
 	}
 
 	return 0;

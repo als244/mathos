@@ -58,7 +58,7 @@ typedef struct Bid_Match{
 
 
 typedef struct Channel_Item {
-	uint64_t wr_id;
+	uint64_t id;
 } Channel_Item;
 
 
@@ -106,6 +106,8 @@ typedef struct channel {
 
 uint64_t encode_wr_id(uint64_t sender_id, uint64_t channel_count, MessageType message_type);
 
+MessageType decode_wr_id(uint64_t wr_id, uint64_t * ret_sender_id);
+
 Channel * init_channel(uint64_t self_id, uint64_t peer_id, uint16_t capacity, MessageType message_type, uint64_t message_size, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp, struct ibv_cq_ex * cq);
 
 // For in channels
@@ -113,5 +115,7 @@ int submit_in_channel_reservation(Channel * channel, uint64_t * ret_wr_id, uint6
 
 // For out channels (need to pass in values)
 int submit_out_channel_message(Channel * channel, void * message, uint64_t * ret_wr_id, uint64_t * ret_addr);
+
+int extract_channel_item(Channel * channel, uint64_t id, bool to_replace_reservation, void * ret_item);
 
 #endif

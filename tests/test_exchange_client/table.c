@@ -241,6 +241,8 @@ int insert_item_get_index_table(Table * table, void * item, uint64_t * ret_index
 		return -1;
 	}
 
+	// might want to assert min_size == max_size
+
 	uint64_t size = table -> size;
 	uint64_t hash_ind = (table -> hash_func)(item, size);
 	uint64_t table_ind;
@@ -312,6 +314,8 @@ int find_item_index_table(Table * table, void * item, uint64_t * ret_index) {
 		fprintf(stderr, "Error in find_item, item table is null\n");
 		return -1;
 	}
+
+	// might want to assert min_size == max_size
 	
 	// Assuming no growing or shrinking table calling this, so we don't need size lock
 	uint64_t size = table -> size;
@@ -337,18 +341,24 @@ int find_item_index_table(Table * table, void * item, uint64_t * ret_index) {
 }
 
 // ASSERT(no growing or shrinking)!
-int remove_first_item(Table * table, void ** ret_item, uint64_t * ret_index) {
+int remove_random_item(Table * table, void ** ret_item, uint64_t * ret_index) {
 	if (table == NULL){
 		fprintf(stderr, "Error in find_item, item table is null\n");
 		return -1;
 	}
+
+	// might want to assert min_size == max_size
+
 	// Assuming no growing or shrinking table calling this, so we don't need size lock
 	uint64_t size = table -> size;
 	void ** tab = table -> table;
 	pthread_mutex_t * slot_locks = table -> slot_locks;
 	uint64_t table_ind;
-	// do linear scan
-	for (uint64_t i = 0; i < size; i++){
+
+	// do linear scan starting at random location
+	uint64_t rand_start = rand() % size;
+
+	for (uint64_t i = rand_start; i < rand_start + size; i++){
 		table_ind = i % size;
 		pthread_mutex_lock(&(slot_locks[table_ind]));
 		if (tab[table_ind] != NULL){
@@ -365,8 +375,42 @@ int remove_first_item(Table * table, void ** ret_item, uint64_t * ret_index) {
 	*ret_item = NULL;
 	// didn't find item
 	return -1;
+}
 
+// ASSERT(no growing or shrinking)!
+int remove_item_at_index_table(Table * table, void * item, uint64_t index){
 
+	if (table == NULL){
+		fprintf(stderr, "Error: in remove_item, item table is null\n");
+		return -1;
+	}
+
+	// might want to assert min_size == max_size
+	void ** tab = table -> table;
+	uint64_t size = table -> size;
+
+	if (index >= size){
+		fprintf(stderr, "Error: trying to remove at an index > table size\n");
+		return -1;
+	}
+
+	pthread_mutex_t * slot_locks = table -> slot_locks;
+	
+	// acquire lock and confirm correct item
+	pthread_mutex_lock(&(table -> cnt_lock));
+	pthread_mutex_lock(&(slot_locks[index]));
+	if ((tab[index] == NULL) || ((table -> item_cmp)(item, tab[index]) == 0)){
+		fprintf(stderr, "Error: trying to remove at an index that doesn't contain correct item\n");
+		pthread_mutex_unlock(&(slot_locks[index]));
+		pthread_mutex_unlock(&(table -> cnt_lock));
+		return -1;
+	}
+	tab[index] = NULL;
+	table -> cnt -= 1;
+	pthread_mutex_unlock(&(slot_locks[index]));
+	pthread_mutex_unlock(&(table -> cnt_lock));
+
+	return 0;
 }
 
 // remove from table and return pointer to item (can be used later for destroying)
