@@ -190,7 +190,7 @@ void * exchange_client_completition_handler(void * _thread_data){
         	message_type = decode_wr_id(wr_id, &sender_id);
 
         	/* DO SOMETHING WITH wr_id! */
-            printf("Saw completion of wr_id = %ld (Sender_ID = %lu, MessageType = %d)\n\tStatus: %d\n\n", wr_id, sender_id, message_type, status);
+            printf("Saw completion of wr_id = %ld (Sender_ID = %lu, MessageType = %s)\n\tStatus: %d\n\n", wr_id, sender_id, message_type_to_str(message_type), status);
 
             if (status != IBV_WC_SUCCESS){
                 fprintf(stderr, "Error: work request id %ld had error\n", wr_id);

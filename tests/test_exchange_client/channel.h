@@ -104,6 +104,8 @@ typedef struct channel {
 //				- After consuming a ring_buffer item, re-populate a recveive work request with new location and incremented buffer count
 // 56 - 64: message_type (so as to digsinguish the wr_ids and keep seperate counts)
 
+char * message_type_to_str(MessageType message_type);
+
 uint64_t encode_wr_id(uint64_t sender_id, uint64_t channel_count, MessageType message_type);
 
 MessageType decode_wr_id(uint64_t wr_id, uint64_t * ret_sender_id);

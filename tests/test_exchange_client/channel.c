@@ -1,5 +1,20 @@
 #include "channel.h"
 
+char * message_type_to_str(MessageType message_type){
+	switch(message_type){
+		case BID_ORDER:
+			return "BID_ORDER";
+		case BID_MATCH:
+			return "BID_MATCH";
+		case OFFER_ORDER:
+			return "OFFER_ORDER";
+		case FUTURE_ORDER:
+			return "FUTURE_ORDER";
+		default:
+			fprintf(stderr, "Unsupported MessageType\n");
+			return "";
+	}
+}
 
 uint64_t encode_wr_id(uint64_t sender_id, uint64_t channel_count, MessageType message_type) {
 	uint64_t wr_id = ((uint64_t) message_type) << 56;
