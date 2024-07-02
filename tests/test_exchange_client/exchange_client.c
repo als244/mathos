@@ -715,5 +715,27 @@ int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint
 	return 0;
 }
 
+// wait for completition threads to finish (currently infinite loop) for both exchange client and exchange
+int keep_alive_and_block(Exchanges_Client * exchanges_client){
+
+	// for now hardcoding to 1 thread for exchange_client and exchanges, but should be dynamic and based on NIC configurations...
+	// should be passed in as argument....
+
+	Exchange * self_exchange = exchanges_client -> self_exchange;
+	int exch_num_threads = 1;
+	pthread_t * exch_completition_threads = self_exchange -> completion_threads;
+	for (int i = 0; i < exch_num_threads; i++){
+		pthread_join(exch_completition_threads[i], NULL);
+	}
+
+	int client_num_threads = 1;
+	pthread_t * client_completition_threads = exchanges_client -> completion_threads;
+	for (int i = 0; i < client_num_threads; i++){
+		pthread_join(client_completition_threads[i], NULL);
+	}
+
+	return 0;
+}
+
 
 	

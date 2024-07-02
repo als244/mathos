@@ -76,4 +76,9 @@ int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_
 // The last 2 arguments are optional 
 int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_t * fingerprint, uint64_t data_bytes, uint64_t * ret_offer_resp_wr_id, uint64_t * dest_exchange_id);
 
+
+// can be called at end of main executable to help with testing...
+// will cause inifinte loop because completition threads never finish...
+int keep_alive_and_block(Exchanges_Client * exchanges_client);
+
 #endif

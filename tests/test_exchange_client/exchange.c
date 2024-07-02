@@ -1010,5 +1010,6 @@ int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * ex
 
 
 	return 0;
-
 }
+
+
