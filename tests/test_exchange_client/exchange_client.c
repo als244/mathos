@@ -115,7 +115,7 @@ int handle_bid_match_recv(Exchanges_Client * exchanges_client, Exchange_Connecti
 		return -1;
 	}
 
-	printf("[Exchange Client %lu]. Recived a MATCH\n\tLocation: %lu\n\tFor fingerprint: ", exchanges_client -> self_exchange_id, bid_match.location_id);
+	printf("[Client %lu]. Recived a MATCH\n\tLocation: %lu\n\tFor fingerprint: ", exchanges_client -> self_exchange_id, bid_match.location_id);
 	print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
 
 	// now can free this because was dynamically allocated when inserted
@@ -188,7 +188,7 @@ void * exchange_client_completition_handler(void * _thread_data){
         	message_type = decode_wr_id(wr_id, &sender_id);
 
         	/* DO SOMETHING WITH wr_id! */
-            printf("[Exchanges_Client %lu]. Saw completion of wr_id = %ld (Sender_ID = %lu, MessageType = %s)\n\tStatus: %d\n\n", self_id, wr_id, sender_id, message_type_to_str(message_type), status);
+            printf("[Client %lu]. Saw completion of wr_id = %ld (Sender_ID = %lu, MessageType = %s)\n\tStatus: %d\n\n", self_id, wr_id, sender_id, message_type_to_str(message_type), status);
 
             if (status != IBV_WC_SUCCESS){
                 fprintf(stderr, "Error: work request id %ld had error\n", wr_id);
