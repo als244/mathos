@@ -113,7 +113,7 @@ uint64_t encode_wr_id(uint32_t sender_id, uint32_t channel_count, MessageType me
 
 MessageType decode_wr_id(uint64_t wr_id, uint32_t * ret_sender_id);
 
-Channel * init_channel(uint32_t self_id, uint32_t peer_id, uint32_t capacity, MessageType message_type, uint32_t message_size, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp, struct ibv_cq_ex * cq);
+Channel * init_channel(uint32_t self_id, uint32_t peer_id, uint32_t capacity, MessageType message_type, uint32_t message_size, bool to_init_buffer, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp, struct ibv_cq_ex * cq);
 
 // For in channels
 int submit_in_channel_reservation(Channel * channel, uint64_t * ret_wr_id, uint64_t * ret_addr);

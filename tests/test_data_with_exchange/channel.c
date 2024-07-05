@@ -53,7 +53,9 @@ uint64_t channel_item_hash_func(void * channel_item, uint64_t table_size) {
 
 
 
-Channel * init_channel(uint32_t self_id, uint32_t peer_id, uint32_t capacity, MessageType message_type, uint32_t message_size, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp, struct ibv_cq_ex * cq) {
+Channel * init_channel(uint32_t self_id, uint32_t peer_id, uint32_t capacity, MessageType message_type, uint32_t message_size, bool to_init_buffer, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp, struct ibv_cq_ex * cq) {
+
+	int ret;
 
 	Channel * channel = (Channel *) malloc(sizeof(Channel));
 	if (channel == NULL){
@@ -86,15 +88,18 @@ Channel * init_channel(uint32_t self_id, uint32_t peer_id, uint32_t capacity, Me
 
 	channel -> buffer_table = buffer_table;
 
-	void * buffer = malloc((uint64_t) capacity * message_size);
+	void * buffer = NULL;
 
-	// now need to register with ib_verbs to get mr => lkey needed for posting sends/recvs
-	int ret = register_virt_memory(pd, buffer, (uint64_t) capacity * message_size, &(channel -> mr));
-	if (ret != 0){
-		fprintf(stderr, "Error: could not register ring buffer items mr\n");
-		return NULL;
+	if (to_init_buffer){
+		buffer = malloc((uint64_t) capacity * message_size);
+
+		// now need to register with ib_verbs to get mr => lkey needed for posting sends/recvs
+		ret = register_virt_memory(pd, buffer, (uint64_t) capacity * message_size, &(channel -> mr));
+		if (ret != 0){
+			fprintf(stderr, "Error: could not register ring buffer items mr\n");
+			return NULL;
+		}
 	}
-
 	channel -> buffer = buffer;
 
 	ret = pthread_mutex_init(&(channel -> cnt_lock), NULL);
@@ -124,7 +129,7 @@ int submit_in_channel_reservation(Channel * channel, uint64_t * ret_wr_id, uint6
 
 	// 1.) get channel count and increment
 	pthread_mutex_lock(&(channel -> cnt_lock));
-	uint16_t channel_cnt = channel -> cnt;
+	uint32_t channel_cnt = channel -> cnt;
 	channel -> cnt += 1;
 	pthread_mutex_unlock(&(channel -> cnt_lock));
 
@@ -168,13 +173,15 @@ int submit_in_channel_reservation(Channel * channel, uint64_t * ret_wr_id, uint6
 
 // either send with a specified wr_id, or generate one based on protocol. 
 // optionally returned the wr_id used for sending and the addr of item within channel buffer
+
+// For non-data channels
 int submit_out_channel_message(Channel * channel, void * message, uint64_t * send_wr_id, uint64_t * ret_wr_id, uint64_t * ret_addr) {
 
 	int ret;
 
 	// 1.) get channel count and increment
 	pthread_mutex_lock(&(channel -> cnt_lock));
-	uint16_t channel_cnt = channel -> cnt;
+	uint32_t channel_cnt = channel -> cnt;
 	channel -> cnt += 1;
 	pthread_mutex_unlock(&(channel -> cnt_lock));
 

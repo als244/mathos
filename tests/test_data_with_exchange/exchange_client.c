@@ -91,7 +91,7 @@ Exchange_Connection * init_self_connection(Exchange * exchange, Exchanges_Client
 	// DO NOT NEED TO INITIALIZE / SETUP a "Connection *" because communicating with this process directly
 
 	// Only need to setup in_channels (to be able to post receives)
-	Channel * in_bid_matches = init_channel(exchange_id, exchange_id, self_recv_capacity, BID_MATCH, sizeof(Bid_Match), true, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
+	Channel * in_bid_matches = init_channel(exchange_id, exchange_id, self_recv_capacity, BID_MATCH, sizeof(Bid_Match), true, true, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
 	if (in_bid_matches == NULL){
 		fprintf(stderr, "Error: could not initialize self-receive channel\n");
 		return NULL;
@@ -524,11 +524,11 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint32_t exch
 	// now we need to allocate and register ring buffers to receive incoming orders
 	exchange_connection -> capacity_channels = capacity_channels;
 
-	exchange_connection -> out_bid_orders = init_channel(location_id, exchange_id, capacity_channels, BID_ORDER, sizeof(Bid_Order), false, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
-	exchange_connection -> out_offer_orders = init_channel(location_id, exchange_id, capacity_channels, OFFER_ORDER, sizeof(Offer_Order), false, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
-	exchange_connection -> out_future_orders = init_channel(location_id, exchange_id, capacity_channels, FUTURE_ORDER, sizeof(Future_Order), false, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp , exchanges_client -> exchange_client_cq);
+	exchange_connection -> out_bid_orders = init_channel(location_id, exchange_id, capacity_channels, BID_ORDER, sizeof(Bid_Order), true, false, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
+	exchange_connection -> out_offer_orders = init_channel(location_id, exchange_id, capacity_channels, OFFER_ORDER, sizeof(Offer_Order), true, false, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
+	exchange_connection -> out_future_orders = init_channel(location_id, exchange_id, capacity_channels, FUTURE_ORDER, sizeof(Future_Order), true, false, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp , exchanges_client -> exchange_client_cq);
 	// setting is_recv to true, because we will be posting sends from this channel
-	exchange_connection -> in_bid_matches = init_channel(location_id, exchange_id, capacity_channels, BID_MATCH, sizeof(Bid_Match), true, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
+	exchange_connection -> in_bid_matches = init_channel(location_id, exchange_id, capacity_channels, BID_MATCH, sizeof(Bid_Match), true, true, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
 
 	if ((exchange_connection -> out_bid_orders == NULL) || (exchange_connection -> out_offer_orders == NULL) || 
 			(exchange_connection -> out_future_orders == NULL) || (exchange_connection -> in_bid_matches == NULL)){
