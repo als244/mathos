@@ -1,13 +1,13 @@
 #include "fingerprint.h"
 
-void print_hex(unsigned char * fingerprint, int num_bytes){
+void print_hex(uint8_t * fingerprint, int num_bytes){
 	for (int i = 0; i < num_bytes; i++){
 		printf("%02x", fingerprint[i]);
 	}
 	printf("\n");
 }
 
-void print_sha256(unsigned char * fingerprint){
+void print_sha256(uint8_t * fingerprint){
 	// sha256 = 256 bits = 32 bytes
 	int num_bytes = 32;
 	for (int i = 0; i < num_bytes; i++){
@@ -16,8 +16,8 @@ void print_sha256(unsigned char * fingerprint){
 	printf("\n");
 }
 
-uint64_t fingerprint_to_least_sig64(unsigned char * fingerprint, int fingerprint_num_bytes){
-	unsigned char * least_sig_start = fingerprint + fingerprint_num_bytes - sizeof(uint64_t);
+uint64_t fingerprint_to_least_sig64(uint8_t * fingerprint, int fingerprint_num_bytes){
+	uint8_t * least_sig_start = fingerprint + fingerprint_num_bytes - sizeof(uint64_t);
 	uint64_t result = 0;
     for(int i = 0; i < 8; i++){
         result <<= 8;
@@ -66,7 +66,7 @@ char * get_fingerprint_type_name(FingerprintType fingerprint_type){
 // These are "deprecated" as of OpenSSL 3.0, but they are faster and simpler...
 
 // should figure out how to have global contexts to avoid overhead because doing this repeatedly...
-void do_fingerprinting_sha256(void * data, uint64_t num_bytes, unsigned char * ret_fingerprint){
+void do_fingerprinting_sha256(void * data, uint64_t num_bytes, uint8_t * ret_fingerprint){
 	
 	SHA256_CTX ctx;
 	SHA256_Init(&ctx);
@@ -78,7 +78,7 @@ void do_fingerprinting_sha256(void * data, uint64_t num_bytes, unsigned char * r
 
 
 // should figure out how to have global contexts to avoid overhead because doing this repeatedly...
-void do_fingerprinting_sha512(void * data, uint64_t num_bytes, unsigned char * ret_fingerprint){
+void do_fingerprinting_sha512(void * data, uint64_t num_bytes, uint8_t * ret_fingerprint){
 	
 	SHA512_CTX ctx;
 	SHA512_Init(&ctx);
@@ -89,7 +89,7 @@ void do_fingerprinting_sha512(void * data, uint64_t num_bytes, unsigned char * r
 }
 
 // should figure out how to have global contexts to avoid overhead because doing this repeatedly...
-void do_fingerprinting_sha1(void * data, uint64_t num_bytes, unsigned char * ret_fingerprint){
+void do_fingerprinting_sha1(void * data, uint64_t num_bytes, uint8_t * ret_fingerprint){
 	
 	SHA_CTX ctx;
 	SHA1_Init(&ctx);
@@ -100,7 +100,7 @@ void do_fingerprinting_sha1(void * data, uint64_t num_bytes, unsigned char * ret
 }
 
 // should figure out how to have global contexts to avoid overhead because doing this repeatedly...
-void do_fingerprinting_md5(void * data, uint64_t num_bytes, unsigned char * ret_fingerprint){
+void do_fingerprinting_md5(void * data, uint64_t num_bytes, uint8_t * ret_fingerprint){
 	
 	MD5_CTX ctx;
 	MD5_Init(&ctx);
@@ -111,7 +111,7 @@ void do_fingerprinting_md5(void * data, uint64_t num_bytes, unsigned char * ret_
 }
 
 // ASSUMING THAT RET_DIGEST HAS PRE-ALLOCATED MEMORY!
-void do_fingerprinting(void * data, uint64_t num_bytes, unsigned char * ret_fingerprint, FingerprintType fingerprint_type){
+void do_fingerprinting(void * data, uint64_t num_bytes, uint8_t * ret_fingerprint, FingerprintType fingerprint_type){
 
 	// using functions from OpenSSL's libcrypto
 	switch(fingerprint_type){
@@ -141,7 +141,7 @@ void do_fingerprinting(void * data, uint64_t num_bytes, unsigned char * ret_fing
 
 // should figure out how to have global contexts to avoid overhead because doing this repeatedly...
 // THE "New"/"Supported" interface, but 30% slower...
-void do_fingerprinting_evp(void * data, uint64_t num_bytes, unsigned char * ret_fingerprint, FingerprintType fingerprint_type){
+void do_fingerprinting_evp(void * data, uint64_t num_bytes, uint8_t * ret_fingerprint, FingerprintType fingerprint_type){
 	
 	// using this function instead of on stack for compatibility...
 	EVP_MD_CTX *mdctx = EVP_MD_CTX_new();

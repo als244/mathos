@@ -2,11 +2,11 @@
 #define CHANNEL_H
 
 #include "common.h"
-#include "ring_buffer.h"
+#include "table.h"
 #include "communicate.h"
 
 typedef enum message_type {
-	DATA_REQUEST,
+	DATA_INITIATE,
 	DATA_RESPONSE,
 	BID_ORDER,
 	BID_MATCH,
@@ -33,51 +33,63 @@ typedef enum message_type {
 
 
 typedef struct bid_order {
-	uint64_t location_id;
+	uint32_t location_id;
+	uint64_t data_bytes;
 	// for BIDs upon a match
 	uint64_t wr_id;
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
 } Bid_Order;
 
 typedef struct offer_order {
-	uint64_t location_id;
+	uint32_t location_id;
+	uint64_t data_bytes;
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
 } Offer_Order;
 
 typedef struct future_order {
-	uint64_t location_id;
+	uint32_t location_id;
+	uint64_t data_bytes;
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
 } Future_Order;
 
 // the item we will be posting with wr_id == corresponding bid_id, 
 // and we can locate the fingerprint based on outstanding bids table within client
 // where location_id is chosen offer order to relay
-typedef struct bid_match{
-	uint64_t location_id;
+typedef struct Bid_Match{
+	uint32_t location_id;
 } Bid_Match;
 
 
-typedef struct data_request{
-	uint64_t location_id;
-	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
-} Data_Request;
+typedef struct Channel_Item {
+	uint64_t id;
+} Channel_Item;
 
 
 typedef struct channel {
-	uint64_t self_id;
-	uint64_t peer_id;
-	uint64_t message_size;
+	uint32_t self_id;
+	uint32_t peer_id;
+	uint32_t message_size;
 	MessageType message_type;
-	uint16_t capacity;
-	uint16_t count;
-	Ring_Buffer * ring_buffer;
+	uint32_t capacity: 24;
+	uint32_t cnt: 24;
+	// will be of size capacity * message_size
+	void * buffer;
+	// will store wr_id's and will call "find_item_index_table(wr_id)"
+	// this is a safe operation because we know that the table won't grow/shrink 
+	// to get the location within buffer
+	// (either of contents if outbound, or reservation area if inbound)
+	Table * buffer_table;
 	// needed to register the memory region
 	struct ibv_pd * pd;
-	// registered ring_buffer -> items, and contains lkey needed
+	// registered "buffer", and contains lkey needed
 	struct ibv_mr * mr;
 	// needed for posting requests!
 	struct ibv_qp * qp;
-	bool is_recv;
+	// needed for handling events
+	// this cq is almost certainly shared among many channels
+	struct ibv_cq_ex * cq;
+	bool is_inbound;
+	pthread_mutex_t cnt_lock;
 } Channel;
 
 
@@ -86,8 +98,8 @@ typedef struct channel {
 // Because using UD and shared QPs from various senders (shared wr_ids) across various protocols, 
 // need to ensure that senders only consume recvs meant for them, and the receivers know how to post sends
 
-// 0 - 40: sender id (so as to ensure senders don't step on each other toes consuming the same recv wr_ids)
-// 40 - 56: channel count
+// 0 - 32: sender id (so as to ensure senders don't step on each other toes consuming the same recv wr_ids)
+// 32 - 56: channel count
 //				- Simply for internal use on receiver end to maintain recv buffer mappings between wr_id and ring_buffer memory addr.
 //				- Sender maintains their own channel count and increments by 1 for each message
 //					- the receiver's corresponding recv request will be already be waiting due to protocol
@@ -95,10 +107,20 @@ typedef struct channel {
 //				- After consuming a ring_buffer item, re-populate a recveive work request with new location and incremented buffer count
 // 56 - 64: message_type (so as to digsinguish the wr_ids and keep seperate counts)
 
+char * message_type_to_str(MessageType message_type);
 
-Channel * init_channel(uint64_t self_id, uint64_t peer_id, uint16_t capacity, MessageType message_type, uint64_t message_size, bool is_recv, struct ibv_pd * pd, struct ibv_qp * qp);
+uint64_t encode_wr_id(uint32_t sender_id, uint32_t channel_count, MessageType message_type);
 
+MessageType decode_wr_id(uint64_t wr_id, uint32_t * ret_sender_id);
 
-uint64_t encode_wr_id(uint64_t sender_id, uint64_t channel_count, MessageType message_type);
+Channel * init_channel(uint32_t self_id, uint32_t peer_id, uint32_t capacity, MessageType message_type, uint32_t message_size, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp, struct ibv_cq_ex * cq);
+
+// For in channels
+int submit_in_channel_reservation(Channel * channel, uint64_t * ret_wr_id, uint64_t * ret_addr);
+
+// For out channels (need to pass in values)
+int submit_out_channel_message(Channel * channel, void * message, uint64_t * send_wr_id, uint64_t * ret_wr_id, uint64_t * ret_addr);
+
+int extract_channel_item(Channel * channel, uint64_t id, bool to_replace_reservation, void * ret_item);
 
 #endif

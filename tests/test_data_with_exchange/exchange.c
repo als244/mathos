@@ -39,24 +39,37 @@ static const char LogTable512[512] = {
 
 
 int client_item_cmp(void * client_item, void * other_item) {
-	uint64_t location_a = ((Client_Connection *) client_item) -> location_id;
-	uint64_t location_b = ((Client_Connection *) other_item) -> location_id;
+	uint32_t location_a = ((Client_Connection *) client_item) -> location_id;
+	uint32_t location_b = ((Client_Connection *) other_item) -> location_id;
 	return location_a - location_b;
 }
 
+// Take from "https://gist.github.com/badboy/6267743"
+// Credit: Robert Jenkins
 uint64_t client_hash_func(void * client_item, uint64_t table_size) {
-	uint64_t key = ((Client_Connection *) client_item) -> location_id;
-	// Taken from "https://github.com/shenwei356/uint64-hash-bench?tab=readme-ov-file"
-	// Credit: Thomas Wang
-	key = (key << 21) - key - 1;
-	key = key ^ (key >> 24);
-	key = (key + (key << 3)) + (key << 8);
-	key = key ^ (key >> 14);
-	key = (key + (key << 2)) + (key << 4);
-	key = key ^ (key >> 28);
-	key = key + (key << 31);
-	return key;
-}	
+	uint32_t key = ((Client_Connection *) client_item) -> location_id;
+	key = (key+0x7ed55d16) + (key<<12);
+   	key = (key^0xc761c23c) ^ (key>>19);
+   	key = (key+0x165667b1) + (key<<5);
+   	key = (key+0xd3a2646c) ^ (key<<9);
+   	key = (key+0xfd7046c5) + (key<<3);
+   	key = (key^0xb55a4f09) ^ (key>>16);
+   	return (uint64_t) key;
+}
+
+// uint64_t client_hash_func(void * client_item, uint64_t table_size) {
+// 	uint64_t key = ((Client_Connection *) client_item) -> location_id;
+// 	// Taken from "https://github.com/shenwei356/uint64-hash-bench?tab=readme-ov-file"
+// 	// Credit: Thomas Wang
+// 	key = (key << 21) - key - 1;
+// 	key = key ^ (key >> 24);
+// 	key = (key + (key << 3)) + (key << 8);
+// 	key = key ^ (key >> 14);
+// 	key = (key + (key << 2)) + (key << 4);
+// 	key = key ^ (key >> 28);
+// 	key = key + (key << 31);
+// 	return key;
+// }	
 
 
 int exchange_item_cmp(void * exchange_item, void * other_item) {
@@ -138,8 +151,239 @@ uint64_t exchange_hash_func_no_builtin(void * exchange_item, uint64_t table_size
 	return hash_ind;
 }
 
+// called internally from post_bid and post_offer
+int handle_bid_match_notify(Exchange * exchange, uint32_t offer_location_id, uint32_t bid_location_id, uint64_t bid_match_wr_id) {
 
-Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers, uint64_t max_futures, uint64_t max_clients) {
+	int ret;
+
+    // used for looking up client connections needed to get to channel buffer to send to bid participant
+    Table * client_conn_table = exchange -> clients;
+    Client_Connection target_client_conn;
+    target_client_conn.location_id = bid_location_id;
+
+    Client_Connection * client_connection = find_item_table(client_conn_table, &target_client_conn);
+
+    if (client_connection == NULL){
+    	fprintf(stderr, "Error: could not find client connection for id: %u\n", bid_location_id);
+    	return -1;
+    }
+
+    // message to send to bid participant
+    Bid_Match bid_match;
+    bid_match.location_id = offer_location_id;
+
+    Channel * out_bid_matches = client_connection -> out_bid_matches;
+
+    printf("[Exchange %u]. Sending BID_MATCH notification to: %u...\n", exchange -> id, bid_location_id);
+
+    // specifying the wr_id to use and don't need the addr of bid_match within registered channel buffer
+    uint64_t wr_id_to_send = bid_match_wr_id;
+	ret = submit_out_channel_message(out_bid_matches, &bid_match, &wr_id_to_send, NULL, NULL);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not submit out channel message with bid order\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+
+// called by the completition handler
+int handle_order(Exchange * exchange, Client_Connection * client_connection, uint64_t order_wr_id, ExchangeItemType order_type){
+
+	int ret;
+
+	Channel * in_channel;
+	uint64_t channel_item_id = order_wr_id;
+	void * client_order;
+	switch(order_type){
+		case BID_ITEM:
+			in_channel = client_connection -> in_bid_orders;
+			Bid_Order bid_order;
+			client_order = &bid_order;
+			break;
+		case OFFER_ITEM:
+			in_channel = client_connection -> in_offer_orders;
+			Offer_Order offer_order;
+			client_order = &offer_order;
+			break;
+		case FUTURE_ITEM:
+			in_channel = client_connection -> in_future_orders;
+			Future_Order future_order;
+			client_order = &future_order;
+			break;
+	}
+		
+	// ensure to post a new receive (reservation within in-channel) now that we have consumed one
+	// Populate client item
+	ret = extract_channel_item(in_channel, channel_item_id, true, client_order);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not extract order from channel when handling\n");
+		return -1;
+	}
+
+
+
+	// actually send item to exchange
+	uint8_t * fingerprint;
+	switch(order_type) {
+		case BID_ITEM:
+			fingerprint = ((Bid_Order *) client_order) -> fingerprint;
+			printf("[Exchange %u] Posting BID from client: %u...\n", exchange -> id, ((Bid_Order *) client_order) -> location_id);
+			ret = post_bid(exchange, fingerprint, ((Bid_Order *) client_order) -> data_bytes, 
+							((Bid_Order *) client_order) -> location_id, ((Bid_Order *) client_order) -> wr_id);
+			break;
+		case OFFER_ITEM:
+			fingerprint = ((Offer_Order *) client_order) -> fingerprint;
+			printf("[Exchange %u] Posting OFFER from client: %u...\n", exchange -> id, ((Offer_Order *) client_order) -> location_id);
+			ret = post_offer(exchange, fingerprint, ((Offer_Order *) client_order) -> data_bytes, 
+							((Offer_Order *) client_order) -> location_id);
+			break;
+		case FUTURE_ITEM:
+			fingerprint = ((Future_Order *) client_order) -> fingerprint;
+			printf("[Exchange %u] Posting Future from client: %u...\n", exchange -> id, ((Future_Order *) client_order) -> location_id);
+			ret = post_offer(exchange, fingerprint, ((Future_Order *) client_order) -> data_bytes, 
+							((Future_Order *) client_order) -> location_id);
+			break;
+		default:
+			fprintf(stderr, "Error: order type not supported\n");
+			return -1;
+	}
+
+	if (ret != 0){
+		fprintf(stderr, "Error: unsuccessful in posting order\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+// For now only care about receive completitions (aka sender != self) ...
+void * exchange_completition_handler(void * _thread_data){
+
+	int ret;
+
+	Exchange_Completition * completition_handler_data = (Exchange_Completition *) _thread_data;
+
+	uint64_t completition_thread_id = completition_handler_data -> completition_thread_id;
+	Exchange * exchange = completition_handler_data -> exchange;
+
+
+	// really should look up based on completition_thread_id
+	struct ibv_cq_ex * cq = exchange -> exchange_cq;
+
+    struct ibv_poll_cq_attr poll_qp_attr = {};
+    ret = ibv_start_poll(cq, &poll_qp_attr);
+
+    // If Error after start, do not call "end_poll"
+    if ((ret != 0) && (ret != ENOENT)){
+        fprintf(stderr, "Error: could not start poll for completition queue\n");
+        return NULL;
+    }
+
+    // if ret = 0, then ibv_start_poll already consumed an item
+    int seen_new_completition;
+    int is_done = 0;
+    
+    enum ibv_wc_status status;
+    uint64_t wr_id;
+
+    MessageType message_type;
+    uint32_t sender_id;
+
+    uint32_t self_id = exchange -> id;
+
+    
+    Client_Connection * client_connection;
+
+    // used for looking up exchange connections needed to get to channel buffer
+    Table * client_conn_table = exchange -> clients;
+    Client_Connection target_client_conn;
+
+    int handle_ret;
+
+    // For now, infinite loop
+    while (!is_done){
+        // return is 0 if a new item was cosumed, otherwise it equals ENOENT
+        if (ret == 0){
+            seen_new_completition = 1;
+        }
+        else{
+            seen_new_completition = 0;
+        }
+        
+        // Consume the completed work request
+        wr_id = cq -> wr_id;
+        status = cq -> status;
+        // other fields as well...
+        if (seen_new_completition){
+
+        	message_type = decode_wr_id(wr_id, &sender_id);
+
+        	/* DO SOMETHING WITH wr_id! */
+            printf("[Exchange %u]. Saw completion of wr_id = %ld (Sender_ID = %u, MessageType = %s)\n\tStatus: %d\n\n", self_id, wr_id, sender_id, message_type_to_str(message_type), status);
+
+            if (status != IBV_WC_SUCCESS){
+                fprintf(stderr, "Error: work request id %ld had error\n", wr_id);
+                // DO ERROR HANDLING HERE!
+            }
+
+        	
+        	// for now can ignore the send completitions
+        	// eventually need to have an ack in place and also
+        	// need to remove the send data from channel's buffer table
+        	if (sender_id != self_id){
+
+        		// lookup the connection based on sender id
+
+        		target_client_conn.location_id = sender_id;
+
+        		client_connection = find_item_table(client_conn_table, &target_client_conn);
+        		if (client_connection != NULL){
+	        		// MAY WANT TO HAVE SEPERATE THREADS FOR PROCESSING THE WORK DO BE DONE...
+		        	switch(message_type){
+		        		case BID_ORDER:
+		        			handle_ret = handle_order(exchange, client_connection, wr_id, BID_ITEM);
+		        			break;
+		        		case OFFER_ORDER:
+		        			handle_ret = handle_order(exchange, client_connection, wr_id, OFFER_ITEM);
+		        			break;
+		        		case FUTURE_ORDER:
+		        			handle_ret = handle_order(exchange, client_connection, wr_id, FUTURE_ITEM);
+		        			break;
+		        		default:
+		        			fprintf(stderr, "Error: unsupported exchanges client handler message type of: %d\n", message_type);
+		        			break;
+		        	}
+		        	if (handle_ret != 0){
+		        		fprintf(stderr, "Error: exchanges client handler had an error\n");
+		        	}
+		        }
+	        	else{
+	        		fprintf(stderr, "Error: within completition handler, could not find exchange connection with id: %u\n", sender_id);
+	        	}
+	        }
+        }
+
+        // Check for next completed work request...
+        ret = ibv_next_poll(cq);
+
+        if ((ret != 0) && (ret != ENOENT)){
+            // If Error after next, call "end_poll"
+            ibv_end_poll(cq);
+            fprintf(stderr, "Error: could not do next poll for completition queue\n");
+            return NULL;
+        }
+    }
+
+    // should never get here...
+    ibv_end_poll(cq);
+
+    return NULL;
+}
+
+
+Exchange * init_exchange(uint32_t id, uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers, uint64_t max_futures, uint32_t max_clients, struct ibv_context * ibv_ctx) {
 
 	Exchange * exchange = (Exchange *) malloc(sizeof(Exchange));
 	if (exchange == NULL){
@@ -200,7 +444,109 @@ Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint
 
 	exchange -> clients = clients;
 
-	exchange -> exchange_qp = NULL;
+	// Setting up based on context of exchange
+	// Need to intialize PD, CQ, and QP here
+
+	// 1.) PD based on inputted configuration
+	struct ibv_pd * pd = ibv_alloc_pd(ibv_ctx);
+	if (pd == NULL) {
+		fprintf(stderr, "Error: could not allocate pd for exchanges_client\n");
+		return NULL;
+	}
+
+	// 2.) CQ based on inputted configuration
+	int num_cq_entries = 1U << 15;
+
+	/* "The pointer cq_context will be used to set user context pointer of the cq structure" */
+	
+	// SHOULD BE THE EXCHANGE_CLIENT COMPLETITION HANDLER 
+	void * cq_context = NULL;
+
+	struct ibv_cq_init_attr_ex cq_attr;
+	memset(&cq_attr, 0, sizeof(cq_attr));
+	cq_attr.cqe = num_cq_entries;
+	cq_attr.cq_context = cq_context;
+	
+	struct ibv_cq_ex * cq = ibv_create_cq_ex(ibv_ctx, &cq_attr);
+	if (cq == NULL){
+		fprintf(stderr, "Error: could not create cq for exchanges_client\n");
+		return NULL;
+	}
+
+	// 3.) NOW create QP
+	// SHOULD BE OF UD type but for now just saying RC for simplicity
+
+	// really should be RDMA_UD
+	RDMAConnectionType connection_type = RDMA_RC;
+	enum ibv_qp_type qp_type;
+	if (connection_type == RDMA_RC){
+		qp_type = IBV_QPT_RC;
+	}
+	if (connection_type == RDMA_UD){
+		qp_type = IBV_QPT_UD;
+	}
+	
+	struct ibv_qp_init_attr_ex qp_attr;
+	memset(&qp_attr, 0, sizeof(qp_attr));
+
+	qp_attr.pd = pd; // Setting Protection Domain
+	qp_attr.qp_type = qp_type; // Using Reliable-Connection
+	qp_attr.sq_sig_all = 1;       // if not set 0, all work requests submitted to SQ will always generate a Work Completion.
+	qp_attr.send_cq = ibv_cq_ex_to_cq(cq);         // completion queue can be shared or you can use distinct completion queues.
+	qp_attr.recv_cq = ibv_cq_ex_to_cq(cq);         // completion queue can be shared or you can use distinct completion queues.
+
+	// Device cap of 2^15 for each side of QP's outstanding work requests...
+	qp_attr.cap.max_send_wr = 1U << 15;  // increase if you want to keep more send work requests in the SQ.
+	qp_attr.cap.max_recv_wr = 1U << 15;  // increase if you want to keep more receive work requests in the RQ.
+	qp_attr.cap.max_send_sge = 1; // increase if you allow send work requests to have multiple scatter gather entry (SGE).
+	qp_attr.cap.max_recv_sge = 1; // increase if you allow receive work requests to have multiple scatter gather entry (SGE).
+	//qp_attr.cap.max_inline_data = 1000;
+	uint64_t send_ops_flags;
+	if (connection_type == RDMA_RC){
+		send_ops_flags = IBV_QP_EX_WITH_RDMA_WRITE | IBV_QP_EX_WITH_RDMA_READ | IBV_QP_EX_WITH_SEND |
+								IBV_QP_EX_WITH_ATOMIC_CMP_AND_SWP | IBV_QP_EX_WITH_ATOMIC_FETCH_AND_ADD;
+	}
+	// UD queue pairs can only do Sends, not RDMA or Atomics
+	else{
+		send_ops_flags = IBV_QP_EX_WITH_SEND;
+	}
+	qp_attr.send_ops_flags |= send_ops_flags;
+	qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
+
+	struct ibv_qp * qp = ibv_create_qp_ex(ibv_ctx, &qp_attr);
+	if (qp == NULL){
+		fprintf(stderr, "Error: could not create qp for exchanges_client\n");
+		return NULL;
+	}
+
+	exchange -> exchange_pd = pd;
+	exchange -> exchange_cq = cq;
+	exchange -> exchange_qp = qp;
+
+	// INITIALIZE COMPLETITION QUEUE HANDLER THREADS
+
+	// num threads should equal number of CQs
+	int num_threads = 1;
+	Exchange_Completition * handler_thread_data = malloc(num_threads * sizeof(Exchange_Completition));
+	if (handler_thread_data == NULL){
+		fprintf(stderr, "Error: malloc failed allocating handler thread data\n");
+		return NULL;
+	}
+
+	pthread_t * completion_threads = (pthread_t *) malloc(num_threads * sizeof(pthread_t));
+	if (completion_threads == NULL){
+		fprintf(stderr, "Error: malloc failed allocating pthreads for completition handlers\n");
+		return NULL;
+	}
+
+	exchange -> completion_threads = completion_threads;
+
+	for (int i = 0; i < num_threads; i++){
+		handler_thread_data[i].completition_thread_id = i;
+		handler_thread_data[i].exchange = exchange;
+		// start the completion thread
+		pthread_create(&completion_threads[i], NULL, exchange_completition_handler, (void *) &handler_thread_data[i]);
+	}
 
 	return exchange;
 }
@@ -245,7 +591,7 @@ Exchange_Item * init_exchange_item(uint8_t * fingerprint, uint64_t data_bytes, E
 }
 
 
-Bid_Participant * init_bid_participant(uint64_t location_id, uint64_t wr_id){
+Bid_Participant * init_bid_participant(uint32_t location_id, uint64_t wr_id){
 
 	Bid_Participant * participant = (Bid_Participant *) malloc(sizeof(Bid_Participant));
 	if (participant == NULL){
@@ -259,7 +605,7 @@ Bid_Participant * init_bid_participant(uint64_t location_id, uint64_t wr_id){
 	return participant;
 }
 
-Offer_Participant * init_offer_participant(uint64_t location_id){
+Offer_Participant * init_offer_participant(uint32_t location_id){
 
 	Offer_Participant * participant = (Offer_Participant *) malloc(sizeof(Offer_Participant));
 	if (participant == NULL){
@@ -272,7 +618,7 @@ Offer_Participant * init_offer_participant(uint64_t location_id){
 	return participant;
 }
 
-Future_Participant * init_future_participant(uint64_t location_id){
+Future_Participant * init_future_participant(uint32_t location_id){
 
 	Future_Participant * participant = (Future_Participant *) malloc(sizeof(Future_Participant));
 	if (participant == NULL){
@@ -366,7 +712,7 @@ int remove_exch_item(Exchange * exchange, uint8_t * fingerprint, ExchangeItemTyp
 
 
 
-int post_bid(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint64_t location_id, uint64_t wr_id) {
+int post_bid(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint32_t location_id, uint64_t wr_id) {
 
 	int ret;
 
@@ -376,24 +722,23 @@ int post_bid(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, ui
 	if (found_offer){
 		Deque * offer_participants = found_offer -> participants;
 		int num_participants = offer_participants -> cnt;
-
-		// FOR NOW: CRUDELY SIMULATING DOING RDMA TRANSFERS
-		// BIG TODO!!!
-		printf("Found %d participants with offers for fingerprint: ", num_participants);
-		print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
-		printf("Would be posting sends (& reading from) any of:\n");
 		Deque_Item * cur_item = offer_participants -> head;
 		Offer_Participant * offer_participant;
-
-		// FOR NOW PRINTING ALL PARTICIPANTS AND POSTING SEND WR_ID with details of tail of queue 
+		uint64_t offer_location_id;
+		// FOR NOW PRINTING ALL PARTICIPANTS AND POSTING SEND WR_ID with details of head of queue 
 		// BUT MIGHT WANT TO CHANGE BASED ON TOPOLOGY!
 		while (cur_item != NULL){
 			offer_participant = (Offer_Participant *) cur_item -> item;
-			printf("\tLocation ID: %lu\n\tData Bytes: %lu\n\n", offer_participant -> location_id, found_offer -> data_bytes);
-			
-			// SHOULD BE POSTING SEND HERE WITH data = (Location ID + Addr + Rkey) of offer_participant and sending to the function args (location_id, wr_id)
-
+			offer_location_id = ((Offer_Participant *) offer_participant) -> location_id;
+			ret = handle_bid_match_notify(exchange, offer_location_id, location_id, wr_id);
+			if (ret != 0){
+				fprintf(stderr, "Error: could not handle submitting a bid match notification\n");
+				return -1;
+			}
 			cur_item = cur_item -> next;
+
+			// for now just using the head of the queue to send bid match notif once
+			break;
 		}
 		return 0;
 	}
@@ -437,7 +782,7 @@ int post_bid(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, ui
 }
 
 
-int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint64_t location_id) {
+int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint32_t location_id) {
 
 	int ret;
 
@@ -487,12 +832,9 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, 
 	if (found_bid){
 		Deque * bid_participants = found_bid -> participants;
 		int num_participants = bid_participants -> cnt;
-
-		printf("Found %d participants with bids for fingerprint: ", num_participants);
-		print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
-		printf("Would be posting sends to all of:\n"); 
 		void * bid_participant;
-
+		uint64_t bid_location_id;
+		uint64_t bid_match_wr_id;
 		// FOR NOW REMOVING ALL BID PARTICIPANTS BUT MIGHT WANT TO CHANGE BASED ON TOPOLOGY!
 		while (!is_deque_empty(bid_participants)){
 			ret = dequeue(bid_participants, &bid_participant);
@@ -500,12 +842,13 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, 
 				fprintf(stderr, "Error: could not dequeue bid participant\n");
 				return -1;
 			}
-
-			
-			printf("\tLocation ID: %lu\n\tWork Request ID: %lu\n\tData Bytes: %lu\n\n", ((Bid_Participant *) bid_participant) -> location_id, ((Bid_Participant *) bid_participant) -> wr_id, found_bid -> data_bytes);
-			
-			// SHOULD BE POSTING SEND HERE WITH data = (Location ID + Addr + Rkey) of new offer (function args) and sending to (location_id, wr_id)
-
+			bid_location_id = ((Bid_Participant *) bid_participant) -> location_id;
+			bid_match_wr_id =  ((Bid_Participant *) bid_participant) -> wr_id;
+			ret = handle_bid_match_notify(exchange, location_id, bid_location_id, bid_match_wr_id);
+			if (ret != 0){
+				fprintf(stderr, "Error: could not handle submitting a bid match notification\n");
+				return -1;
+			}
 			// because we already sent info, we can free the bid participant
 			free(bid_participant);
 		}
@@ -528,7 +871,7 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, 
 }
 
 
-int post_future(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint64_t location_id) {
+int post_future(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint32_t location_id) {
 	
 	int ret;
 
@@ -570,7 +913,7 @@ int post_future(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes,
 
 
 // The corresponding function to "setup_exchange_connection" from exchange_client.c
-int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * exchange_ip, uint64_t location_id, char * location_ip, char * server_port, uint16_t capacity_channels) {
+int setup_client_connection(Exchange * exchange, uint32_t exchange_id, char * exchange_ip, uint32_t location_id, char * location_ip, char * server_port, uint32_t capacity_channels) {
 
 	int ret;
 
@@ -592,28 +935,37 @@ int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * ex
 	uint64_t server_id, client_id;
 	char *server_ip, *client_ip;
 	struct ibv_qp *server_qp, *client_qp;
+	struct ibv_cq_ex *server_cq, *client_cq;
+	struct ibv_pd *server_pd, *client_pd;
 	if (location_id < exchange_id){
 		is_server = 0;
-		server_id = location_id;
+		server_id = (uint64_t) location_id;
 		server_ip = location_ip;
+		server_pd = NULL;
 		server_qp = NULL;
-		client_id = exchange_id;
+		server_cq = NULL;
+		client_id = (uint64_t) exchange_id;
 		client_ip = exchange_ip;
+		client_pd = exchange -> exchange_pd;
 		client_qp = exchange -> exchange_qp;
+		client_cq = exchange -> exchange_cq;
 	}
 	else{
 		is_server = 1;
-		server_id = exchange_id;
+		server_id = (uint64_t) exchange_id;
 		server_ip = exchange_ip;
+		server_pd = exchange -> exchange_pd;
 		server_qp = exchange -> exchange_qp;
-		client_id = location_id;
+		server_cq = exchange -> exchange_cq;
+		client_id = (uint64_t) location_id;
 		client_ip = location_ip;
 		client_qp = NULL;
+		client_cq = NULL;
 	}
 
 	// if exchange_qp is null, then it will be created, otherwise connection will use that qp
-	ret = setup_connection(exchange_connection_type, is_server, server_id, server_ip, server_port, server_qp, 
-							client_id, client_ip, client_qp, &connection);
+	ret = setup_connection(exchange_connection_type, is_server, server_id, server_ip, server_port, server_pd, server_qp, server_cq,
+							client_id, client_ip, client_pd, client_qp, client_cq, &connection);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not setup exchange connection\n");
 		return -1;
@@ -623,6 +975,12 @@ int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * ex
 	if (exchange -> exchange_qp == NULL){
 		exchange -> exchange_qp = connection -> cm_id -> qp;
 	}
+	if (exchange -> exchange_cq == NULL){
+		exchange -> exchange_cq = connection -> cq;
+	}
+	if (exchange -> exchange_pd == NULL){
+		exchange -> exchange_pd = connection -> pd;
+	}
 
 
 	client_connection -> connection = connection;
@@ -631,11 +989,11 @@ int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * ex
 	// now we need to allocate and register ring buffers to receive incoming orders
 	client_connection -> capacity_channels = capacity_channels;
 
-	client_connection -> in_bid_orders = init_channel(exchange_id, location_id, capacity_channels, BID_ORDER, sizeof(Bid_Order), true, connection -> pd, exchange -> exchange_qp);
-	client_connection -> in_offer_orders = init_channel(exchange_id, location_id, capacity_channels, OFFER_ORDER, sizeof(Offer_Order), true, connection -> pd, exchange -> exchange_qp);
-	client_connection -> in_future_orders = init_channel(exchange_id, location_id, capacity_channels, FUTURE_ORDER, sizeof(Future_Order), true, connection -> pd, exchange -> exchange_qp);
+	client_connection -> in_bid_orders = init_channel(exchange_id, location_id, capacity_channels, BID_ORDER, sizeof(Bid_Order), true, true, exchange -> exchange_pd, exchange -> exchange_qp, exchange -> exchange_cq);
+	client_connection -> in_offer_orders = init_channel(exchange_id, location_id, capacity_channels, OFFER_ORDER, sizeof(Offer_Order), true, true, exchange -> exchange_pd, exchange -> exchange_qp, exchange -> exchange_cq);
+	client_connection -> in_future_orders = init_channel(exchange_id, location_id, capacity_channels, FUTURE_ORDER, sizeof(Future_Order), true, true, exchange -> exchange_pd, exchange -> exchange_qp, exchange -> exchange_cq);
 	// setting is_recv to false, because we will be posting sends from this channel
-	client_connection -> out_bid_matches = init_channel(exchange_id, location_id, capacity_channels, BID_MATCH, sizeof(Bid_Match), false, connection -> pd, exchange -> exchange_qp);
+	client_connection -> out_bid_matches = init_channel(exchange_id, location_id, capacity_channels, BID_MATCH, sizeof(Bid_Match), false, false, exchange -> exchange_pd, exchange -> exchange_qp, exchange -> exchange_cq);
 
 	if ((client_connection -> in_bid_orders == NULL) || (client_connection -> in_offer_orders == NULL) || 
 			(client_connection -> in_future_orders == NULL) || (client_connection -> out_bid_matches == NULL)){
@@ -652,5 +1010,6 @@ int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * ex
 
 
 	return 0;
-
 }
+
+
