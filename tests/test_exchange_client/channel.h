@@ -70,8 +70,8 @@ typedef struct channel {
 	uint32_t peer_id;
 	uint32_t message_size;
 	MessageType message_type;
-	uint32_t capacity;
-	uint32_t cnt;
+	uint32_t capacity: 24;
+	uint32_t cnt: 24;
 	// will be of size capacity * message_size
 	void * buffer;
 	// will store wr_id's and will call "find_item_index_table(wr_id)"
