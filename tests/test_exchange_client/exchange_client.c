@@ -1,11 +1,12 @@
 #include "exchange_client.h"
 
 int exch_connection_item_cmp(void * connection_item, void * other_item) {
-	uint64_t id_a = ((Exchange_Connection *) connection_item) -> exchange_id;
-	uint64_t id_b = ((Exchange_Connection *) other_item) -> exchange_id;
+	uint32_t id_a = ((Exchange_Connection *) connection_item) -> exchange_id;
+	uint32_t id_b = ((Exchange_Connection *) other_item) -> exchange_id;
 	return id_a - id_b;
 }
 
+/*
 uint64_t exch_connection_hash_func(void * connection_item, uint64_t table_size) {
 	uint64_t key = ((Exchange_Connection *) connection_item) -> exchange_id;
 	// Taken from "https://github.com/shenwei356/uint64-hash-bench?tab=readme-ov-file"
@@ -19,6 +20,21 @@ uint64_t exch_connection_hash_func(void * connection_item, uint64_t table_size) 
 	key = key + (key << 31);
 	return key;
 }
+*/
+
+// Take from "https://gist.github.com/badboy/6267743"
+// Credit: Robert Jenkins
+uint64_t exch_connection_hash_func(void * connection_item, uint64_t table_size) {
+	uint32_t key = ((Exchange_Connection *) connection_item) -> exchange_id;
+	key = (key+0x7ed55d16) + (key<<12);
+   	key = (key^0xc761c23c) ^ (key>>19);
+   	key = (key+0x165667b1) + (key<<5);
+   	key = (key+0xd3a2646c) ^ (key<<9);
+   	key = (key+0xfd7046c5) + (key<<3);
+   	key = (key^0xb55a4f09) ^ (key>>16);
+   	return (uint64_t) key;
+}
+
 
 
 int bid_item_cmp(void * bid_item, void * other_item) {
@@ -41,13 +57,14 @@ uint64_t bid_hash_func(void * bid_item, uint64_t table_size) {
 	return key;
 }
 
+
 // ASSUME EQUALLY PARTITIONED ID SPACE ACROSS 64-bits (which is lower 64-bits of SHA256 fingerprint hash by deafult)
-uint64_t get_start_val_from_exch_id(uint64_t num_exchanges, uint64_t exchange_id){
+uint64_t get_start_val_from_exch_id(uint32_t num_exchanges, uint32_t exchange_id){
 	uint64_t partition_size = UINT64_MAX / num_exchanges;
 	return exchange_id * partition_size;
 }
 
-uint64_t get_end_val_from_exch_id(uint64_t num_exchanges, uint64_t exchange_id){
+uint64_t get_end_val_from_exch_id(uint32_t num_exchanges, uint32_t exchange_id){
 	uint64_t partition_size = UINT64_MAX / num_exchanges;
 	return ((exchange_id + 1) * partition_size) - 1;
 }
@@ -115,7 +132,7 @@ int handle_bid_match_recv(Exchanges_Client * exchanges_client, Exchange_Connecti
 		return -1;
 	}
 
-	printf("[Client %lu]. Recived a MATCH\n\tLocation: %lu\n\tFor fingerprint: ", exchanges_client -> self_exchange_id, bid_match.location_id);
+	printf("[Client %u]. Recived a MATCH\n\tLocation: %u\n\tFor fingerprint: ", exchanges_client -> self_exchange_id, bid_match.location_id);
 	print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
 
 	// now can free this because was dynamically allocated when inserted
@@ -156,9 +173,9 @@ void * exchange_client_completition_handler(void * _thread_data){
     uint64_t wr_id;
 
     MessageType message_type;
-    uint64_t sender_id;
+    uint32_t sender_id;
 
-    uint64_t self_id = exchanges_client -> self_exchange_id;
+    uint32_t self_id = exchanges_client -> self_exchange_id;
 
     
     Exchange_Connection * exchange_connection;
@@ -188,7 +205,7 @@ void * exchange_client_completition_handler(void * _thread_data){
         	message_type = decode_wr_id(wr_id, &sender_id);
 
         	/* DO SOMETHING WITH wr_id! */
-            printf("[Client %lu]. Saw completion of wr_id = %ld (Sender_ID = %lu, MessageType = %s)\n\tStatus: %d\n\n", self_id, wr_id, sender_id, message_type_to_str(message_type), status);
+            printf("[Client %u]. Saw completion of wr_id = %ld (Sender_ID = %u, MessageType = %s)\n\tStatus: %d\n\n", self_id, wr_id, sender_id, message_type_to_str(message_type), status);
 
             if (status != IBV_WC_SUCCESS){
                 fprintf(stderr, "Error: work request id %ld had error\n", wr_id);
@@ -221,7 +238,7 @@ void * exchange_client_completition_handler(void * _thread_data){
 		        	}
 		        }
 	        	else{
-	        		fprintf(stderr, "Error: within completition handler, could not find exchange connection with id: %lu\n", sender_id);
+	        		fprintf(stderr, "Error: within completition handler, could not find exchange connection with id: %u\n", sender_id);
 	        	}
 	        }   
         }
@@ -246,7 +263,7 @@ void * exchange_client_completition_handler(void * _thread_data){
 
 
 
-Exchanges_Client * init_exchanges_client(uint64_t num_exchanges, uint64_t max_exchanges, uint64_t max_outstanding_bids, uint64_t self_exchange_id, Exchange * self_exchange, struct ibv_context * ibv_ctx) {
+Exchanges_Client * init_exchanges_client(uint32_t num_exchanges, uint32_t max_exchanges, uint64_t max_outstanding_bids, Exchange * self_exchange, struct ibv_context * ibv_ctx) {
 
 	Exchanges_Client * exchanges_client = (Exchanges_Client *) malloc(sizeof(Exchanges_Client));
 	if (exchanges_client == NULL){
@@ -299,7 +316,7 @@ Exchanges_Client * init_exchanges_client(uint64_t num_exchanges, uint64_t max_ex
 
 	exchanges_client -> exchange_client_qp = NULL;
 
-	exchanges_client -> self_exchange_id = self_exchange_id;
+	exchanges_client -> self_exchange_id = self_exchange -> id;
 	exchanges_client -> self_exchange = self_exchange;
 
 	// Set the IBV context passed in by configuration
@@ -426,7 +443,7 @@ Exchanges_Client * init_exchanges_client(uint64_t num_exchanges, uint64_t max_ex
 
 
 // the smaller of exchange_id and local_id will serve as the "server" when establishing RDMA connection
-int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exchange_id, char * exchange_ip, uint64_t location_id, char * location_ip, char * server_port, uint16_t capacity_channels) {
+int setup_exchange_connection(Exchanges_Client * exchanges_client, uint32_t exchange_id, char * exchange_ip, uint32_t location_id, char * location_ip, char * server_port, uint32_t capacity_channels) {
 
 	int ret;
 
@@ -531,22 +548,22 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint64_t exch
 }
 
 
-int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_t * fingerprint, uint64_t data_bytes, uint64_t * ret_bid_match_wr_id, uint64_t * dest_exchange_id) {
+int submit_bid(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_t * fingerprint, uint64_t data_bytes, uint64_t * ret_bid_match_wr_id, uint32_t * dest_exchange_id) {
 
 	int ret;
 
 	// 1.) Determine what exchange connection to use
 	//		- for now equally partitioning across number of exchanges the lower 64 bits of fingerprint
 	
-	uint64_t self_exchange_id = exchanges_client -> self_exchange_id;
+	uint32_t self_exchange_id = exchanges_client -> self_exchange_id;
 
 	// -a.) Optionally specifiy the target exchange or use default search method
-	uint64_t target_exchange_id;
+	uint32_t target_exchange_id;
 	if (dest_exchange_id != NULL){
 		target_exchange_id = *dest_exchange_id;
 	}
 	else{
-		uint64_t num_exchanges = exchanges_client -> num_exchanges;
+		uint32_t num_exchanges = exchanges_client -> num_exchanges;
 		uint64_t least_sig64 = fingerprint_to_least_sig64(fingerprint, FINGERPRINT_NUM_BYTES);
 		target_exchange_id = least_sig64 % num_exchanges;
 	}
@@ -561,7 +578,7 @@ int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_
 		target_exch.exchange_id = target_exchange_id;
 		Exchange_Connection * dest_exchange_connection = find_item_table(exchanges_client -> exchanges, &target_exch);
 		if (dest_exchange_connection == NULL){
-			fprintf(stderr, "Error: could not find destination exchange connection with id: %lu\n", target_exchange_id);
+			fprintf(stderr, "Error: could not find destination exchange connection with id: %u\n", target_exchange_id);
 		}
 		target_exchange_connection =  dest_exchange_connection;
 	}
@@ -582,7 +599,7 @@ int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_
 	// 		- If self, then just call the post_bid function directly
 	if (target_exchange_id == self_exchange_id){
 		Exchange * exchange = exchanges_client -> self_exchange;
-		printf("[Client %lu]. Posting self-BID...\n", self_exchange_id);
+		printf("[Client %u]. Posting self-BID...\n", self_exchange_id);
 		ret = post_bid(exchange, fingerprint, data_bytes, location_id, bid_match_wr_id);
 		if (ret != 0){
 			fprintf(stderr, "Error: could not post bid to self-exchange\n");
@@ -603,7 +620,7 @@ int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_
 		Channel * out_bid_orders = target_exchange_connection -> out_bid_orders;
 		uint64_t bid_order_wr_id;
 		uint64_t bid_order_addr;
-		printf("[Client %lu]. Sending BID order to: %lu...\n", self_exchange_id, target_exchange_id);
+		printf("[Client %u]. Sending BID order to: %u...\n", self_exchange_id, target_exchange_id);
 		// don't have a known wr_id to send, so using specified protocol and retrieving the wr_id back
 		ret = submit_out_channel_message(out_bid_orders, &bid_order, NULL, &bid_order_wr_id, &bid_order_addr);
 		if (ret != 0){
@@ -632,22 +649,22 @@ int submit_bid(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_
 }
 
 // For now having 
-int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint8_t * fingerprint, uint64_t data_bytes, uint64_t * ret_offer_resp_wr_id, uint64_t * dest_exchange_id){
+int submit_offer(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_t * fingerprint, uint64_t data_bytes, uint64_t * ret_offer_resp_wr_id, uint32_t * dest_exchange_id){
 
 	int ret;
 
 	// 1.) Determine what exchange connection to use
 	//		- for now equally partitioning across number of exchanges the lower 64 bits of fingerprint
 	
-	uint64_t self_exchange_id = exchanges_client -> self_exchange_id;
+	uint32_t self_exchange_id = exchanges_client -> self_exchange_id;
 
 	// -a.) Optionally specifiy the target exchange or use default search method
-	uint64_t target_exchange_id;
+	uint32_t target_exchange_id;
 	if (dest_exchange_id != NULL){
 		target_exchange_id = *dest_exchange_id;
 	}
 	else{
-		uint64_t num_exchanges = exchanges_client -> num_exchanges;
+		uint32_t num_exchanges = exchanges_client -> num_exchanges;
 		uint64_t least_sig64 = fingerprint_to_least_sig64(fingerprint, FINGERPRINT_NUM_BYTES);
 		target_exchange_id = least_sig64 % num_exchanges;
 	}
@@ -662,7 +679,7 @@ int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint
 		target_exch.exchange_id = target_exchange_id;
 		Exchange_Connection * dest_exchange_connection = find_item_table(exchanges_client -> exchanges, &target_exch);
 		if (dest_exchange_connection == NULL){
-			fprintf(stderr, "Error: could not find destination exchange connection with id: %lu\n", target_exchange_id);
+			fprintf(stderr, "Error: could not find destination exchange connection with id: %u\n", target_exchange_id);
 		}
 		target_exchange_connection =  dest_exchange_connection;
 	}
@@ -678,7 +695,7 @@ int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint
 	// 		- If self, then just call the post_bid function directly
 	if (target_exchange_id == self_exchange_id){
 		Exchange * exchange = exchanges_client -> self_exchange;
-		printf("[Client %lu]. Posting self-OFFER...\n", self_exchange_id);
+		printf("[Client %u]. Posting self-OFFER...\n", self_exchange_id);
 		ret = post_offer(exchange, fingerprint, data_bytes, location_id);
 		if (ret != 0){
 			fprintf(stderr, "Error: could not post offer to self-exchange\n");
@@ -698,7 +715,7 @@ int submit_offer(Exchanges_Client * exchanges_client, uint64_t location_id, uint
 		Channel * out_offer_orders = target_exchange_connection -> out_offer_orders;
 		uint64_t offer_order_wr_id;
 		uint64_t offer_order_addr;
-		printf("[Client %lu]. Sending OFFER order to: %lu...\n", self_exchange_id, target_exchange_id);
+		printf("[Client %u]. Sending OFFER order to: %u...\n", self_exchange_id, target_exchange_id);
 		// don't have a known wr_id to send, so using specified protocol and retrieving the wr_id back
 		ret = submit_out_channel_message(out_offer_orders, &offer_order, NULL, &offer_order_wr_id, &offer_order_addr);
 		if (ret != 0){

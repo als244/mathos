@@ -39,24 +39,37 @@ static const char LogTable512[512] = {
 
 
 int client_item_cmp(void * client_item, void * other_item) {
-	uint64_t location_a = ((Client_Connection *) client_item) -> location_id;
-	uint64_t location_b = ((Client_Connection *) other_item) -> location_id;
+	uint32_t location_a = ((Client_Connection *) client_item) -> location_id;
+	uint32_t location_b = ((Client_Connection *) other_item) -> location_id;
 	return location_a - location_b;
 }
 
+// Take from "https://gist.github.com/badboy/6267743"
+// Credit: Robert Jenkins
 uint64_t client_hash_func(void * client_item, uint64_t table_size) {
-	uint64_t key = ((Client_Connection *) client_item) -> location_id;
-	// Taken from "https://github.com/shenwei356/uint64-hash-bench?tab=readme-ov-file"
-	// Credit: Thomas Wang
-	key = (key << 21) - key - 1;
-	key = key ^ (key >> 24);
-	key = (key + (key << 3)) + (key << 8);
-	key = key ^ (key >> 14);
-	key = (key + (key << 2)) + (key << 4);
-	key = key ^ (key >> 28);
-	key = key + (key << 31);
-	return key;
-}	
+	uint32_t key = ((Client_Connection *) client_item) -> location_id;
+	key = (key+0x7ed55d16) + (key<<12);
+   	key = (key^0xc761c23c) ^ (key>>19);
+   	key = (key+0x165667b1) + (key<<5);
+   	key = (key+0xd3a2646c) ^ (key<<9);
+   	key = (key+0xfd7046c5) + (key<<3);
+   	key = (key^0xb55a4f09) ^ (key>>16);
+   	return (uint64_t) key;
+}
+
+// uint64_t client_hash_func(void * client_item, uint64_t table_size) {
+// 	uint64_t key = ((Client_Connection *) client_item) -> location_id;
+// 	// Taken from "https://github.com/shenwei356/uint64-hash-bench?tab=readme-ov-file"
+// 	// Credit: Thomas Wang
+// 	key = (key << 21) - key - 1;
+// 	key = key ^ (key >> 24);
+// 	key = (key + (key << 3)) + (key << 8);
+// 	key = key ^ (key >> 14);
+// 	key = (key + (key << 2)) + (key << 4);
+// 	key = key ^ (key >> 28);
+// 	key = key + (key << 31);
+// 	return key;
+// }	
 
 
 int exchange_item_cmp(void * exchange_item, void * other_item) {
@@ -139,7 +152,7 @@ uint64_t exchange_hash_func_no_builtin(void * exchange_item, uint64_t table_size
 }
 
 // called internally from post_bid and post_offer
-int handle_bid_match_notify(Exchange * exchange, uint64_t offer_location_id, uint64_t bid_location_id, uint64_t bid_match_wr_id) {
+int handle_bid_match_notify(Exchange * exchange, uint32_t offer_location_id, uint32_t bid_location_id, uint64_t bid_match_wr_id) {
 
 	int ret;
 
@@ -151,7 +164,7 @@ int handle_bid_match_notify(Exchange * exchange, uint64_t offer_location_id, uin
     Client_Connection * client_connection = find_item_table(client_conn_table, &target_client_conn);
 
     if (client_connection == NULL){
-    	fprintf(stderr, "Error: could not find client connection for id: %lu\n", bid_location_id);
+    	fprintf(stderr, "Error: could not find client connection for id: %u\n", bid_location_id);
     	return -1;
     }
 
@@ -161,7 +174,7 @@ int handle_bid_match_notify(Exchange * exchange, uint64_t offer_location_id, uin
 
     Channel * out_bid_matches = client_connection -> out_bid_matches;
 
-    printf("[Exchange %lu]. Sending BID_MATCH notification to: %lu...\n", exchange -> id, bid_location_id);
+    printf("[Exchange %u]. Sending BID_MATCH notification to: %u...\n", exchange -> id, bid_location_id);
 
     // specifying the wr_id to use and don't need the addr of bid_match within registered channel buffer
     uint64_t wr_id_to_send = bid_match_wr_id;
@@ -216,19 +229,19 @@ int handle_order(Exchange * exchange, Client_Connection * client_connection, uin
 	switch(order_type) {
 		case BID_ITEM:
 			fingerprint = ((Bid_Order *) client_order) -> fingerprint;
-			printf("[Exchange %lu] Posting BID from client: %lu...\n", exchange -> id, ((Bid_Order *) client_order) -> location_id);
+			printf("[Exchange %u] Posting BID from client: %u...\n", exchange -> id, ((Bid_Order *) client_order) -> location_id);
 			ret = post_bid(exchange, fingerprint, ((Bid_Order *) client_order) -> data_bytes, 
 							((Bid_Order *) client_order) -> location_id, ((Bid_Order *) client_order) -> wr_id);
 			break;
 		case OFFER_ITEM:
 			fingerprint = ((Offer_Order *) client_order) -> fingerprint;
-			printf("[Exchange %lu] Posting OFFER from client: %lu...\n", exchange -> id, ((Offer_Order *) client_order) -> location_id);
+			printf("[Exchange %u] Posting OFFER from client: %u...\n", exchange -> id, ((Offer_Order *) client_order) -> location_id);
 			ret = post_offer(exchange, fingerprint, ((Offer_Order *) client_order) -> data_bytes, 
 							((Offer_Order *) client_order) -> location_id);
 			break;
 		case FUTURE_ITEM:
 			fingerprint = ((Future_Order *) client_order) -> fingerprint;
-			printf("[Exchange %lu] Posting Future from client: %lu...\n", exchange -> id, ((Future_Order *) client_order) -> location_id);
+			printf("[Exchange %u] Posting Future from client: %u...\n", exchange -> id, ((Future_Order *) client_order) -> location_id);
 			ret = post_offer(exchange, fingerprint, ((Future_Order *) client_order) -> data_bytes, 
 							((Future_Order *) client_order) -> location_id);
 			break;
@@ -276,9 +289,9 @@ void * exchange_completition_handler(void * _thread_data){
     uint64_t wr_id;
 
     MessageType message_type;
-    uint64_t sender_id;
+    uint32_t sender_id;
 
-    uint64_t self_id = exchange -> id;
+    uint32_t self_id = exchange -> id;
 
     
     Client_Connection * client_connection;
@@ -308,7 +321,7 @@ void * exchange_completition_handler(void * _thread_data){
         	message_type = decode_wr_id(wr_id, &sender_id);
 
         	/* DO SOMETHING WITH wr_id! */
-            printf("[Exchange %lu]. Saw completion of wr_id = %ld (Sender_ID = %lu, MessageType = %s)\n\tStatus: %d\n\n", self_id, wr_id, sender_id, message_type_to_str(message_type), status);
+            printf("[Exchange %u]. Saw completion of wr_id = %ld (Sender_ID = %u, MessageType = %s)\n\tStatus: %d\n\n", self_id, wr_id, sender_id, message_type_to_str(message_type), status);
 
             if (status != IBV_WC_SUCCESS){
                 fprintf(stderr, "Error: work request id %ld had error\n", wr_id);
@@ -347,7 +360,7 @@ void * exchange_completition_handler(void * _thread_data){
 		        	}
 		        }
 	        	else{
-	        		fprintf(stderr, "Error: within completition handler, could not find exchange connection with id: %lu\n", sender_id);
+	        		fprintf(stderr, "Error: within completition handler, could not find exchange connection with id: %u\n", sender_id);
 	        	}
 	        }
         }
@@ -370,7 +383,7 @@ void * exchange_completition_handler(void * _thread_data){
 }
 
 
-Exchange * init_exchange(uint64_t id, uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers, uint64_t max_futures, uint64_t max_clients, struct ibv_context * ibv_ctx) {
+Exchange * init_exchange(uint32_t id, uint64_t start_val, uint64_t end_val, uint64_t max_bids, uint64_t max_offers, uint64_t max_futures, uint32_t max_clients, struct ibv_context * ibv_ctx) {
 
 	Exchange * exchange = (Exchange *) malloc(sizeof(Exchange));
 	if (exchange == NULL){
@@ -578,7 +591,7 @@ Exchange_Item * init_exchange_item(uint8_t * fingerprint, uint64_t data_bytes, E
 }
 
 
-Bid_Participant * init_bid_participant(uint64_t location_id, uint64_t wr_id){
+Bid_Participant * init_bid_participant(uint32_t location_id, uint64_t wr_id){
 
 	Bid_Participant * participant = (Bid_Participant *) malloc(sizeof(Bid_Participant));
 	if (participant == NULL){
@@ -592,7 +605,7 @@ Bid_Participant * init_bid_participant(uint64_t location_id, uint64_t wr_id){
 	return participant;
 }
 
-Offer_Participant * init_offer_participant(uint64_t location_id){
+Offer_Participant * init_offer_participant(uint32_t location_id){
 
 	Offer_Participant * participant = (Offer_Participant *) malloc(sizeof(Offer_Participant));
 	if (participant == NULL){
@@ -605,7 +618,7 @@ Offer_Participant * init_offer_participant(uint64_t location_id){
 	return participant;
 }
 
-Future_Participant * init_future_participant(uint64_t location_id){
+Future_Participant * init_future_participant(uint32_t location_id){
 
 	Future_Participant * participant = (Future_Participant *) malloc(sizeof(Future_Participant));
 	if (participant == NULL){
@@ -699,7 +712,7 @@ int remove_exch_item(Exchange * exchange, uint8_t * fingerprint, ExchangeItemTyp
 
 
 
-int post_bid(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint64_t location_id, uint64_t wr_id) {
+int post_bid(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint32_t location_id, uint64_t wr_id) {
 
 	int ret;
 
@@ -769,7 +782,7 @@ int post_bid(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, ui
 }
 
 
-int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint64_t location_id) {
+int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint32_t location_id) {
 
 	int ret;
 
@@ -858,7 +871,7 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, 
 }
 
 
-int post_future(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint64_t location_id) {
+int post_future(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint32_t location_id) {
 	
 	int ret;
 
@@ -900,7 +913,7 @@ int post_future(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes,
 
 
 // The corresponding function to "setup_exchange_connection" from exchange_client.c
-int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * exchange_ip, uint64_t location_id, char * location_ip, char * server_port, uint16_t capacity_channels) {
+int setup_client_connection(Exchange * exchange, uint32_t exchange_id, char * exchange_ip, uint32_t location_id, char * location_ip, char * server_port, uint32_t capacity_channels) {
 
 	int ret;
 
@@ -926,12 +939,12 @@ int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * ex
 	struct ibv_pd *server_pd, *client_pd;
 	if (location_id < exchange_id){
 		is_server = 0;
-		server_id = location_id;
+		server_id = (uint64_t) location_id;
 		server_ip = location_ip;
 		server_pd = NULL;
 		server_qp = NULL;
 		server_cq = NULL;
-		client_id = exchange_id;
+		client_id = (uint64_t) exchange_id;
 		client_ip = exchange_ip;
 		client_pd = exchange -> exchange_pd;
 		client_qp = exchange -> exchange_qp;
@@ -939,12 +952,12 @@ int setup_client_connection(Exchange * exchange, uint64_t exchange_id, char * ex
 	}
 	else{
 		is_server = 1;
-		server_id = exchange_id;
+		server_id = (uint64_t) exchange_id;
 		server_ip = exchange_ip;
 		server_pd = exchange -> exchange_pd;
 		server_qp = exchange -> exchange_qp;
 		server_cq = exchange -> exchange_cq;
-		client_id = location_id;
+		client_id = (uint64_t) location_id;
 		client_ip = location_ip;
 		client_qp = NULL;
 		client_cq = NULL;

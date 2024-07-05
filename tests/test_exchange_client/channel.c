@@ -16,16 +16,16 @@ char * message_type_to_str(MessageType message_type){
 	}
 }
 
-uint64_t encode_wr_id(uint64_t sender_id, uint64_t channel_count, MessageType message_type) {
+uint64_t encode_wr_id(uint32_t sender_id, uint32_t channel_count, MessageType message_type) {
 	uint64_t wr_id = ((uint64_t) message_type) << 56;
-	wr_id |= (channel_count << 40);
-	wr_id |= sender_id;
+	wr_id |= (((uint64_t) channel_count) << 32);
+	wr_id |= (uint64_t) sender_id;
 	return wr_id;
 }
 
-MessageType decode_wr_id(uint64_t wr_id, uint64_t * ret_sender_id) {
-	// wr_id is 40 bits, so clear out top 24 and move back
-	uint64_t sender_id = (wr_id << 24) >> 24;
+MessageType decode_wr_id(uint64_t wr_id, uint32_t * ret_sender_id) {
+	// sender_id is 32 bits, so clear out top 32 and move back
+	uint32_t sender_id = (wr_id << 32) >> 32;
 	*ret_sender_id = sender_id;
 	MessageType message_type = wr_id >> 56;
 	return message_type;
@@ -53,7 +53,7 @@ uint64_t channel_item_hash_func(void * channel_item, uint64_t table_size) {
 
 
 
-Channel * init_channel(uint64_t self_id, uint64_t peer_id, uint16_t capacity, MessageType message_type, uint64_t message_size, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp, struct ibv_cq_ex * cq) {
+Channel * init_channel(uint32_t self_id, uint32_t peer_id, uint32_t capacity, MessageType message_type, uint32_t message_size, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp, struct ibv_cq_ex * cq) {
 
 	Channel * channel = (Channel *) malloc(sizeof(Channel));
 	if (channel == NULL){
