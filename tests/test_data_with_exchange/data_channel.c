@@ -1,13 +1,13 @@
 #include "data_channel.h"
 
 int data_packet_cmp(void * data_packet, void * other_packet) {
-	uint64_t id_a = ((Data_Packet *) data_packet) -> packet_id;
-	uint64_t id_b = ((Data_Packet *) other_packet) -> packet_id;
+	uint32_t id_a = ((Data_Packet *) data_packet) -> packet_id;
+	uint32_t id_b = ((Data_Packet *) other_packet) -> packet_id;
 	return id_a - id_b;
 }
 
 uint64_t data_packet_hash_func(void * data_packet, uint64_t table_size) {
-	uint64_t key = ((Data_Packet *) data_packet) -> packet_id;
+	uint32_t key = ((Data_Packet *) data_packet) -> packet_id;
 	// Take from "https://gist.github.com/badboy/6267743"
 	// Credit: Robert Jenkins
 	key = (key+0x7ed55d16) + (key<<12);
@@ -110,7 +110,7 @@ Data_Channel * init_data_channel(uint32_t self_id, uint32_t peer_id, uint32_t pa
 
 
 
-Transfer * init_transfer(uint32_t start_id, void * addr, uint32_t data_bytes, uint32_t lkey, bool is_inbound, uint32_t num_packets){
+Transfer * init_transfer(uint32_t start_id, uint8_t * fingerprint, void * addr, uint32_t data_bytes, uint32_t lkey, bool is_inbound, uint32_t num_packets){
 	Transfer * transfer = (Transfer *) malloc(sizeof(Transfer));
 	if (transfer == NULL){
 		fprintf(stderr, "Error: malloc failed allocating transfer\n");
@@ -124,6 +124,8 @@ Transfer * init_transfer(uint32_t start_id, void * addr, uint32_t data_bytes, ui
 	transfer -> is_inbound = is_inbound;
 	transfer -> remain_bytes = data_bytes;
 	transfer -> remain_packets = num_packets;
+
+	memcpy(transfer -> fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
 
 	int ret = pthread_mutex_init(&(transfer -> transfer_lock), NULL);
 	if (ret != 0){
@@ -150,7 +152,7 @@ Data_Packet * init_data_packet(uint32_t packet_id, uint32_t transfer_start_id, u
 }
 
 
-int submit_out_transfer(Data_Channel * data_channel, void * addr, uint32_t data_bytes, uint32_t lkey, uint32_t start_id){
+int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void * addr, uint32_t data_bytes, uint32_t lkey, uint32_t start_id){
 
 	int ret;
 
@@ -164,7 +166,7 @@ int submit_out_transfer(Data_Channel * data_channel, void * addr, uint32_t data_
 
 	// MAYBE NOT REALLY NECESSARY TO MAINTAIN OUT-BOUND ONGOING TRANSFERS...?
 	// doing it for potentially later implementing fault-recovery and re-transmission...
-	Transfer * transfer = init_transfer(start_packet_id, addr, data_bytes, lkey, false, num_packets);
+	Transfer * transfer = init_transfer(start_packet_id, fingerprint, addr, data_bytes, lkey, false, num_packets);
 	if (transfer == NULL){
 		fprintf(stderr, "Error: could not initialize transfer when submitting outbound transfer\n");
 		return -1;
@@ -274,7 +276,7 @@ int submit_out_transfer(Data_Channel * data_channel, void * addr, uint32_t data_
 }
 
 
-int submit_in_transfer(Data_Channel * data_channel, void * recv_addr, uint32_t data_bytes, uint32_t lkey, uint32_t * ret_start_id) {
+int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void * recv_addr, uint32_t data_bytes, uint32_t lkey, uint32_t * ret_start_id) {
 
 	int ret;
 
@@ -308,7 +310,7 @@ int submit_in_transfer(Data_Channel * data_channel, void * recv_addr, uint32_t d
 
 	// MAYBE NOT REALLY NECESSARY TO MAINTAIN OUT-BOUND ONGOING TRANSFERS...?
 	// doing it for potentially later implementing fault-recovery and re-transmission...
-	Transfer * transfer = init_transfer(start_packet_id, recv_addr, data_bytes, lkey, true, num_packets);
+	Transfer * transfer = init_transfer(start_packet_id, fingerprint, recv_addr, data_bytes, lkey, true, num_packets);
 	if (transfer == NULL){
 		fprintf(stderr, "Error: could not initialize transfer when submitting outbound transfer\n");
 		pthread_mutex_unlock(&(data_channel -> transfer_start_id_lock));
@@ -474,6 +476,115 @@ int submit_in_transfer(Data_Channel * data_channel, void * recv_addr, uint32_t d
 	}
 
 	return 0;
+}
+
+// Called upon data controller work completition of data_packet type
+// 1.) Look up packet in packets table based on packed_id
+// 2.) Retrieve the corresponding transfer based on transfer_start_id 
+// 3.) Look up transfer in transfers table
+// 4.) Acquire transfer lock
+// 5.) Decrement remain_bytes and remain_packets
+// 		- a.) If remain_packets == 0 => notify scheduler (for now just print) and remove/free transfer
+// 6.) Release transfer lock
+// 7.) Remove/free packet  
+int ack_packet_local(Data_Channel * data_channel, uint32_t packet_id, Transfer_Complete ** ret_transfer_complete){
+
+	// 1.) Look up packet
+	Data_Packet target_data_packet;
+	target_data_packet.packet_id = packet_id;
+
+	Data_Packet * data_packet = find_item_table(data_channel -> packets_table, &target_data_packet);
+	if (data_packet == NULL){
+		fprintf(stderr, "Error: could not find packet with id: %u when doing ack_packet_local\n", packet_id);
+		return -1;
+	}
+ 
+	uint32_t transfer_start_id = data_packet -> transfer_start_id;
+	uint16_t packet_bytes = data_packet -> packet_bytes;
+
+	// 2.) Look up transfer
+	Transfer target_transfer;
+	target_transfer.start_id = transfer_start_id;
+
+	Transfer * transfer = find_item_table(data_channel -> transfers_table, &target_transfer);
+	if (transfer == NULL){
+		fprintf(stderr, "Error: could not find transfer with starting id: %u when doing ack_packet_local from packet_id: %u\n", transfer_start_id, packet_id);
+		return -1;
+	}
+
+
+	// 3.) Modify transfer remaining and see if complete
+	pthread_mutex_lock(&(transfer -> transfer_lock));
+
+	if (packet_bytes > (transfer -> remain_bytes)){
+		fprintf(stderr, "Error: remaining bytes would be set to negative. Something went wrong\n");
+		return -1;
+	}
+
+	transfer -> remain_bytes -= packet_bytes;
+	transfer -> remain_packets -= 1;
+
+	Transfer_Complete * transfer_complete = NULL;
+	if (transfer -> remain_packets == 0){
+
+		// assert remain bytes is now 0...
+		if (transfer -> remain_bytes > 0){
+			fprintf(stderr, "Error: all packets are completed but remaining bytes > 0\n");
+			return -1;
+		}
+
+		// a.) Create and set a completition return value
+		transfer_complete = (Transfer_Complete *) malloc(sizeof(Transfer_Complete));
+		if (transfer_complete == NULL){
+			fprintf(stderr, "Error: malloc failed to allocate transfer complete struct\n");
+			return -1;
+		}
+		transfer_complete -> start_id = transfer_start_id;
+		memcpy(transfer_complete -> fingerprint, transfer -> fingerprint, FINGERPRINT_NUM_BYTES);
+		transfer_complete -> addr = transfer -> addr;
+		transfer_complete -> data_bytes = transfer -> data_bytes;
+
+		// b.) Now can remove and destroy transfer
+		Transfer * removed_transfer = remove_item_table(data_channel -> transfers_table, &target_transfer);
+		// ASSERT (removed_transfer == transfer from above)
+		if (removed_transfer == NULL){
+			fprintf(stderr, "Error: could not remove transfer from table, something went wrong\n");
+			return -1;
+		}
+		pthread_mutex_destroy(&(removed_transfer -> transfer_lock));
+		free(removed_transfer);
+	}
+	else{
+		// Can unlock the remaining packets counter and free packet..?
+		pthread_mutex_unlock(&(transfer -> transfer_lock));
+	}
+
+	// Now can remove packet from the packets table
+	Data_Packet * removed_data_packet = remove_item_table(data_channel -> packets_table, &target_data_packet);
+	// ASSERT (removed_data_packet == data_packet from above)
+	if (removed_data_packet == NULL){
+		fprintf(stderr, "Error: could not remove packet from table, something went wrong\n");
+		return -1;
+	}
+
+	free(removed_data_packet);
+
+	// SHOULD NEVER BE NULL BUT CHECKING JUST IN CASE
+	if (ret_transfer_complete != NULL){
+		// will be set to newly allocated memory if completition, otherwise Null 
+		*ret_transfer_complete = transfer_complete;
+	}
+
+	return 0;
+}
+
+
+// COULD BECOME A MACRO TO OVERCOME ~10ns function call overhead...
+uint32_t decode_packet_id(uint64_t wr_id){
+	// Message Type takes up top 8 bits so clear that out, then shift right sender_id bits + message_size bits
+	int message_type_bits = 8;
+	int sender_id_bits = 32;
+	return (wr_id << (message_type_bits)) >> (message_type_bits + sender_id_bits);
 }
 
 

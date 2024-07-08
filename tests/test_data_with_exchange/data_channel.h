@@ -23,6 +23,7 @@ typedef struct data_packet{
 typedef struct transfer {
 	// starting packet-id of transfer (analogous to channel count)
 	uint32_t start_id: 24;
+	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
 	// either sending addr for outgoing transfers or recv addr for incoming
 	void * addr;
 	uint32_t data_bytes;
@@ -33,8 +34,14 @@ typedef struct transfer {
 	pthread_mutex_t transfer_lock;
 	uint32_t remain_bytes;
 	uint32_t remain_packets;
-	
 } Transfer;
+
+typedef struct transfer_complete {
+	uint32_t start_id: 24;
+	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
+	void * addr;
+	uint32_t data_bytes;
+} Transfer_Complete;
 
 
 typedef struct data_channel {
@@ -80,6 +87,10 @@ typedef struct data_channel {
 } Data_Channel;
 
 
+// packet id's can be shared among different channels, but only have meaning within a given channel
+uint32_t decode_packet_id(uint64_t wr_id);
+
+
 Data_Channel * init_data_channel(uint32_t self_id, uint32_t peer_id, uint32_t packet_max_bytes, uint32_t max_packets, uint32_t max_packet_id, uint32_t max_transfers, bool is_inbound, struct ibv_pd * pd, struct ibv_qp * qp, struct ibv_cq_ex * cq);
 
 // 1.) initializes a transfer and inserts into transfers table
@@ -88,7 +99,7 @@ Data_Channel * init_data_channel(uint32_t self_id, uint32_t peer_id, uint32_t pa
 //		- here the start_id is known based on the DATA_INITIATE message from the ultimate receiver of this transfer
 //		- it is used to agree on packet ordering and location with addr for each packet
 // returns 0 on success, -1 on error
-int submit_out_transfer(Data_Channel * data_channel, void * addr, uint32_t data_bytes, uint32_t lkey, uint32_t start_id);
+int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void * addr, uint32_t data_bytes, uint32_t lkey, uint32_t start_id);
 
 
 // 1.) Determines number of packets needed for transfer, grabs start_transfer_id lock, 
@@ -98,6 +109,22 @@ int submit_out_transfer(Data_Channel * data_channel, void * addr, uint32_t data_
 // 4.) Creates linked list of recv work requests corresponding to packets and calls ibv_post_recv()
 // 5.) Optionally returns the starting packet id of transfer
 // returns 0 on success, -1 on error
-int submit_in_transfer(Data_Channel * data_channel, void * recv_addr, uint32_t data_bytes, uint32_t lkey, uint32_t * ret_start_id);
+int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void * recv_addr, uint32_t data_bytes, uint32_t lkey, uint32_t * ret_start_id);
+
+// Called upon data controller work completition of data_packet type
+// 1.) Look up packet in packets table based on packed_id
+// 2.) Retrieve the corresponding transfer based on transfer_start_id 
+// 3.) Look up transfer in transfers table
+// 4.) Acquire transfer lock
+// 5.) Decrement remain_bytes and remain_packets
+// 		- a.) If remain_packets == 0 => notify scheduler (for now just print) and remove/free transfer
+// 6.) Release transfer lock
+// 7.) Remove/free packet  
+int ack_packet_local(Data_Channel * data_channel, uint32_t packet_id, Transfer_Complete ** ret_transfer_complete);
+
+
+
+
+
 
 #endif
