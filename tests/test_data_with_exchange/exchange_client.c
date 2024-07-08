@@ -32,7 +32,7 @@ uint64_t exch_connection_hash_func(void * connection_item, uint64_t table_size) 
    	key = (key+0xd3a2646c) ^ (key<<9);
    	key = (key+0xfd7046c5) + (key<<3);
    	key = (key^0xb55a4f09) ^ (key>>16);
-   	return (uint64_t) key;
+   	return (uint64_t) key % table_size;
 }
 
 
@@ -54,7 +54,7 @@ uint64_t bid_hash_func(void * bid_item, uint64_t table_size) {
 	key = (key + (key << 2)) + (key << 4);
 	key = key ^ (key >> 28);
 	key = key + (key << 31);
-	return key;
+	return key % table_size;
 }
 
 

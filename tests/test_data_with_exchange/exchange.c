@@ -54,7 +54,7 @@ uint64_t client_hash_func(void * client_item, uint64_t table_size) {
    	key = (key+0xd3a2646c) ^ (key<<9);
    	key = (key+0xfd7046c5) + (key<<3);
    	key = (key^0xb55a4f09) ^ (key>>16);
-   	return (uint64_t) key;
+   	return (uint64_t) key % table_size;
 }
 
 // uint64_t client_hash_func(void * client_item, uint64_t table_size) {

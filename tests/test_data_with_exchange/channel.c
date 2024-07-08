@@ -2,6 +2,12 @@
 
 char * message_type_to_str(MessageType message_type){
 	switch(message_type){
+		case DATA_INITIATE:
+			return "DATA_INITIATE";
+		case DATA_RESPONSE:
+			return "DATA_RESPONSE";
+		case DATA_PACKET:
+			return "DATA_PACKET";
 		case BID_ORDER:
 			return "BID_ORDER";
 		case BID_MATCH:
@@ -48,7 +54,7 @@ uint64_t channel_item_hash_func(void * channel_item, uint64_t table_size) {
 	key = (key + (key << 2)) + (key << 4);
 	key = key ^ (key >> 28);
 	key = key + (key << 31);
-	return key;
+	return key % table_size;
 }
 
 

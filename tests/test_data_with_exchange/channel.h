@@ -8,6 +8,7 @@
 typedef enum message_type {
 	DATA_INITIATE,
 	DATA_RESPONSE,
+	DATA_PACKET,
 	BID_ORDER,
 	BID_MATCH,
 	BID_CANCEL,
