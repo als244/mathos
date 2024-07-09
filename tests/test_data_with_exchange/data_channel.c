@@ -583,9 +583,7 @@ int ack_packet_local(Data_Channel * data_channel, uint32_t packet_id, Transfer_C
 // COULD BECOME A MACRO TO OVERCOME ~10ns function call overhead...
 uint32_t decode_packet_id(uint64_t wr_id){
 	// Message Type takes up top 8 bits so clear that out, then shift right sender_id bits + message_size bits
-	int message_type_bits = 8;
-	int sender_id_bits = 32;
-	return (wr_id << (message_type_bits)) >> (message_type_bits + sender_id_bits);
+	return (uint32_t) ((wr_id << MESSAGE_TYPE_BITS) >> (MESSAGE_TYPE_BITS + SENDER_ID_BITS));
 }
 
 

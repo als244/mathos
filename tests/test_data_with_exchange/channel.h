@@ -5,6 +5,9 @@
 #include "table.h"
 #include "communicate.h"
 
+#define MESSAGE_TYPE_BITS 8
+#define SENDER_ID_BITS 32
+
 typedef enum message_type {
 	DATA_REQUEST,
 	DATA_RESPONSE,
