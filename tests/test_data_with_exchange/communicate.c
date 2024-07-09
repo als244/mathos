@@ -782,8 +782,10 @@ int register_virt_memory(struct ibv_pd * pd, void * addr, size_t size_bytes, str
 
     // ALSO CONSIDER:
     // IBV_ACCESS_HUGETLB & IBV_ACCESS_ON_DEMAND
-    enum ibv_access_flags access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_ATOMIC;
+    
+    //enum ibv_access_flags access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_ATOMIC;
 
+    enum ibv_access_flags access_flags = IBV_ACCESS_LOCAL_WRITE;
     struct ibv_mr * mr = ibv_reg_mr(pd, addr, size_bytes, access_flags);
     if (mr == NULL){
         fprintf(stderr, "Error: ibv_reg_mr failed in get_system_memory\n");

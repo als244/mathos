@@ -350,8 +350,9 @@ Data_Controller * init_data_controller(uint32_t self_id, Inventory * inventory, 
 	//qp_attr.cap.max_inline_data = 1000;
 	uint64_t send_ops_flags;
 	if (connection_type == RDMA_RC){
-		send_ops_flags = IBV_QP_EX_WITH_RDMA_WRITE | IBV_QP_EX_WITH_RDMA_READ | IBV_QP_EX_WITH_SEND |
-								IBV_QP_EX_WITH_ATOMIC_CMP_AND_SWP | IBV_QP_EX_WITH_ATOMIC_FETCH_AND_ADD;
+		// send_ops_flags = IBV_QP_EX_WITH_RDMA_WRITE | IBV_QP_EX_WITH_RDMA_READ | IBV_QP_EX_WITH_SEND |
+		// 						IBV_QP_EX_WITH_ATOMIC_CMP_AND_SWP | IBV_QP_EX_WITH_ATOMIC_FETCH_AND_ADD;
+		send_ops_flags = IBV_QP_EX_WITH_SEND;
 	}
 	// UD queue pairs can only do Sends, not RDMA or Atomics
 	else{
