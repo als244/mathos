@@ -564,8 +564,7 @@ int send_data_request(Data_Controller * data_controller, uint32_t peer_id, uint8
 		fprintf(stderr, "Error: could not submit outbound data request to peer_id: %u\n", peer_id);
 		return -1;
 	}
-
-	printf("outbound data request has id: %lu\n", sent_out_req_wr_id);
+	printf("Outbound data request has id: %lu\n", sent_out_req_wr_id);
 
 
 	// 4.) Optionally return the transfer_start_id

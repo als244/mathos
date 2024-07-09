@@ -228,7 +228,7 @@ Obj_Location * reserve_obj_local(Inventory * inventory, uint8_t * fingerprint, u
 
 	// 1.) FOR NOW: Allocate space and register with IB-Verbs
 	//		- should be sophisticated here with device memories and other pools...
-	void * reserved_buffer = malloc(data_bytes);
+	void * reserved_buffer = calloc(data_bytes, 1);
 	if (reserved_buffer == NULL){
 		fprintf(stderr, "Error: malloc failed for reserving an object buffer\n");
 		return NULL;
@@ -242,13 +242,11 @@ Obj_Location * reserve_obj_local(Inventory * inventory, uint8_t * fingerprint, u
 		return NULL;
 	}
 
-	void * addr = reserved_mr -> addr;
 	uint32_t lkey = reserved_mr -> lkey;
-
 
 	// 2.) Initialize object location
 	bool is_available = false;
-	Obj_Location * obj_location = init_obj_location(fingerprint, addr, data_bytes, lkey, is_available);
+	Obj_Location * obj_location = init_obj_location(fingerprint, reserved_buffer, data_bytes, lkey, is_available);
 	if (obj_location == NULL){
 		fprintf(stderr, "Error: could not initialize object location\n");
 		return NULL;
