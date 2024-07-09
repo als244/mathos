@@ -311,8 +311,8 @@ Data_Controller * init_data_controller(uint32_t self_id, Inventory * inventory, 
 	cq_attr.cq_context = cq_context;
 
 	// every cq will be in its own thread...
-	uint32_t cq_create_flags = IBV_CREATE_CQ_ATTR_SINGLE_THREADED;
-	cq_attr.flags = cq_create_flags;
+	// uint32_t cq_create_flags = IBV_CREATE_CQ_ATTR_SINGLE_THREADED;
+	// cq_attr.flags = cq_create_flags;
 	
 	struct ibv_cq_ex * cq = ibv_create_cq_ex(ibv_ctx, &cq_attr);
 	if (cq == NULL){
@@ -345,8 +345,8 @@ Data_Controller * init_data_controller(uint32_t self_id, Inventory * inventory, 
 	// Device cap of 2^15 for each side of QP's outstanding work requests...
 	qp_attr.cap.max_send_wr = 1U << 12;  // increase if you want to keep more send work requests in the SQ.
 	qp_attr.cap.max_recv_wr = 1U << 12;  // increase if you want to keep more receive work requests in the RQ.
-	qp_attr.cap.max_send_sge = 1; // increase if you allow send work requests to have multiple scatter gather entry (SGE).
-	qp_attr.cap.max_recv_sge = 1; // increase if you allow receive work requests to have multiple scatter gather entry (SGE).
+	qp_attr.cap.max_send_sge = 4; // increase if you allow send work requests to have multiple scatter gather entry (SGE).
+	qp_attr.cap.max_recv_sge = 4; // increase if you allow receive work requests to have multiple scatter gather entry (SGE).
 	//qp_attr.cap.max_inline_data = 1000;
 	uint64_t send_ops_flags;
 	if (connection_type == RDMA_RC){
