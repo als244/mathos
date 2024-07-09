@@ -193,7 +193,6 @@ int submit_out_channel_message(Channel * channel, void * message, uint64_t * sen
 	MessageType message_type = channel -> message_type;
 
 	// 3.) encode wr id, if not passed in. (for initial out messages like orders, do this. for responding out messages use passed in wr_id)
-	
 	uint64_t encoded_wr_id;
 	if (send_wr_id == NULL){
 		encoded_wr_id = encode_wr_id(channel -> self_id, channel_cnt, message_type);

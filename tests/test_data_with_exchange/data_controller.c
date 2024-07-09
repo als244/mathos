@@ -40,7 +40,6 @@ int handle_data_request(Data_Controller * data_controller, Data_Connection * dat
 		return -1;
 	}
 
-
 	uint32_t transfer_start_id = data_request.transfer_start_id;
 	uint8_t * fingerprint = data_request.fingerprint;
 
@@ -569,12 +568,15 @@ int send_data_request(Data_Controller * data_controller, uint32_t peer_id, uint8
 	// maybe want them for fault-handling...??
 	uint64_t sent_out_req_wr_id;
 	uint64_t sent_out_req_addr;
+	printf("submitting outbound data request\n");
 	ret = submit_out_channel_message(out_data_req, &data_request, NULL, &sent_out_req_wr_id, &sent_out_req_addr);
 
 	if (ret != 0){
 		fprintf(stderr, "Error: could not submit outbound data request to peer_id: %u\n", peer_id);
 		return -1;
 	}
+
+	printf("outbound data request has id: %lu\n", sent_out_req_wr_id);
 
 
 	// 4.) Optionally return the transfer_start_id
