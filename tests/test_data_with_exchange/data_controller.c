@@ -131,7 +131,16 @@ void * data_completion_handler(void * _thread_data){
 	Data_Controller * data_controller = completion_handler_data -> data_controller;
 
 	// really should look up based on completion_thread_id
-	struct ibv_cq_ex * cq = data_controller -> data_cq;
+	
+	// TEMPORARY JUST HAVE CONTROL AND DATA CQs
+	struct ibv_cq_ex * cq;
+	if (completion_thread_id == 0){
+		cq = data_controller -> control_cq;
+	}
+	else{
+		cq = data_controller -> data_cq;
+	}
+	//struct ibv_cq_ex * cq = data_controller -> data_cq;
 
     struct ibv_poll_cq_attr poll_qp_attr = {};
     ret = ibv_start_poll(cq, &poll_qp_attr);
@@ -372,11 +381,101 @@ Data_Controller * init_data_controller(uint32_t self_id, Inventory * inventory, 
 	data_controller -> data_qp = qp;
 	data_controller -> data_cq = cq;
 
+	
+	// INITIALIZE PD/QP/CQ FOR DATA CONTROL OPS
+	// 1.) PD based on inputted configuration
+        struct ibv_pd * control_pd = ibv_alloc_pd(ibv_ctx);
+        if (pd == NULL) {
+                fprintf(stderr, "Error: could not allocate pd for data_controller\n");
+                return NULL;
+        }
+
+        // 2.) CQ based on inputted configuration
+
+        /* "The pointer cq_context will be used to set user context pointer of the cq structure" */
+	int control_num_cq_entries = 1U << 12;
+
+        /* "The pointer cq_context will be used to set user context pointer of the cq structure" */
+
+        
+        // SHOULD BE THE EXCHANGE_CLIENT COMPLETITION HANDLER 
+        void * control_cq_context = NULL;
+
+        struct ibv_cq_init_attr_ex control_cq_attr;
+        memset(&control_cq_attr, 0, sizeof(control_cq_attr));
+        control_cq_attr.cqe = control_num_cq_entries;
+        control_cq_attr.cq_context = control_cq_context;
+
+        // every cq will be in its own thread...
+        // uint32_t cq_create_flags = IBV_CREATE_CQ_ATTR_SINGLE_THREADED;
+        // cq_attr.flags = cq_create_flags;
+
+        struct ibv_cq_ex * control_cq = ibv_create_cq_ex(ibv_ctx, &control_cq_attr);
+        if (control_cq == NULL){
+                fprintf(stderr, "Error: could not create cq for data_controller\n");
+                return NULL;
+        }
+
+	 // 3.) NOW create QP
+        // SHOULD BE OF UD type but for now just saying RC for simplicity
+
+        // really should be RDMA_UD
+        RDMAConnectionType control_connection_type = RDMA_RC;
+        enum ibv_qp_type control_qp_type;
+        if (control_connection_type == RDMA_RC){
+                control_qp_type = IBV_QPT_RC;
+        }
+        if (connection_type == RDMA_UD){
+                control_qp_type = IBV_QPT_UD;
+        }
+
+        struct ibv_qp_init_attr_ex control_qp_attr;
+        memset(&control_qp_attr, 0, sizeof(control_qp_attr));
+
+        control_qp_attr.pd = control_pd; // Setting Protection Domain
+        control_qp_attr.qp_type = control_qp_type; // Using Reliable-Connection
+        control_qp_attr.sq_sig_all = 1;       // if not set 0, all work requests submitted to SQ will always generate a Work Completion.
+        control_qp_attr.send_cq = ibv_cq_ex_to_cq(control_cq);         // completion queue can be shared or you can use distinct completion queues.
+        control_qp_attr.recv_cq = ibv_cq_ex_to_cq(control_cq);         // completion queue can be shared or you can use distinct completion queues.
+
+        // Device cap of 2^15 for each side of QP's outstanding work requests...
+        control_qp_attr.cap.max_send_wr = 1U << 12;  // increase if you want to keep more send work requests in the SQ.
+        control_qp_attr.cap.max_recv_wr = 1U << 12;  // increase if you want to keep more receive work requests in the RQ.
+        control_qp_attr.cap.max_send_sge = 1; // increase if you allow send work requests to have multiple scatter gather entry (SGE).
+        control_qp_attr.cap.max_recv_sge = 1; // increase if you allow receive work requests to have multiple scatter gather entry (SGE).
+        //qp_attr.cap.max_inline_data = 1000;
+        uint64_t control_send_ops_flags;
+        if (control_connection_type == RDMA_RC){
+                // send_ops_flags = IBV_QP_EX_WITH_RDMA_WRITE | IBV_QP_EX_WITH_RDMA_READ | IBV_QP_EX_WITH_SEND |
+                //                                              IBV_QP_EX_WITH_ATOMIC_CMP_AND_SWP | IBV_QP_EX_WITH_ATOMIC_FETCH_AND_ADD;
+                control_send_ops_flags = IBV_QP_EX_WITH_SEND;
+        }
+        // UD queue pairs can only do Sends, not RDMA or Atomics
+        else{
+                control_send_ops_flags = IBV_QP_EX_WITH_SEND;
+        }
+        control_qp_attr.send_ops_flags |= control_send_ops_flags;
+        control_qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
+
+        struct ibv_qp * control_qp = ibv_create_qp_ex(ibv_ctx, &control_qp_attr);
+        if (control_qp == NULL){
+                fprintf(stderr, "Error: could not create qp for data_controller\n");
+                return NULL;
+        }
+	
+	data_controller -> control_pd = control_pd;
+	data_controller -> control_cq = control_cq;
+	data_controller -> control_qp = control_qp;
+
+
 
 	// INITIALIZE COMPLETITION QUEUE HANDLER THREADS
 
 	// num threads should equal number of CQs
 	int num_threads = num_cqs;
+
+	// TEMPORARY HARD CODING TO 2 CQs (one control and one data)
+	num_threads = 2;
 	Data_Completion * handler_thread_data = malloc(num_threads * sizeof(Data_Completion));
 	if (handler_thread_data == NULL){
 		fprintf(stderr, "Error: malloc failed allocating handler thread data for data controller\n");
@@ -482,9 +581,9 @@ int setup_data_connection(Data_Controller * data_controller, uint32_t peer_id, c
 	// For now just doing data intiate
 	
 	// for receiving incoming data requests from others. need to prepopulate the receives because this is an inital message
-	Channel * in_data_req = init_channel(self_id, peer_id, capacity_control_channels, DATA_REQUEST, sizeof(Data_Request), true, true, data_controller -> data_pd, data_controller -> data_qp, data_controller -> data_cq);
+	Channel * in_data_req = init_channel(self_id, peer_id, capacity_control_channels, DATA_REQUEST, sizeof(Data_Request), true, true, data_controller -> control_pd, data_controller -> control_qp, data_controller -> control_cq);
 	// for sending data requests to others
-	Channel * out_data_req = init_channel(self_id, peer_id, capacity_control_channels, DATA_REQUEST, sizeof(Data_Request), false, false, data_controller -> data_pd, data_controller -> data_qp, data_controller -> data_cq);
+	Channel * out_data_req = init_channel(self_id, peer_id, capacity_control_channels, DATA_REQUEST, sizeof(Data_Request), false, false, data_controller -> control_pd, data_controller -> control_qp, data_controller -> control_cq);
 	if ((in_data_req == NULL) || (out_data_req == NULL)){
 		fprintf(stderr, "Error: could not initialize control channels\n");
 		return -1;

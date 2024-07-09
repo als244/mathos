@@ -34,6 +34,10 @@ typedef struct data_controller {
 	struct ibv_qp * data_qp;
 	// TODO: probably want to have a shared receive queue across the connections....
 	struct ibv_cq_ex * data_cq;
+	// TEMPORARITY ADDING OTHER PD/CQ/QP for testing
+	struct ibv_pd * control_pd;
+	struct ibv_qp * control_qp;
+	struct ibv_cq_ex * control_cq;
 	// number of completion threads should equal number of CQs, likely equal number of QPs...
 	// For now setting to 1...
 	int num_cqs;

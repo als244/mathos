@@ -155,8 +155,6 @@ int handle_bid_match_recv(Exchanges_Client * exchanges_client, Exchange_Connecti
 		return -1;
 	}
 
-	sleep(10);
-
 	void * recv_addr = reserved_obj_location -> addr;
 	uint32_t lkey = reserved_obj_location -> lkey;
 
