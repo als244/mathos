@@ -130,7 +130,7 @@ int main(int argc, char * argv[]){
 	}
 
 	// THIS EXECUTABLE IS CLIENT SO NEEDS TO WAIT FOR SERVER TO SETUP
-	sleep(5);
+	sleep(2);
 
 	// 4.) Setup connection to other exchanges
 	printf("Setting up connection to exchange: %u\n\n", OTHER_ID);
@@ -142,7 +142,7 @@ int main(int argc, char * argv[]){
 
 
 	// THIS EXECUTABLE IS CLIENT SO NEEDS TO WAIT FOR SERVER TO SETUP
-	sleep(5);
+	sleep(2);
 
 	// 5.) Setup data connection
 	printf("Setting up data connection with peer: %u\n\n", OTHER_ID);

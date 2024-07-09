@@ -586,7 +586,7 @@ int setup_data_connection(Data_Controller * data_controller, uint32_t peer_id, c
 	// TEMPORARILLY FORCING THE CLIENT TO SLEEP SO THERE AREN'T CONNECTION ISSUES
 	// NEED TO FIX ONCE I UNDERSTAND CONNECTION ESTABLISHMENT WIHOUT librdmacm
 	if (!is_server){
-		sleep(5);
+		sleep(2);
 	}
 
 	// 2.) Second set up data connection
