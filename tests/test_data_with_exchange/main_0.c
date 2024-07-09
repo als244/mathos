@@ -115,27 +115,8 @@ int main(int argc, char * argv[]){
 	//	- IMPORTANT: need not be symmetric across different types of channels (message types, recv vs. send)
 	//					- in reality we want the number of recv work requests for outstanding bids to be the highest by far!
 
-	uint32_t capacity_channels = 1U << 10;
+	uint32_t capacity_channels = 1U << 8;
 
-	// 5.) Setup data connection
-	printf("Setting up data connection with peer: %u\n\n", OTHER_ID);
-	// defined in data_channel.h
-	// in local example this is 4096 (i used ifconfig to change eth mtu to 4200), but commonly 1024 (with eth mtu of 1500)
-	uint32_t packet_max_bytes = PATH_MTU;
-	int packet_id_num_bits = 24;
-	// potentially could have more packets than packet id. max packets reference to size of packets hash table
-	// could store more packets than id's if need to deal with network loss and re-transmission...
-	uint32_t max_packets = 1U << packet_id_num_bits;
-	uint32_t max_packet_id = 1U << packet_id_num_bits;
-	// max transfers should be order of magnitude less than max packets, but being safe here...
-	uint32_t max_transfers = 1U << packet_id_num_bits;
-
-	ret = setup_data_connection(data_controller, OTHER_ID, MY_IP, OTHER_IP, SERVER_PORT_DATA, capacity_channels, 
-									packet_max_bytes, max_packets, max_packet_id, max_transfers);
-	if (ret != 0){
-		fprintf(stderr, "Error: could not setup data connection\n");
-		return -1;
-	}
 
 	// 3.) Setup connection to other exchanges
 	printf("Setting up connection to exchange: %u\n\n", OTHER_ID);
@@ -154,6 +135,26 @@ int main(int argc, char * argv[]){
 	ret = setup_client_connection(exchange, MY_ID, MY_IP, OTHER_ID, OTHER_IP, SERVER_PORT_EXCH, capacity_channels);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not setup client connection\n");
+		return -1;
+	}
+
+	// 5.) Setup data connection
+	printf("Setting up data connection with peer: %u\n\n", OTHER_ID);
+	// defined in data_channel.h
+	// in local example this is 4096 (i used ifconfig to change eth mtu to 4200), but commonly 1024 (with eth mtu of 1500)
+	uint32_t packet_max_bytes = PATH_MTU;
+	int packet_id_num_bits = 24;
+	// potentially could have more packets than packet id. max packets reference to size of packets hash table
+	// could store more packets than id's if need to deal with network loss and re-transmission...
+	uint32_t max_packets = 1U << packet_id_num_bits;
+	uint32_t max_packet_id = 1U << packet_id_num_bits;
+	// max transfers should be order of magnitude less than max packets, but being safe here...
+	uint32_t max_transfers = 1U << packet_id_num_bits;
+
+	ret = setup_data_connection(data_controller, OTHER_ID, MY_IP, OTHER_IP, SERVER_PORT_DATA, capacity_channels, 
+									packet_max_bytes, max_packets, max_packet_id, max_transfers);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not setup data connection\n");
 		return -1;
 	}
 

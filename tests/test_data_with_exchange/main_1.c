@@ -115,7 +115,26 @@ int main(int argc, char * argv[]){
 	//	- IMPORTANT: need not be symmetric across different types of channels (message types, recv vs. send)
 	//					- in reality we want the number of recv work requests for outstanding bids to be the highest by far!
 
-	uint32_t capacity_channels = 1U << 10;
+	uint32_t capacity_channels = 1U << 8;
+
+
+	// 3.) Setup connection to client
+	printf("Setting up connection with client: %u\n\n", OTHER_ID);
+	//		- currently not asynchronous, so need to do in the proper order, otherwise deadlock
+	//		- aka should be reverse order on the other end (setup_client_connection first)
+	ret = setup_client_connection(exchange, MY_ID, MY_IP, OTHER_ID, OTHER_IP, SERVER_PORT_CLIENT, capacity_channels);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not setup client connection\n");
+		return -1;
+	}
+
+	// 4.) Setup connection to other exchanges
+	printf("Setting up connection to exchange: %u\n\n", OTHER_ID);
+	ret = setup_exchange_connection(exchanges_client, OTHER_ID, OTHER_IP, MY_ID, MY_IP, SERVER_PORT_EXCH, capacity_channels);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not setup exchange connection\n");
+		return -1;
+	}
 
 	// 5.) Setup data connection
 	printf("Setting up data connection with peer: %u\n\n", OTHER_ID);
@@ -136,26 +155,6 @@ int main(int argc, char * argv[]){
 		fprintf(stderr, "Error: could not setup data connection\n");
 		return -1;
 	}
-
-	// 3.) Setup connection to client
-	printf("Setting up connection with client: %u\n\n", OTHER_ID);
-	//		- currently not asynchronous, so need to do in the proper order, otherwise deadlock
-	//		- aka should be reverse order on the other end (setup_client_connection first)
-	ret = setup_client_connection(exchange, MY_ID, MY_IP, OTHER_ID, OTHER_IP, SERVER_PORT_CLIENT, capacity_channels);
-	if (ret != 0){
-		fprintf(stderr, "Error: could not setup client connection\n");
-		return -1;
-	}
-
-	// 4.) Setup connection to other exchanges
-	printf("Setting up connection to exchange: %u\n\n", OTHER_ID);
-	ret = setup_exchange_connection(exchanges_client, OTHER_ID, OTHER_IP, MY_ID, MY_IP, SERVER_PORT_EXCH, capacity_channels);
-	if (ret != 0){
-		fprintf(stderr, "Error: could not setup exchange connection\n");
-		return -1;
-	}
-
-
 	
 
 
