@@ -91,7 +91,7 @@ int main(int argc, char * argv[]){
 
 	// 2.) Initialize Own Exchanges_Client
 	printf("Initializing Exchanges Client...\n\n");
-	uint64_t max_outstanding_bids = 1UL << 12;
+	uint64_t max_outstanding_bids = 1UL << 8;
 	uint32_t max_exchanges = num_exchanges;
 	Exchanges_Client * exchanges_client = init_exchanges_client(num_exchanges, max_exchanges, max_outstanding_bids, exchange, data_controller, ibv_dev_ctx);
 	if (exchanges_client == NULL){
@@ -115,7 +115,7 @@ int main(int argc, char * argv[]){
 	//	- IMPORTANT: need not be symmetric across different types of channels (message types, recv vs. send)
 	//					- in reality we want the number of recv work requests for outstanding bids to be the highest by far!
 
-	uint32_t capacity_channels = 1U << 8;
+	uint32_t capacity_channels = 1U << 6;
 
 
 	// 3.) Setup connection to client
