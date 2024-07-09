@@ -170,7 +170,7 @@ int handle_bid_match_recv(Exchanges_Client * exchanges_client, Exchange_Connecti
 
 	// now can free this because was dynamically allocated when inserted
 	// fingerprint was already copied over within send_data_request
-	free(outstanding_bid);
+	//free(outstanding_bid);
 
 
 	// IF THERE WERE ERRORS, SHOULD INSERT OUTSTANDING BID BACK..?

@@ -171,7 +171,7 @@ int main(int argc, char * argv[]){
 	uint64_t example_data_bytes = 100;
 
 	uint64_t bid_match_wr_id;
-	ret = submit_bid(exchanges_client, MY_ID, example_fingerprint, example_data_bytes, &bid_match_wr_id, NULL);
+	ret = submit_bid(exchanges_client, MY_ID, example_fingerprint, (uint32_t) example_data_bytes, &bid_match_wr_id, NULL);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not submit bid\n");
 		return -1;
