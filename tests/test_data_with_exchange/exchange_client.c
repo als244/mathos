@@ -162,7 +162,7 @@ int handle_bid_match_recv(Exchanges_Client * exchanges_client, Exchange_Connecti
 
 	// Now we want to send a data request to the bid match location id.
 	printf("[Client %u]. Sending data request to: %u\n", exchanges_client -> self_exchange_id, peer_id);
-	ret = send_data_request(data_controller, peer_id, fingerprint, recv_addr, data_bytes, lkey, &transfer_start_id);
+	ret = send_data_request(data_controller, peer_id, fingerprint, recv_addr, (uint32_t) data_bytes, lkey, &transfer_start_id);
 	if (ret != 0){
 		fprintf(stderr, "Error: failed to send data request to peer: %u\n", peer_id);
 		return -1;
