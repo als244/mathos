@@ -420,6 +420,7 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 	// the wr_id encoding ensures that the wr_id's will be unique among different cocnnections
 
 	// Building linked list of receive work requests...
+	/*
 	struct ibv_recv_wr * recv_wr_head = malloc(sizeof(struct ibv_recv_wr));
 	if (recv_wr_head == NULL){
 		fprintf(stderr, "Error: malloc failed allocating recv wr\n");
@@ -492,6 +493,38 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 		pthread_mutex_unlock(&(data_channel -> transfer_start_id_lock));
 		return -1;
 	}
+	*/
+
+	for (uint32_t i = 0; i < num_packets; i++){
+
+		// ensure wrap around so the encoding is correct
+		if (cur_channel_cnt >= max_packet_id){
+			cur_channel_cnt = 0;
+		}
+		
+		// the last packet may have less bytes so treat it unique
+		if (i == num_packets - 1){
+			packet_bytes = last_packet_bytes;
+		}
+		else{
+			packet_bytes = packet_max_bytes;
+		}
+
+		encoded_wr_id = encode_wr_id(sender_id, cur_channel_cnt, DATA_PACKET);
+		printf("Posting receive with wr id: %lu\n", encoded_wr_id);
+
+		ret = post_recv_work_request(data_channel -> qp, cur_addr, packet_bytes, lkey, encoded_wr_id);
+		if (ret != 0){
+			pthread_mutex_unlock(&(data_channel -> transfer_start_id_lock));
+			fprintf(stderr, "Error: posting receive work request failed\n");
+			return -1;
+		}
+		
+		// update values for next packet
+		cur_channel_cnt += 1;
+		cur_addr += packet_bytes;
+	}
+
 
 	// Transfer and all outstanding packets have been successfully inserted without duplicates
 	// & all post_recvs submitted successfully,
