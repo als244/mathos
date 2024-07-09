@@ -236,6 +236,7 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
 	// reset channel count 
 	cur_channel_cnt = start_packet_id;
 	
+	/*
 	struct ibv_qp_ex * qp_ex = ibv_qp_to_qp_ex(data_channel -> qp);
     ibv_wr_start(qp_ex);
 	for (uint32_t i = 0; i < num_packets; i++) {
@@ -254,7 +255,7 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
 
 		encoded_wr_id = encode_wr_id(sender_id, cur_channel_cnt, DATA_PACKET);
 		qp_ex -> wr_id = encoded_wr_id;
-    	qp_ex -> wr_flags = 0; /* ordering/fencing etc. */
+    	qp_ex -> wr_flags = 0;
     	printf("Posting send with wr id: %lu\n", encoded_wr_id);
    		// Queue sends
     	ibv_wr_send(qp_ex);
@@ -270,6 +271,35 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
         fprintf(stderr, "Error: issue with ibv_wr_complete within outbound transfer\n");
         return -1;
     }
+    */
+
+    for (uint32_t i = 0; i < num_packets; i++) {
+		// ensure wrap around so the encoding is correct
+		if (cur_channel_cnt >= max_packet_id){
+			cur_channel_cnt = 0;
+		}
+		
+		// the last packet may have less bytes so treat it unique
+		if (i == num_packets - 1){
+			packet_bytes = last_packet_bytes;
+		}
+		else{
+			packet_bytes = packet_max_bytes;
+		}
+
+		encoded_wr_id = encode_wr_id(sender_id, cur_channel_cnt, DATA_PACKET);
+    	printf("Posting send with wr id: %lu\n", encoded_wr_id);
+   		ret = post_send_work_request(data_channel -> qp, cur_addr, packet_bytes, lkey, encoded_wr_id);
+   		if (ret != 0){
+   			fprintf(stderr, "Error: could not post send work request\n");
+   			return -1;
+   		}
+		cur_channel_cnt += 1;
+		cur_addr += packet_bytes;
+	}
+
+
+    
 
 	return 0;
 }
