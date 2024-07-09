@@ -167,11 +167,12 @@ int main(int argc, char * argv[]){
 	// 6.) Fake that we computed an object and put into inventory
 	//		- this is simulating what we would be done by the actual function executor...
 	printf("Creating fake object and putting in inventory...\n\n");
-	uint64_t example_data_bytes = 100;
+	uint64_t example_data_bytes = 4096;
 	// fake object
-	char * example_data = malloc(example_data_bytes);
-	for (int i = 0; i < example_data_bytes; i++){
-		example_data[i] = (char) i;
+	int * example_data = malloc(example_data_bytes);
+	int num_ints = example_data_bytes / sizeof(int);
+	for (int i = 0; i < num_ints; i++){
+		example_data[i] = i;
 	}
 	// fake register object
 	struct ibv_mr * fake_obj_mr;
