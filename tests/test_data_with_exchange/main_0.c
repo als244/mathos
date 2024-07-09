@@ -115,7 +115,7 @@ int main(int argc, char * argv[]){
 	//	- IMPORTANT: need not be symmetric across different types of channels (message types, recv vs. send)
 	//					- in reality we want the number of recv work requests for outstanding bids to be the highest by far!
 
-	uint32_t capacity_channels = 1U << 5;
+	uint32_t capacity_channels = 1U << 4;
 
 
 	// 3.) Setup connection to other exchanges
