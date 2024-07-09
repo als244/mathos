@@ -2,9 +2,9 @@
 #include "data_controller.h"
 
 
-#define MY_ID 0U
+#define MY_ID 0UL
 #define MY_IP "192.168.50.23"
-#define OTHER_ID 1U
+#define OTHER_ID 1UL
 #define OTHER_IP "192.168.50.32"
 #define SERVER_PORT_EXCH "7471"
 #define SERVER_PORT_CLIENT "7472"
@@ -117,6 +117,26 @@ int main(int argc, char * argv[]){
 
 	uint32_t capacity_channels = 1U << 10;
 
+	// 5.) Setup data connection
+	printf("Setting up data connection with peer: %u\n\n", OTHER_ID);
+	// defined in data_channel.h
+	// in local example this is 4096 (i used ifconfig to change eth mtu to 4200), but commonly 1024 (with eth mtu of 1500)
+	uint32_t packet_max_bytes = PATH_MTU;
+	int packet_id_num_bits = 24;
+	// potentially could have more packets than packet id. max packets reference to size of packets hash table
+	// could store more packets than id's if need to deal with network loss and re-transmission...
+	uint32_t max_packets = 1U << packet_id_num_bits;
+	uint32_t max_packet_id = 1U << packet_id_num_bits;
+	// max transfers should be order of magnitude less than max packets, but being safe here...
+	uint32_t max_transfers = 1U << packet_id_num_bits;
+
+	ret = setup_data_connection(data_controller, OTHER_ID, MY_IP, OTHER_IP, SERVER_PORT_DATA, capacity_channels, 
+									packet_max_bytes, max_packets, max_packet_id, max_transfers);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not setup data connection\n");
+		return -1;
+	}
+
 	// 3.) Setup connection to other exchanges
 	printf("Setting up connection to exchange: %u\n\n", OTHER_ID);
 	//		- currently not asynchronous, so need to do in the proper order, otherwise deadlock
@@ -137,25 +157,7 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	// 5.) Setup data connection
-	printf("Setting up data connection with peer: %u\n\n", OTHER_ID);
-	// defined in data_channel.h
-	// in local example this is 4096 (i used ifconfig to change eth mtu to 4200), but commonly 1024 (with eth mtu of 1500)
-	uint32_t packet_max_bytes = PATH_MTU;
-	int packet_id_num_bits = 24;
-	// potentially could have more packets than packet id. max packets reference to size of packets hash table
-	// could store more packets than id's if need to deal with network loss and re-transmission...
-	uint32_t max_packets = 1U << packet_id_num_bits;
-	uint32_t max_packet_id = 1U << packet_id_num_bits;
-	// max transfers should be order of magnitude less than max packets, but being safe here...
-	uint32_t max_transfers = 1U << packet_id_num_bits;
-
-	ret = setup_data_connection(data_controller, OTHER_ID, MY_IP, OTHER_IP, SERVER_PORT_DATA, capacity_channels, 
-									packet_max_bytes, max_packets, max_packet_id, max_transfers);
-	if (ret != 0){
-		fprintf(stderr, "Error: could not setup data connection\n");
-		return -1;
-	}
+	
 
 	// 6.) Submit messages
 	printf("\n\nNow actually submiting orders...!\n\n");
