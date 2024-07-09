@@ -309,7 +309,8 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
     memset(&conn_params, 0, sizeof(conn_params));
 
     // for this simple example, do doing any sync with posting send/recv so just retry a lot...
-    conn_params.rnr_retry_count=100;
+    // 3-bit value. Setting to 7 means infinite re-try
+    conn_params.rnr_retry_count=7;
 
 
     while (!is_done){
