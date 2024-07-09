@@ -238,8 +238,6 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
 	
 	struct ibv_qp_ex * qp_ex = ibv_qp_to_qp_ex(data_channel -> qp);
     ibv_wr_start(qp_ex);
-	
-	
 	for (uint32_t i = 0; i < num_packets; i++) {
 		// ensure wrap around so the encoding is correct
 		if (cur_channel_cnt >= max_packet_id){
@@ -256,7 +254,7 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
 
 		encoded_wr_id = encode_wr_id(sender_id, cur_channel_cnt, DATA_PACKET);
 		qp_ex -> wr_id = encoded_wr_id;
-    	qp_ex -> wr_flags = IBV_SEND_FENCE; /* ordering/fencing etc. */
+    	qp_ex -> wr_flags = 0; /* ordering/fencing etc. */
     	printf("Posting send with wr id: %lu\n", encoded_wr_id);
    		// Queue sends
     	ibv_wr_send(qp_ex);
@@ -430,7 +428,7 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 		sg[i].lkey = lkey;
 
 		cur_wr -> wr_id = encoded_wr_id;
-		cur_wr -> sg_list = &sg[i];
+		cur_wr -> sg_list = &(sg[i]);
 		cur_wr -> num_sge = 1;
 
 		// if not the last packet then
