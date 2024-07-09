@@ -230,7 +230,7 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
 	// START LOOP OF DOING IB-VERBS POST SENDS...
 	
 	// going from packet_id (channel count) to wr_id
-	uint32_t encoded_wr_id;
+	uint64_t encoded_wr_id;
 	// advance addr with every packet
 	uint64_t cur_addr = (uint64_t) addr;
 	// reset channel count 
@@ -381,7 +381,7 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 	// START LOOP OF DOING IB-VERBS POST Recvs...
 
 	// going from packet_id (channel count) to wr_id
-	uint32_t encoded_wr_id;
+	uint64_t encoded_wr_id;
 	// advance addr with every packet
 	uint64_t cur_addr = (uint64_t) recv_addr;
 	// reset channel count 
