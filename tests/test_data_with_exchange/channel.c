@@ -114,7 +114,7 @@ Channel * init_channel(uint32_t self_id, uint32_t peer_id, uint32_t capacity, Me
 
 	// now need to post the intial receives for this channel 
 	if (is_inbound && to_presubmit_recv){
-		for (uint16_t i = 0; i < capacity; i++){
+		for (uint32_t i = 0; i < capacity; i++){
 			ret = submit_in_channel_reservation(channel, NULL, NULL);
 			if (ret != 0){
 				fprintf(stderr, "Error: could not submit initial receives to channel\n");
@@ -218,7 +218,6 @@ int submit_out_channel_message(Channel * channel, void * message, uint64_t * sen
 	memcpy((void *) addr, message, channel -> message_size);
 
 	// 7.) Post send
-	printf("Posting out channel message with encoded_wr_id: %lu\n", encoded_wr_id);
 	ret = post_send_work_request(channel -> qp, addr, channel -> message_size, channel -> mr -> lkey, encoded_wr_id);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not post receive work request for channel\n");
