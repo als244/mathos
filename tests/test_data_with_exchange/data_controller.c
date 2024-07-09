@@ -112,7 +112,7 @@ int handle_data_packet(Data_Controller * data_controller, Data_Connection * data
 	}
 	// THERE WAS A COMPLETITION
 	if (transfer_complete != NULL){
-		printf("[Data Controller %u]. Completed transfer.\n\tNow at Addr: %p\n\tTransfer Start ID: %u\n\tFingerprint: ", data_controller -> self_id, transfer_complete -> addr, transfer_complete -> start_id);
+		printf("[Data Controller %u]. Completed in-bound transfer.\n\tNow at Addr: %p\n\tTransfer Start ID: %u\n\tFingerprint: ", data_controller -> self_id, transfer_complete -> addr, transfer_complete -> start_id);
 		print_hex(transfer_complete -> fingerprint, FINGERPRINT_NUM_BYTES);
 		free(transfer_complete);
 	}
