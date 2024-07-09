@@ -186,7 +186,7 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
 	// OUTBOUND TRANSFERS DON'T CARE ABOUT CHANNEL COUNT LOCK BECAUSE CHANNEL COUNT IS PROVIDED
 
 	uint32_t max_packet_id = data_channel -> max_packet_id;
-	uint16_t last_packet_bytes = data_bytes - ((num_packets - 1) * packet_max_bytes);
+	uint16_t last_packet_bytes = (uint16_t) (data_bytes - ((num_packets - 1) * (uint32_t) packet_max_bytes));
 
 	// MAYBE NOT REALLY NECESSARY TO MAINTAIN OUT-BOUND ONGOING TRANSFERS...?
 	// doing it for potentially later implementing fault-recovery and re-transmission...
@@ -361,8 +361,7 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 
 	// OUTBOUND TRANSFERS DON'T CARE ABOUT CHANNEL COUNT LOCK BECAUSE CHANNEL COUNT IS PROVIDED
 
-	
-	uint16_t last_packet_bytes = (uint16_t) (data_bytes - ((num_packets - 1) * packet_max_bytes));
+	uint16_t last_packet_bytes = (uint16_t) (data_bytes - ((num_packets - 1) * (uint32_t) packet_max_bytes));
 
 	// MAYBE NOT REALLY NECESSARY TO MAINTAIN OUT-BOUND ONGOING TRANSFERS...?
 	// doing it for potentially later implementing fault-recovery and re-transmission...
