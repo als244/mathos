@@ -584,6 +584,12 @@ int setup_data_connection(Data_Controller * data_controller, uint32_t peer_id, c
 	}
 
 	data_connection -> control_connection = control_conn;
+	
+	// TEMPORARILLY FORCING THE CLIENT TO SLEEP SO THERE AREN'T CONNECTION ISSUES
+	// NEED TO FIX ONCE I UNDERSTAND CONNECTION ESTABLISHMENT WIHOUT librdmacm
+	if (!is_server){
+		sleep(5);
+	}
 
 	// 2.) Second set up data connection
         ret = setup_connection(data_connection_type, is_server, server_id, server_ip, server_port_data, server_pd_data, server_qp_data, server_cq_data,
