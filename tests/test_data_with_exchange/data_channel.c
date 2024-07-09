@@ -288,7 +288,7 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
 		}
 
 		encoded_wr_id = encode_wr_id(sender_id, cur_channel_cnt, DATA_PACKET);
-    	printf("Posting send with wr id: %lu\n", encoded_wr_id);
+    	printf("Posting send with wr id: %lu, length: %u\n", encoded_wr_id, packet_bytes);
    		ret = post_send_work_request(data_channel -> qp, cur_addr, (uint32_t) packet_bytes, lkey, encoded_wr_id);
    		if (ret != 0){
    			fprintf(stderr, "Error: could not post send work request\n");
@@ -510,7 +510,7 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 		}
 
 		encoded_wr_id = encode_wr_id(sender_id, cur_channel_cnt, DATA_PACKET);
-		printf("Posting receive with wr id: %lu\n", encoded_wr_id);
+		printf("Posting receive with wr id: %lu, length: %u\n", encoded_wr_id, packet_bytes);
 
 		ret = post_recv_work_request(data_channel -> qp, cur_addr, (uint32_t) packet_bytes, lkey, encoded_wr_id);
 		if (ret != 0){
