@@ -568,7 +568,7 @@ int send_data_request(Data_Controller * data_controller, uint32_t peer_id, uint8
 	// maybe want them for fault-handling...??
 	uint64_t sent_out_req_wr_id;
 	uint64_t sent_out_req_addr;
-	printf("submitting outbound data request\n");
+	printf("Submitting outbound data request\n");
 	ret = submit_out_channel_message(out_data_req, &data_request, NULL, &sent_out_req_wr_id, &sent_out_req_addr);
 
 	if (ret != 0){
