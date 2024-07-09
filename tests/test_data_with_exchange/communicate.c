@@ -298,7 +298,7 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
     
     int ret;
     struct rdma_cm_event * event;
-    int timeout_ms = 2000;
+    int timeout_ms = 20000;
 
     int is_done = 0;
 
