@@ -161,7 +161,7 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
 	uint32_t sender_id = data_channel -> self_id;
 
 	uint32_t packet_max_bytes = data_channel -> packet_max_bytes;
-	uint32_t num_packets = ceil(data_bytes / packet_max_bytes);
+	uint32_t num_packets = ceil((double) data_bytes / (double) packet_max_bytes);
 	uint32_t start_packet_id = start_id;
 
 	// MAYBE NOT REALLY NECESSARY TO MAINTAIN OUT-BOUND ONGOING TRANSFERS...?
@@ -286,7 +286,7 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 	uint32_t sender_id = data_channel -> peer_id;
 
 	uint32_t packet_max_bytes = data_channel -> packet_max_bytes;
-	uint32_t num_packets = ceil(data_bytes / packet_max_bytes);
+	uint32_t num_packets = ceil((double) data_bytes / (double) packet_max_bytes);
 	uint32_t max_packet_id = data_channel -> max_packet_id;
 	
 
