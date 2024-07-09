@@ -236,7 +236,7 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
 	// reset channel count 
 	cur_channel_cnt = start_packet_id;
 	
-	/*
+
 	struct ibv_qp_ex * qp_ex = ibv_qp_to_qp_ex(data_channel -> qp);
     ibv_wr_start(qp_ex);
 	for (uint32_t i = 0; i < num_packets; i++) {
@@ -271,8 +271,8 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
         fprintf(stderr, "Error: issue with ibv_wr_complete within outbound transfer\n");
         return -1;
     }
-    */
 
+    /*
     for (uint32_t i = 0; i < num_packets; i++) {
 		// ensure wrap around so the encoding is correct
 		if (cur_channel_cnt >= max_packet_id){
@@ -297,7 +297,7 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
 		cur_channel_cnt += 1;
 		cur_addr += (uint64_t) packet_bytes;
 	}
-
+	*/
 
     
 
@@ -419,7 +419,6 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 	// the wr_id encoding ensures that the wr_id's will be unique among different cocnnections
 
 	// Building linked list of receive work requests...
-	/*
 	struct ibv_recv_wr * recv_wr_head = malloc(sizeof(struct ibv_recv_wr));
 	if (recv_wr_head == NULL){
 		fprintf(stderr, "Error: malloc failed allocating recv wr\n");
@@ -492,8 +491,8 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 		pthread_mutex_unlock(&(data_channel -> transfer_start_id_lock));
 		return -1;
 	}
-	*/
-
+	
+	/*
 	for (uint32_t i = 0; i < num_packets; i++){
 
 		// ensure wrap around so the encoding is correct
@@ -522,7 +521,7 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 		cur_channel_cnt += 1;
 		cur_addr += (uint64_t) packet_bytes;
 	}
-
+	*/
 
 	// Transfer and all outstanding packets have been successfully inserted without duplicates
 	// & all post_recvs submitted successfully,
