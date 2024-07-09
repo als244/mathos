@@ -230,20 +230,17 @@ int handle_order(Exchange * exchange, Client_Connection * client_connection, uin
 		case BID_ITEM:
 			fingerprint = ((Bid_Order *) client_order) -> fingerprint;
 			printf("[Exchange %u] Posting BID from client: %u...\n", exchange -> id, ((Bid_Order *) client_order) -> location_id);
-			ret = post_bid(exchange, fingerprint, ((Bid_Order *) client_order) -> data_bytes, 
-							((Bid_Order *) client_order) -> location_id, ((Bid_Order *) client_order) -> wr_id);
+			ret = post_bid(exchange, fingerprint, ((Bid_Order *) client_order) -> location_id, ((Bid_Order *) client_order) -> wr_id);
 			break;
 		case OFFER_ITEM:
 			fingerprint = ((Offer_Order *) client_order) -> fingerprint;
 			printf("[Exchange %u] Posting OFFER from client: %u...\n", exchange -> id, ((Offer_Order *) client_order) -> location_id);
-			ret = post_offer(exchange, fingerprint, ((Offer_Order *) client_order) -> data_bytes, 
-							((Offer_Order *) client_order) -> location_id);
+			ret = post_offer(exchange, fingerprint, ((Offer_Order *) client_order) -> location_id);
 			break;
 		case FUTURE_ITEM:
 			fingerprint = ((Future_Order *) client_order) -> fingerprint;
 			printf("[Exchange %u] Posting Future from client: %u...\n", exchange -> id, ((Future_Order *) client_order) -> location_id);
-			ret = post_offer(exchange, fingerprint, ((Future_Order *) client_order) -> data_bytes, 
-							((Future_Order *) client_order) -> location_id);
+			ret = post_offer(exchange, fingerprint, ((Future_Order *) client_order) -> location_id);
 			break;
 		default:
 			fprintf(stderr, "Error: order type not supported\n");
@@ -557,7 +554,7 @@ Exchange * init_exchange(uint32_t id, uint64_t start_val, uint64_t end_val, uint
 
 // participant is either of type (Bid_Participant or Offer_Participant)
 // but doesn't matter for enqueing to deque which assumes void *
-Exchange_Item * init_exchange_item(uint8_t * fingerprint, uint64_t data_bytes, ExchangeItemType item_type, void * participant){
+Exchange_Item * init_exchange_item(uint8_t * fingerprint, ExchangeItemType item_type, void * participant){
 
 	int ret;
 
@@ -568,7 +565,6 @@ Exchange_Item * init_exchange_item(uint8_t * fingerprint, uint64_t data_bytes, E
 	}
 
 	memcpy(exchange_item -> fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
-	exchange_item -> data_bytes = data_bytes;
 	exchange_item -> item_type = item_type;
 
 	Deque * participants = init_deque();
@@ -712,7 +708,7 @@ int remove_exch_item(Exchange * exchange, uint8_t * fingerprint, ExchangeItemTyp
 
 
 
-int post_bid(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint32_t location_id, uint64_t wr_id) {
+int post_bid(Exchange * exchange, uint8_t * fingerprint, uint32_t location_id, uint64_t wr_id) {
 
 	int ret;
 
@@ -766,7 +762,7 @@ int post_bid(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, ui
 		}
 	}
 	else{
-		Exchange_Item * new_bid = init_exchange_item(fingerprint, data_bytes, BID_ITEM, new_participant);
+		Exchange_Item * new_bid = init_exchange_item(fingerprint, BID_ITEM, new_participant);
 		if (new_bid == NULL){
 			fprintf(stderr, "Error: could not initialize new bid exchange item\n");
 			return -1;
@@ -782,7 +778,7 @@ int post_bid(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, ui
 }
 
 
-int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint32_t location_id) {
+int post_offer(Exchange * exchange, uint8_t * fingerprint, uint32_t location_id) {
 
 	int ret;
 
@@ -810,7 +806,7 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, 
 		}
 	}
 	else{
-		Exchange_Item * new_offer = init_exchange_item(fingerprint, data_bytes, OFFER_ITEM, new_participant);
+		Exchange_Item * new_offer = init_exchange_item(fingerprint, OFFER_ITEM, new_participant);
 		if (new_offer == NULL){
 			fprintf(stderr, "Error: could not initialize new offer exchange item\n");
 			return -1;
@@ -871,7 +867,7 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, 
 }
 
 
-int post_future(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint32_t location_id) {
+int post_future(Exchange * exchange, uint8_t * fingerprint, uint32_t location_id) {
 	
 	int ret;
 
@@ -896,7 +892,7 @@ int post_future(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes,
 		}
 	}
 	else{
-		Exchange_Item * new_future = init_exchange_item(fingerprint, data_bytes, FUTURE_ITEM, new_participant);
+		Exchange_Item * new_future = init_exchange_item(fingerprint, FUTURE_ITEM, new_participant);
 		if (new_future == NULL){
 			fprintf(stderr, "Error: could not initialize new future exchange item\n");
 			return -1;

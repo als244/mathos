@@ -101,12 +101,12 @@ int setup_client_connection(Exchange * exchange, uint32_t exchange_id, char * ex
 // done after receiving a function request with a fingerprint not found in inventory
 //	- triggers a lookup of offers and if a match is found does an RDMA read to specified addr and rkey
 // 	- might want to consider not supplying a memory location yet because could be outstanding for a while and do not want to reserve destination...
-int post_bid(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint32_t location_id, uint64_t wr_id);
+int post_bid(Exchange * exchange, uint8_t * fingerprint, uint32_t location_id, uint64_t wr_id);
 // done after receiving a function request with a fingerprint not found in inventory
 //	- triggers a lookup of offers and if a match is found does RDMA writes to matching bids and removes them from exchange
-int post_offer(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint32_t location_id);
+int post_offer(Exchange * exchange, uint8_t * fingerprint, uint32_t location_id);
 
-int post_future(Exchange * exchange, uint8_t * fingerprint, uint64_t data_bytes, uint32_t location_id);
+int post_future(Exchange * exchange, uint8_t * fingerprint, uint32_t location_id);
 
 
 

@@ -159,7 +159,7 @@ Inventory * init_inventory(uint64_t min_objects, uint64_t max_objects) {
 }
 
 
-Obj_Location * init_obj_location(uint8_t * fingerprint, void * addr, uint64_t size_bytes, uint32_t lkey, bool is_available){
+Obj_Location * init_obj_location(uint8_t * fingerprint, void * addr, uint64_t data_bytes, uint32_t lkey, bool is_available){
 
 	int ret;
 	
@@ -171,7 +171,7 @@ Obj_Location * init_obj_location(uint8_t * fingerprint, void * addr, uint64_t si
 
 	memcpy(obj_location -> fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
 	obj_location -> addr = addr;
-	obj_location -> size_bytes = size_bytes;
+	obj_location -> data_bytes = data_bytes;
 	obj_location -> lkey = lkey;
 
 	ret = pthread_mutex_init(&(obj_location -> inbound_lock), NULL);
@@ -197,12 +197,12 @@ Obj_Location * init_obj_location(uint8_t * fingerprint, void * addr, uint64_t si
 
 /* ONLY DISTINCTION BETWEEN PUT vs. RESERVE IS MARKING THE "IS_AVAILABLE" BIT */
 
-int put_obj_local(Inventory * inventory, uint8_t * fingerprint, void * addr, uint64_t size_bytes, uint32_t lkey) {
+int put_obj_local(Inventory * inventory, uint8_t * fingerprint, void * addr, uint64_t data_bytes, uint32_t lkey) {
 
 	int ret;
 
 	bool is_available = true;
-	Obj_Location * obj_location = init_obj_location(fingerprint, addr, size_bytes, lkey, is_available);
+	Obj_Location * obj_location = init_obj_location(fingerprint, addr, data_bytes, lkey, is_available);
 	if (obj_location == NULL){
 		fprintf(stderr, "Error: could not initialize object location\n");
 		return -1;
@@ -219,26 +219,52 @@ int put_obj_local(Inventory * inventory, uint8_t * fingerprint, void * addr, uin
 	return 0;
 }
 
-int reserve_obj_local(Inventory * inventory, uint8_t * fingerprint, void * addr, uint64_t size_bytes, uint32_t lkey) {
+
+// BIG TODO: INSERT A LOT OF LOGIC HERE TO OBTAIN addr and lkey
+//			- Shouldn't be allocating and registering here, but am for now
+Obj_Location * reserve_obj_local(Inventory * inventory, uint8_t * fingerprint, uint64_t data_bytes, struct ibv_pd * pd) {
 
 	int ret;
 
+	// 1.) FOR NOW: Allocate space and register with IB-Verbs
+	//		- should be sophisticated here with device memories and other pools...
+	void * reserved_buffer = malloc(data_bytes);
+	if (reserved_buffer == NULL){
+		fprintf(stderr, "Error: malloc failed for reserving an object buffer\n");
+		return NULL;
+	}
+
+	// now need to register with ib_verbs to get mr => lkey needed for posting sends/recvs
+	struct ibv_mr * reserved_mr;
+	ret = register_virt_memory(pd, reserved_buffer, data_bytes, &reserved_mr);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not register reserved object buffer mr\n");
+		return NULL;
+	}
+
+	void * addr = reserved_mr -> addr;
+	uint32_t lkey = reserved_mr -> lkey;
+
+
+	// 2.) Initialize object location
 	bool is_available = false;
-	Obj_Location * obj_location = init_obj_location(fingerprint, addr, size_bytes, lkey, is_available);
+	Obj_Location * obj_location = init_obj_location(fingerprint, addr, data_bytes, lkey, is_available);
 	if (obj_location == NULL){
 		fprintf(stderr, "Error: could not initialize object location\n");
-		return -1;
+		return NULL;
 	}	
 
 	// TODO: CURRENTLY IGNORING DUPLICATE OBJECT LOCATIONS, BUT SHOULD HANDLE THIS
 
+	// 3.) Insert object location into the table for future lookups
 	ret = insert_item_table(inventory -> obj_locations, obj_location);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not insert object location into table\n");
-		return -1;
+		free(obj_location);
+		return NULL;
 	}
 
-	return 0;
+	return obj_location;
 }
 
 
@@ -272,7 +298,7 @@ int copy_obj_local(Inventory * inventory, uint8_t * fingerprint, void ** ret_clo
 	}
 
 	void * obj_addr = obj_location -> addr;
-	uint64_t obj_size = obj_location -> size_bytes;
+	uint64_t obj_size = obj_location -> data_bytes;
 
 	void * cloned_obj = malloc(obj_size);
 	if (cloned_obj == NULL){

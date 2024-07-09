@@ -6,11 +6,13 @@
 #include "communicate.h"
 #include "channel.h"
 #include "exchange.h"
+#include "data_controller.h"
 
 
 typedef struct outstanding_bid {
 	uint64_t bid_match_wr_id;
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
+	uint64_t data_bytes;
 } Outstanding_Bid;
 
 
@@ -48,6 +50,7 @@ typedef struct Exchanges_Client {
 	uint32_t self_exchange_id;
 	Exchange * self_exchange;
 	Exchange_Connection * self_exchange_connection;
+	Data_Controller * data_controller;
 	// number of completion threads should equal number of CQs, likely equal number of QPs...
 	pthread_t * completion_threads;
 } Exchanges_Client;
@@ -63,7 +66,7 @@ uint64_t get_start_val_from_exch_id(uint32_t num_exchanges, uint32_t exchange_id
 uint64_t get_end_val_from_exch_id(uint32_t num_exchanges, uint32_t exchange_id);
 
 
-Exchanges_Client * init_exchanges_client(uint32_t num_exchanges, uint32_t max_exchanges, uint64_t max_outstanding_bids, Exchange * self_exchange, struct ibv_context * ibv_ctx);
+Exchanges_Client * init_exchanges_client(uint32_t num_exchanges, uint32_t max_exchanges, uint64_t max_outstanding_bids, Exchange * self_exchange, Data_Controller * data_controller, struct ibv_context * ibv_ctx);
 
 // providing local_id & exchange_id to know which end will serve as the server during connection establishment
 // always saying that smaller id will be the server
@@ -74,7 +77,7 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint32_t exch
 int submit_bid(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_t * fingerprint, uint64_t data_bytes, uint64_t * ret_bid_match_wr_id, uint32_t * dest_exchange_id);
 
 // The last 2 arguments are optional 
-int submit_offer(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_t * fingerprint, uint64_t data_bytes, uint64_t * ret_offer_resp_wr_id, uint32_t * dest_exchange_id);
+int submit_offer(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_t * fingerprint, uint64_t * ret_offer_resp_wr_id, uint32_t * dest_exchange_id);
 
 
 // can be called at end of main executable to help with testing...

@@ -4,6 +4,7 @@
 #include "common.h"
 #include "table.h"
 #include "deque.h"
+#include "communicate.h"
 #include "fingerprint.h"
 
 // BIG TODO: Incorporate memory pools of per-device, shared system ram, SSD, and HDD
@@ -13,7 +14,7 @@ typedef struct obj_location {
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
 	void * addr;
 	// object might be > max message size
-	uint64_t size_bytes;
+	uint64_t data_bytes;
 	uint32_t lkey;
 	// needed to acquire before checking if obj is fully available
 	pthread_mutex_t inbound_lock;
@@ -36,8 +37,8 @@ typedef struct inventory {
 
 Inventory * init_inventory(uint64_t min_objects, uint64_t max_objects);
 
-int put_obj_local(Inventory * inventory, uint8_t * fingerprint, void * addr, uint64_t size_bytes, uint32_t lkey);
-int reserve_obj_local(Inventory * inventory, uint8_t * fingerprint, void * addr, uint64_t size_bytes, uint32_t lkey);
+int put_obj_local(Inventory * inventory, uint8_t * fingerprint, void * addr, uint64_t data_bytes, uint32_t lkey);
+Obj_Location * reserve_obj_local(Inventory * inventory, uint8_t * fingerprint, uint64_t data_bytes, struct ibv_pd * pd);
 int lookup_obj_location(Inventory * inventory, uint8_t * fingerprint, Obj_Location ** ret_obj_location);
 int copy_obj_local(Inventory * inventory, uint8_t * fingerprint, void ** ret_cloned_obj);
 

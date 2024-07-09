@@ -1,4 +1,5 @@
 #include "exchange_client.h"
+#include "data_controller.h"
 
 
 #define MY_ID 0UL
@@ -38,8 +39,6 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-
-
 	// 1.) Create Own Exchange 
 	printf("Initializing Exchange...\n");
 
@@ -66,15 +65,38 @@ int main(int argc, char * argv[]){
 	}
 
 
-	// 2.) Initialize Own Exchanges_Client
+	// 2.) Create Own Inventory
+	printf("Initializing Inventory...\n");
+	uint64_t min_objects = 1UL << 12;
+	uint64_t max_objects = 1UL << 36;
+	Inventory * inventory = init_inventory(min_objects, max_objects);
+	if (inventory == NULL){
+		fprintf(stderr, "Error: could not initialize inventory\n");
+		return -1;
+	}
+
+
+	// 3.) Create Own Data Controller
+	printf("Initializing Data Controller...\n");
+	uint32_t max_connections = num_exchanges;
+	int num_cqs = 1;
+	Data_Controller * data_controller = init_data_controller(exchange_id, inventory, max_connections, num_cqs, ibv_dev_ctx);
+	if (data_controller == NULL){
+		fprintf(stderr, "Error: could not initialize data controller\n");
+		return -1;
+	}
+
+
+	// 4.) Create Own Exchanges_Client
 	printf("Initializing Exchanges Client...\n\n");
 	uint64_t max_outstanding_bids = 1UL << 12;
 	uint32_t max_exchanges = num_exchanges;
-	Exchanges_Client * exchanges_client = init_exchanges_client(num_exchanges, max_exchanges, max_outstanding_bids, exchange, ibv_dev_ctx);
+	Exchanges_Client * exchanges_client = init_exchanges_client(num_exchanges, max_exchanges, max_outstanding_bids, exchange, data_controller, ibv_dev_ctx);
 	if (exchanges_client == NULL){
 		fprintf(stderr, "Error: could not initialize exchanges client\n");
 		return -1;
 	}
+
 
 	// Maximum number of 2^15 work requests for each send/recv side of queue pair
 	//	- need not set to be symmetric. can also use SRQ which has limit of 2^15 - 1

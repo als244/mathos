@@ -70,7 +70,7 @@ int handle_data_request(Data_Controller * data_controller, Data_Connection * dat
 	
 	// BIG TODO: SHOULD HANDLE DOING MULTIPLE TRANSFERS OF LARGE OBJECTS HERE.
 	// for now assuming all transfers fit in 32-bits
-	ret = submit_out_transfer(out_data_channel, fingerprint, obj_location -> addr, obj_location -> size_bytes, obj_location -> lkey, transfer_start_id);
+	ret = submit_out_transfer(out_data_channel, fingerprint, obj_location -> addr, obj_location -> data_bytes, obj_location -> lkey, transfer_start_id);
 	if (ret != 0){
 		fprintf(stderr, "Error: issue submitting outbound transfer\n");
 		pthread_mutex_unlock(&(obj_location -> inbound_lock));

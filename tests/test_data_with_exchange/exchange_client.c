@@ -122,6 +122,7 @@ int handle_bid_match_recv(Exchanges_Client * exchanges_client, Exchange_Connecti
 	Outstanding_Bid * outstanding_bid = remove_item_table(outstanding_bids_table, &to_remove);
 
 	uint8_t * fingerprint = outstanding_bid -> fingerprint;
+	uint64_t data_bytes = outstanding_bid -> data_bytes;
 
 	// lookup data corresponding to bid match
 	Bid_Match bid_match;
@@ -132,11 +133,47 @@ int handle_bid_match_recv(Exchanges_Client * exchanges_client, Exchange_Connecti
 		return -1;
 	}
 
-	printf("[Client %u]. Recived a MATCH\n\tLocation: %u\n\tFor fingerprint: ", exchanges_client -> self_exchange_id, bid_match.location_id);
+	uint32_t peer_id = bid_match.location_id;
+
+	printf("[Client %u]. Recived a MATCH\n\tLocation: %u\n\tFor fingerprint: ", exchanges_client -> self_exchange_id, peer_id);
 	print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
 
+
+	// TEMPORARY SOLUTION!
+
+	// NOW AFTER KNOWING WHICH PEER HAS THE FINGERPRINT SEND A DATA REQUEST
+	// BIG TODO: FIGURE OUT WHAT MEMORY LOCATION TO STORE THE RESULTS
+	//			- should be based on scheduling wait-queues and existing memory availability!!
+
+	
+	Data_Controller * data_controller = exchanges_client -> data_controller;
+	// First we must find available registered memory to receive the data
+	Inventory * inventory = data_controller -> inventory;
+	struct ibv_pd * data_pd = data_controller -> data_pd;
+	Obj_Location * reserved_obj_location = reserve_obj_local(inventory, fingerprint, data_bytes, data_pd);
+	if (reserved_obj_location == NULL){
+		fprintf(stderr, "Error: failed to reserve a local object location\n");
+		return -1;
+	}
+
+	void * recv_addr = reserved_obj_location -> addr;
+	uint32_t lkey = reserved_obj_location -> lkey;
+
+	uint32_t transfer_start_id;
+
+	// Now we want to send a data request to the bid match location id. 
+	ret = send_data_request(data_controller, peer_id, fingerprint, recv_addr, data_bytes, lkey, &transfer_start_id);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to send data request to peer: %u\n", peer_id);
+		return -1;
+	}
+
 	// now can free this because was dynamically allocated when inserted
+	// fingerprint was already copied over within send_data_request
 	free(outstanding_bid);
+
+
+	// IF THERE WERE ERRORS, SHOULD INSERT OUTSTANDING BID BACK..?
 
 	return 0;
 }
@@ -263,7 +300,7 @@ void * exchange_client_completion_handler(void * _thread_data){
 
 
 
-Exchanges_Client * init_exchanges_client(uint32_t num_exchanges, uint32_t max_exchanges, uint64_t max_outstanding_bids, Exchange * self_exchange, struct ibv_context * ibv_ctx) {
+Exchanges_Client * init_exchanges_client(uint32_t num_exchanges, uint32_t max_exchanges, uint64_t max_outstanding_bids, Exchange * self_exchange, Data_Controller * data_controller, struct ibv_context * ibv_ctx) {
 
 	Exchanges_Client * exchanges_client = (Exchanges_Client *) malloc(sizeof(Exchanges_Client));
 	if (exchanges_client == NULL){
@@ -411,6 +448,9 @@ Exchanges_Client * init_exchanges_client(uint32_t num_exchanges, uint32_t max_ex
 	}
 
 	exchanges_client -> self_exchange_connection = self_exchange_connection;
+
+	// Setting data controller upon bid matches can initiate data requests
+	exchanges_client -> data_controller = data_controller;
 
 	// INITIALIZE COMPLETITION QUEUE HANDLER THREADS
 
@@ -600,7 +640,7 @@ int submit_bid(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_
 	if (target_exchange_id == self_exchange_id){
 		Exchange * exchange = exchanges_client -> self_exchange;
 		printf("[Client %u]. Posting self-BID...\n", self_exchange_id);
-		ret = post_bid(exchange, fingerprint, data_bytes, location_id, bid_match_wr_id);
+		ret = post_bid(exchange, fingerprint, location_id, bid_match_wr_id);
 		if (ret != 0){
 			fprintf(stderr, "Error: could not post bid to self-exchange\n");
 		}
@@ -613,7 +653,6 @@ int submit_bid(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_
 		memcpy(bid_order.fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
 
 		bid_order.location_id = location_id;
-		bid_order.data_bytes = data_bytes;
 		bid_order.wr_id = bid_match_wr_id;
 
 		// 4.) We can submit this bid order message now
@@ -632,6 +671,7 @@ int submit_bid(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_
 	// maintain mapping between bid_match_wr_id and fingerprint
 	Outstanding_Bid * outstanding_bid = malloc(sizeof(Outstanding_Bid));
 	outstanding_bid -> bid_match_wr_id = bid_match_wr_id;
+	outstanding_bid -> data_bytes = data_bytes;
 	memcpy(outstanding_bid -> fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
 	
 	ret = insert_item_table(exchanges_client -> outstanding_bids, outstanding_bid);
@@ -649,7 +689,7 @@ int submit_bid(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_
 }
 
 // For now having 
-int submit_offer(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_t * fingerprint, uint64_t data_bytes, uint64_t * ret_offer_resp_wr_id, uint32_t * dest_exchange_id){
+int submit_offer(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_t * fingerprint, uint64_t * ret_offer_resp_wr_id, uint32_t * dest_exchange_id){
 
 	int ret;
 
@@ -696,7 +736,7 @@ int submit_offer(Exchanges_Client * exchanges_client, uint32_t location_id, uint
 	if (target_exchange_id == self_exchange_id){
 		Exchange * exchange = exchanges_client -> self_exchange;
 		printf("[Client %u]. Posting self-OFFER...\n", self_exchange_id);
-		ret = post_offer(exchange, fingerprint, data_bytes, location_id);
+		ret = post_offer(exchange, fingerprint, location_id);
 		if (ret != 0){
 			fprintf(stderr, "Error: could not post offer to self-exchange\n");
 		}
@@ -709,7 +749,6 @@ int submit_offer(Exchanges_Client * exchanges_client, uint32_t location_id, uint
 		memcpy(offer_order.fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
 
 		offer_order.location_id = location_id;
-		offer_order.data_bytes = data_bytes;
 
 		// 4.) We can submit this bid order message now
 		Channel * out_offer_orders = target_exchange_connection -> out_offer_orders;
