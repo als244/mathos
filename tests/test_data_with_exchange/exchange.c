@@ -470,6 +470,10 @@ Exchange * init_exchange(uint32_t id, uint64_t start_val, uint64_t end_val, uint
 	cq_attr.cqe = num_cq_entries;
 	cq_attr.cq_context = cq_context;
 	
+	// every cq will be in its own thread...
+        uint32_t cq_create_flags = IBV_CREATE_CQ_ATTR_SINGLE_THREADED;
+        cq_attr.flags = cq_create_flags;
+
 	struct ibv_cq_ex * cq = ibv_create_cq_ex(ibv_ctx, &cq_attr);
 	if (cq == NULL){
 		fprintf(stderr, "Error: could not create cq for exchanges_client\n");

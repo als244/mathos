@@ -320,8 +320,8 @@ Data_Controller * init_data_controller(uint32_t self_id, Inventory * inventory, 
 	cq_attr.cq_context = cq_context;
 
 	// every cq will be in its own thread...
-	// uint32_t cq_create_flags = IBV_CREATE_CQ_ATTR_SINGLE_THREADED;
-	// cq_attr.flags = cq_create_flags;
+	uint32_t cq_create_flags = IBV_CREATE_CQ_ATTR_SINGLE_THREADED;
+	cq_attr.flags = cq_create_flags;
 	
 	struct ibv_cq_ex * cq = ibv_create_cq_ex(ibv_ctx, &cq_attr);
 	if (cq == NULL){
@@ -357,17 +357,16 @@ Data_Controller * init_data_controller(uint32_t self_id, Inventory * inventory, 
 	qp_attr.cap.max_send_sge = 1; // increase if you allow send work requests to have multiple scatter gather entry (SGE).
 	qp_attr.cap.max_recv_sge = 1; // increase if you allow receive work requests to have multiple scatter gather entry (SGE).
 	//qp_attr.cap.max_inline_data = 1000;
-	uint64_t send_ops_flags;
+	uint64_t data_send_ops_flags;
 	if (connection_type == RDMA_RC){
-		// send_ops_flags = IBV_QP_EX_WITH_RDMA_WRITE | IBV_QP_EX_WITH_RDMA_READ | IBV_QP_EX_WITH_SEND |
-		// 						IBV_QP_EX_WITH_ATOMIC_CMP_AND_SWP | IBV_QP_EX_WITH_ATOMIC_FETCH_AND_ADD;
-		send_ops_flags = IBV_QP_EX_WITH_SEND;
+		data_send_ops_flags = IBV_QP_EX_WITH_RDMA_WRITE | IBV_QP_EX_WITH_RDMA_READ | IBV_QP_EX_WITH_SEND |
+		 						IBV_QP_EX_WITH_ATOMIC_CMP_AND_SWP | IBV_QP_EX_WITH_ATOMIC_FETCH_AND_ADD;
 	}
 	// UD queue pairs can only do Sends, not RDMA or Atomics
 	else{
-		send_ops_flags = IBV_QP_EX_WITH_SEND;
+		data_send_ops_flags = IBV_QP_EX_WITH_SEND;
 	}
-	qp_attr.send_ops_flags |= send_ops_flags;
+	qp_attr.send_ops_flags |= data_send_ops_flags;
 	qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
 
 	struct ibv_qp * qp = ibv_create_qp_ex(ibv_ctx, &qp_attr);
@@ -407,8 +406,8 @@ Data_Controller * init_data_controller(uint32_t self_id, Inventory * inventory, 
         control_cq_attr.cq_context = control_cq_context;
 
         // every cq will be in its own thread...
-        // uint32_t cq_create_flags = IBV_CREATE_CQ_ATTR_SINGLE_THREADED;
-        // cq_attr.flags = cq_create_flags;
+        uint32_t control_cq_create_flags = IBV_CREATE_CQ_ATTR_SINGLE_THREADED;
+        control_cq_attr.flags = control_cq_create_flags;
 
         struct ibv_cq_ex * control_cq = ibv_create_cq_ex(ibv_ctx, &control_cq_attr);
         if (control_cq == NULL){
@@ -446,9 +445,8 @@ Data_Controller * init_data_controller(uint32_t self_id, Inventory * inventory, 
         //qp_attr.cap.max_inline_data = 1000;
         uint64_t control_send_ops_flags;
         if (control_connection_type == RDMA_RC){
-                // send_ops_flags = IBV_QP_EX_WITH_RDMA_WRITE | IBV_QP_EX_WITH_RDMA_READ | IBV_QP_EX_WITH_SEND |
-                //                                              IBV_QP_EX_WITH_ATOMIC_CMP_AND_SWP | IBV_QP_EX_WITH_ATOMIC_FETCH_AND_ADD;
-                control_send_ops_flags = IBV_QP_EX_WITH_SEND;
+                control_send_ops_flags = IBV_QP_EX_WITH_RDMA_WRITE | IBV_QP_EX_WITH_RDMA_READ | IBV_QP_EX_WITH_SEND |
+                                                              IBV_QP_EX_WITH_ATOMIC_CMP_AND_SWP | IBV_QP_EX_WITH_ATOMIC_FETCH_AND_ADD;
         }
         // UD queue pairs can only do Sends, not RDMA or Atomics
         else{
