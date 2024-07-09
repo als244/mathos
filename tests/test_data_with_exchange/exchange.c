@@ -354,6 +354,7 @@ void * exchange_completion_handler(void * _thread_data){
 		        	}
 		        	if (handle_ret != 0){
 		        		fprintf(stderr, "Error: exchanges client handler had an error\n");
+		        		exit(1);
 		        	}
 		        }
 	        	else{

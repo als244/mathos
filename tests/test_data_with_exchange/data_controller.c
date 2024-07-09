@@ -213,6 +213,7 @@ void * data_completion_handler(void * _thread_data){
 		        	}
 		        	if (handle_ret != 0){
 		        		fprintf(stderr, "Error: data completion handler had an error\n");
+		        		exit(1);
 		        	}
 		        }
 	        	else{
