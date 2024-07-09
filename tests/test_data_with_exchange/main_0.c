@@ -169,7 +169,7 @@ int main(int argc, char * argv[]){
 		example_fingerprint[i] = (uint8_t) 255;
 	}
 
-	uint64_t example_data_bytes = 4096;
+	uint64_t example_data_bytes = 10 * 4096;
 
 	uint64_t bid_match_wr_id;
 	ret = submit_bid(exchanges_client, MY_ID, example_fingerprint, (uint32_t) example_data_bytes, &bid_match_wr_id, NULL);
