@@ -86,7 +86,7 @@ int handle_data_request(Data_Controller * data_controller, Data_Connection * dat
 
 	// now that the outbound counter has been incremented we can release the inbound lock
 	// this prevents moving the object's availability status (i.e. doing migration) during ongoing transfer
-	pthread_mutex_lock(&(obj_location -> inbound_lock));
+	pthread_mutex_unlock(&(obj_location -> inbound_lock));
 
 	return 0;
 
