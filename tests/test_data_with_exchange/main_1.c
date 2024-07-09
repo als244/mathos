@@ -168,7 +168,7 @@ int main(int argc, char * argv[]){
 	// 6.) Fake that we computed an object and put into inventory
 	//		- this is simulating what we would be done by the actual function executor...
 	printf("Creating fake object and putting in inventory...\n\n");
-	uint64_t example_data_bytes = 10 * 4096;
+	uint64_t example_data_bytes = 100 * 4096;
 	// fake object
 	int * example_data = malloc(example_data_bytes);
 	int num_ints = example_data_bytes / sizeof(int);
