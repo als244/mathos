@@ -70,6 +70,8 @@ int handle_data_request(Data_Controller * data_controller, Data_Connection * dat
 	
 	// BIG TODO: SHOULD HANDLE DOING MULTIPLE TRANSFERS OF LARGE OBJECTS HERE.
 	// for now assuming all transfers fit in 32-bits
+	printf("[Data Controller %u]. Sending data transfer.\n\tTo Peer ID: %u\n\tTransfer Start ID: %u\n\tFingerprint: ", data_controller -> self_id, data_connection -> peer_id, transfer_start_id);
+	print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
 	ret = submit_out_transfer(out_data_channel, fingerprint, obj_location -> addr, obj_location -> data_bytes, obj_location -> lkey, transfer_start_id);
 	if (ret != 0){
 		fprintf(stderr, "Error: issue submitting outbound transfer\n");
