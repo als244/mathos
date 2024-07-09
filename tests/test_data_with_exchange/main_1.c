@@ -115,7 +115,7 @@ int main(int argc, char * argv[]){
 	//	- IMPORTANT: need not be symmetric across different types of channels (message types, recv vs. send)
 	//					- in reality we want the number of recv work requests for outstanding bids to be the highest by far!
 
-	uint32_t capacity_channels = 1U << 4;
+	uint32_t capacity_channels = 1U << 5;
 
 
 	// 3.) Setup connection to client
@@ -157,10 +157,22 @@ int main(int argc, char * argv[]){
 	}
 	
 
-
-
-	// 6.) Submit messages
-	printf("\n\nNow actually submiting orders...!\n\n");
+	// 6.) Fake that we computed an object and put into inventory
+	//		- this is simulating what we would be done by the actual function executor...
+	printf("Creating fake object and putting in inventory...\n\n");
+	uint64_t example_data_bytes = 100;
+	// fake object
+	char * example_data = malloc(example_data_bytes);
+	for (int i = 0; i < example_data_bytes; i++){
+		example_data[i] = (char) i;
+	}
+	// fake register object
+	struct ibv_mr * fake_obj_mr;
+	ret = register_virt_memory(data_controller -> data_pd, example_data, example_data_bytes, &fake_obj_mr);
+	if (ret != 0){
+		fprintf(stderr, "Error: couldn't register fake object with ib verbs\n");
+		return -1;
+	}
 
 	uint8_t * example_fingerprint = (uint8_t *) malloc(FINGERPRINT_NUM_BYTES);
 	// for now assume that we will be sending to exchange 1 (in the upper half of 0xFFFF)
@@ -168,6 +180,14 @@ int main(int argc, char * argv[]){
 		example_fingerprint[i] = (uint8_t) 255;
 	}
 
+	ret = put_obj_local(inventory, example_fingerprint, example_data, example_data_bytes, fake_obj_mr -> lkey);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to put fake object in inventory\n");
+		return -1;
+	}
+
+	// 7.) Submit messages
+	printf("\n\nNow actually submiting orders...!\n\n");
 	uint64_t offer_wr_id;
 	ret = submit_offer(exchanges_client, MY_ID, example_fingerprint, &offer_wr_id, NULL);
 	if (ret != 0){
