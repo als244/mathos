@@ -345,8 +345,8 @@ Data_Controller * init_data_controller(uint32_t self_id, Inventory * inventory, 
 	// Device cap of 2^15 for each side of QP's outstanding work requests...
 	qp_attr.cap.max_send_wr = 1U << 12;  // increase if you want to keep more send work requests in the SQ.
 	qp_attr.cap.max_recv_wr = 1U << 12;  // increase if you want to keep more receive work requests in the RQ.
-	qp_attr.cap.max_send_sge = 4; // increase if you allow send work requests to have multiple scatter gather entry (SGE).
-	qp_attr.cap.max_recv_sge = 4; // increase if you allow receive work requests to have multiple scatter gather entry (SGE).
+	qp_attr.cap.max_send_sge = 1; // increase if you allow send work requests to have multiple scatter gather entry (SGE).
+	qp_attr.cap.max_recv_sge = 1; // increase if you allow receive work requests to have multiple scatter gather entry (SGE).
 	//qp_attr.cap.max_inline_data = 1000;
 	uint64_t send_ops_flags;
 	if (connection_type == RDMA_RC){
