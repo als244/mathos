@@ -259,10 +259,10 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
     	qp_ex -> wr_flags = 0; /* ordering/fencing etc. */
     	printf("Posting send with wr id: %lu\n", encoded_wr_id);
    		// Queue sends
+   		ibv_wr_set_sge(qp_ex, lkey, cur_addr, packet_bytes);
     	ibv_wr_send(qp_ex);
     	// TODO: WHEN MOVING TO UD Queue PAIRS NEED TO ADD
     	// ibv_wr_set_ud_addr(qp_ex, ah, remote_qpn, remote_qkey)
-    	ibv_wr_set_sge(qp_ex, lkey, cur_addr, packet_bytes);
 		cur_channel_cnt += 1;
 		cur_addr += packet_bytes;
 	}
