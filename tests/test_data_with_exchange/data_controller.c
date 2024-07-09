@@ -502,7 +502,7 @@ Data_Controller * init_data_controller(uint32_t self_id, Inventory * inventory, 
 
 
 
-int setup_data_connection(Data_Controller * data_controller, uint32_t peer_id, char * self_ip, char * peer_ip, char * server_port, uint32_t capacity_control_channels, 
+int setup_data_connection(Data_Controller * data_controller, uint32_t peer_id, char * self_ip, char * peer_ip, char * server_port_control, char * server_port_data, uint32_t capacity_control_channels, 
 	uint32_t packet_max_bytes, uint32_t max_packets, uint32_t max_packet_id, uint32_t max_transfers) {
 
 	
@@ -523,7 +523,7 @@ int setup_data_connection(Data_Controller * data_controller, uint32_t peer_id, c
 
 	uint32_t self_id = data_controller -> self_id;
 
-	Connection * connection;
+	Connection * control_conn, *data_conn;
 	//RDMAConnectionType exchange_connection_type = RDMA_UD;
 	// FOR NOW MAKING IT RDMA_RC FOR EASIER ESTABLISHMENT BUT WILL BE RDMA_UD
 	RDMAConnectionType data_connection_type = RDMA_RC;
@@ -531,45 +531,69 @@ int setup_data_connection(Data_Controller * data_controller, uint32_t peer_id, c
 	int is_server;
 	uint64_t server_id, client_id;
 	char *server_ip, *client_ip;
-	struct ibv_qp *server_qp, *client_qp;
-	struct ibv_cq_ex *server_cq, *client_cq;
-	struct ibv_pd *server_pd, *client_pd;
+	struct ibv_qp *server_qp_control, *server_qp_data, *client_qp_control, *client_qp_data;
+	struct ibv_cq_ex *server_cq_control,*server_cq_data, *client_cq_control, *client_cq_data;
+	struct ibv_pd *server_pd_control, *server_pd_data, *client_pd_control, *client_pd_data;
 	if (self_id < peer_id){
 		is_server = 1;
 		server_id = self_id;
 		server_ip = self_ip;
-		server_pd = data_controller -> data_pd;
-		server_qp = data_controller -> data_qp;
-		server_cq = data_controller -> data_cq;
+		server_pd_data = data_controller -> data_pd;
+		server_pd_control = data_controller -> control_pd;
+		server_qp_control = data_controller -> control_qp;
+		server_qp_data = data_controller -> data_qp;
+		server_cq_control = data_controller -> control_cq;
+		server_cq_data = data_controller -> data_cq;
 		client_id = peer_id;
 		client_ip = peer_ip;
-		client_pd = NULL;
-		client_qp = NULL;
-		client_cq = NULL;
+		client_pd_control = NULL;
+		client_pd_data = NULL;
+		client_qp_control = NULL;
+		client_qp_data = NULL;
+		client_cq_control = NULL;
+		client_cq_data = NULL;
 	}
 	else{
 		is_server = 0;
 		server_id = peer_id;
 		server_ip = peer_ip;
-		server_pd = NULL;
-		server_qp = NULL;
-		server_cq = NULL;
+		server_pd_control = NULL;
+		server_pd_data = NULL;
+		server_qp_control = NULL;
+		server_qp_data = NULL;
+		server_cq_control = NULL;
+		server_cq_data = NULL;
 		client_id = self_id;
 		client_ip = self_ip;
-		client_pd = data_controller -> data_pd;
-		client_qp = data_controller -> data_qp;
-		client_cq = data_controller -> data_cq;
+		client_pd_control = data_controller -> control_pd;
+		client_pd_data = data_controller -> data_pd;
+		client_qp_control = data_controller -> control_qp;
+		client_qp_data = data_controller -> data_qp;
+		client_cq_control = data_controller -> control_cq;
+		client_cq_data = data_controller -> data_cq;
 	}
 
 	// if exchange_client_qp is null, then it will be created, otherwise connection will use that qp
-	ret = setup_connection(data_connection_type, is_server, server_id, server_ip, server_port, server_pd, server_qp, server_cq,
-							client_id, client_ip, client_pd, client_qp, client_cq, &connection);
+	
+	// 1.) First set up control connection
+	ret = setup_connection(data_connection_type, is_server, server_id, server_ip, server_port_control, server_pd_control, server_qp_control, server_cq_control,
+							client_id, client_ip, client_pd_control, client_qp_control, client_cq_control, &control_conn);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not setup data connection\n");
+		fprintf(stderr, "Error: could not setup data connection (control)\n");
 		return -1;
 	}
 
-	data_connection -> connection = connection;
+	data_connection -> control_connection = control_conn;
+
+	// 2.) Second set up data connection
+        ret = setup_connection(data_connection_type, is_server, server_id, server_ip, server_port_data, server_pd_data, server_qp_data, server_cq_data,
+                                                        client_id, client_ip, client_pd_data, client_qp_data, client_cq_data, &data_conn);
+        if (ret != 0){
+                fprintf(stderr, "Error: could not setup data connection (data)\n");
+                return -1;
+        }
+
+        data_connection -> data_connection = data_conn;
 
 
 	// Now set up channels...

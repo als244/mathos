@@ -7,7 +7,8 @@
 #define MY_IP "192.168.50.32"
 #define SERVER_PORT_EXCH "7471"
 #define SERVER_PORT_CLIENT "7472"
-#define SERVER_PORT_DATA "7473"
+#define SERVER_PORT_CONTROL "7473"
+#define SERVER_PORT_DATA "7474"
 
 
 // NOT DOING MUCH ERROR CHECKING HERE...
@@ -156,7 +157,7 @@ int main(int argc, char * argv[]){
 	// max transfers should be order of magnitude less than max packets, but being safe here...
 	uint32_t max_transfers = 1U << packet_id_num_bits;
 
-	ret = setup_data_connection(data_controller, OTHER_ID, MY_IP, OTHER_IP, SERVER_PORT_DATA, capacity_channels, 
+	ret = setup_data_connection(data_controller, OTHER_ID, MY_IP, OTHER_IP, SERVER_PORT_CONTROL, SERVER_PORT_DATA, capacity_channels, 
 									packet_max_bytes, max_packets, max_packet_id, max_transfers);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not setup data connection\n");
