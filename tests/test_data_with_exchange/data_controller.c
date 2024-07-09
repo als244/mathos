@@ -469,17 +469,6 @@ int setup_data_connection(Data_Controller * data_controller, uint32_t peer_id, c
 		return -1;
 	}
 
-	// set exchange_client_qp if null
-	if (data_controller -> data_pd == NULL){
-		data_controller -> data_pd = connection -> pd;
-	}
-	if (data_controller -> data_qp == NULL){
-		data_controller -> data_qp = connection -> cm_id -> qp;
-	}
-	if (data_controller -> data_cq == NULL){
-		data_controller -> data_cq = connection -> cq;
-	}
-
 	data_connection -> connection = connection;
 
 
