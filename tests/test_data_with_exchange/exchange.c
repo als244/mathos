@@ -458,7 +458,7 @@ Exchange * init_exchange(uint32_t id, uint64_t start_val, uint64_t end_val, uint
 	}
 
 	// 2.) CQ based on inputted configuration
-	int num_cq_entries = 1U << 9;
+	int num_cq_entries = 1U << 12;
 
 	/* "The pointer cq_context will be used to set user context pointer of the cq structure" */
 	
@@ -499,8 +499,8 @@ Exchange * init_exchange(uint32_t id, uint64_t start_val, uint64_t end_val, uint
 	qp_attr.recv_cq = ibv_cq_ex_to_cq(cq);         // completion queue can be shared or you can use distinct completion queues.
 
 	// Device cap of 2^15 for each side of QP's outstanding work requests...
-	qp_attr.cap.max_send_wr = 1U << 8;  // increase if you want to keep more send work requests in the SQ.
-	qp_attr.cap.max_recv_wr = 1U << 8;  // increase if you want to keep more receive work requests in the RQ.
+	qp_attr.cap.max_send_wr = 1U << 12;  // increase if you want to keep more send work requests in the SQ.
+	qp_attr.cap.max_recv_wr = 1U << 12;  // increase if you want to keep more receive work requests in the RQ.
 	qp_attr.cap.max_send_sge = 1; // increase if you allow send work requests to have multiple scatter gather entry (SGE).
 	qp_attr.cap.max_recv_sge = 1; // increase if you allow receive work requests to have multiple scatter gather entry (SGE).
 	//qp_attr.cap.max_inline_data = 1000;
