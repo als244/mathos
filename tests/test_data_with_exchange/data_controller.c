@@ -163,6 +163,7 @@ void * data_completion_handler(void * _thread_data){
     Data_Connection target_data_conn;
 
     int handle_ret;
+    bool work_err = false;
 
     // For now, infinite loop
     while (!is_done){
@@ -187,11 +188,14 @@ void * data_completion_handler(void * _thread_data){
 
             if (status != IBV_WC_SUCCESS){
                 fprintf(stderr, "Error: work request id %ld had error\n", wr_id);
-                // DO ERROR HANDLING HERE!
+                work_err = true;
+            }
+            else{
+            	work_err = false;
             }
 
         	// inbound (recveive) completions
-        	if (sender_id != self_id){
+        	if ((!work_err) && (sender_id != self_id)){
 
         		// lookup the connection based on sender id
 

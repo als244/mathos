@@ -472,7 +472,7 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 	pthread_mutex_unlock(&(data_channel -> transfer_start_id_lock));
 
 	// set the optional return value
-	if (ret_start_id != 0){
+	if (ret_start_id != NULL){
 		*ret_start_id = start_packet_id;
 	}
 

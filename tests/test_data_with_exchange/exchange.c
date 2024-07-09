@@ -298,6 +298,7 @@ void * exchange_completion_handler(void * _thread_data){
     Client_Connection target_client_conn;
 
     int handle_ret;
+    bool work_err;
 
     // For now, infinite loop
     while (!is_done){
@@ -322,14 +323,18 @@ void * exchange_completion_handler(void * _thread_data){
 
             if (status != IBV_WC_SUCCESS){
                 fprintf(stderr, "Error: work request id %ld had error\n", wr_id);
+                work_err = true;
                 // DO ERROR HANDLING HERE!
+            }
+            else{
+            	work_err = false;
             }
 
         	
         	// for now can ignore the send completions
         	// eventually need to have an ack in place and also
         	// need to remove the send data from channel's buffer table
-        	if (sender_id != self_id){
+        	if ((!work_err) && (sender_id != self_id)){
 
         		// lookup the connection based on sender id
 
