@@ -519,3 +519,53 @@ int setup_data_connection(Data_Controller * data_controller, uint32_t peer_id, c
 
 	return 0;
 }
+
+
+int send_data_request(Data_Controller * data_controller, uint32_t peer_id, uint8_t * fingerprint, void * recv_addr, uint32_t data_bytes, uint32_t lkey, uint32_t * ret_start_id) {
+
+	int ret;
+
+	// 1.) lookup connection to get out_data_req channel
+	Data_Connection target_data_conn;
+	target_data_conn.peer_id = peer_id;
+
+	Data_Connection * data_connection = find_item_table(data_controller -> data_connections_table, &target_data_conn);
+	if (data_connection == NULL){
+		fprintf(stderr, "Error: could not find data connection for peer id: %u\n", peer_id);
+		return -1;
+	}
+
+	// 2.) Ensure that we will be able to receive data by first submitting in_data_transfer
+	//		- get the start_id for receives that we will send as part of the outgoing data_request
+	Data_Channel * in_data_channel = data_connection -> in_data;
+	uint32_t transfer_start_id;
+	ret = submit_in_transfer(in_data_channel, fingerprint, recv_addr, data_bytes, lkey, &transfer_start_id);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not submit inbound transfer receives\n");
+		return -1;
+	}
+
+	// 3.) Now send an outbound data request to peer with the fingerprint (for the other side to lookup location) 
+	//		and the start id so it knows what wr_id's to send to
+	Channel * out_data_req = data_connection -> out_data_req;
+
+	// build data request
+	Data_Request data_request;
+	memcpy(data_request.fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
+	data_request.transfer_start_id = transfer_start_id;
+
+	// don't have a known wr_id to send, so using specified protocol and retrieving the wr_id back
+	
+	// not using these for now...
+	// maybe want them for fault-handling...??
+	uint64_t sent_out_req_wr_id;
+	uint64_t sent_out_req_addr;
+	ret = submit_out_channel_message(out_data_req, &data_request, NULL, &sent_out_req_wr_id, &sent_out_req_addr);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: could not submit outbound data request to peer_id: %u\n", peer_id);
+		return -1;
+	}
+
+	return 0;
+}

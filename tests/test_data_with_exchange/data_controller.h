@@ -53,4 +53,6 @@ Data_Controller * init_data_controller(uint32_t self_id, Inventory * inventory, 
 int setup_data_connection(Data_Controller * data_controller, uint32_t peer_id, char * self_ip, char * peer_ip, char * server_port, uint32_t capacity_control_channels, 
 	uint32_t packet_max_bytes, uint32_t max_packets, uint32_t max_packet_id, uint32_t max_transfers);
 
+int send_data_request(Data_Controller * data_controller, uint32_t peer_id, uint8_t * fingerprint, void * recv_addr, uint32_t data_bytes, uint32_t lkey, uint32_t * ret_start_id);
+
 #endif
