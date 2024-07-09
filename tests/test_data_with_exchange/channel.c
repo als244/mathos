@@ -218,6 +218,7 @@ int submit_out_channel_message(Channel * channel, void * message, uint64_t * sen
 	memcpy((void *) addr, message, channel -> message_size);
 
 	// 7.) Post send
+	printf("Posting out channel message with encoded_wr_id: %lu\n", encoded_wr_id);
 	ret = post_send_work_request(channel -> qp, addr, channel -> message_size, channel -> mr -> lkey, encoded_wr_id);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not post receive work request for channel\n");
