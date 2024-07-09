@@ -257,6 +257,7 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
 		encoded_wr_id = encode_wr_id(sender_id, cur_channel_cnt, DATA_PACKET);
 		qp_ex -> wr_id = encoded_wr_id;
     	qp_ex -> wr_flags = 0; /* ordering/fencing etc. */
+    	printf("Posting send with wr id: %lu\n", encoded_wr_id);
    		// Queue sends
     	ibv_wr_send(qp_ex);
     	// TODO: WHEN MOVING TO UD Queue PAIRS NEED TO ADD
@@ -421,6 +422,7 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 		}
 
 		encoded_wr_id = encode_wr_id(sender_id, cur_channel_cnt, DATA_PACKET);
+		printf("Posting receive with wr id: %lu\n", encoded_wr_id);
 
 		// set values for sge for this wr_id
 		sg[i].addr = cur_addr;
@@ -444,7 +446,6 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 			cur_wr -> next = NULL;
 		}
 		
-
 		// update values for next packet
 		cur_channel_cnt += 1;
 		cur_addr += packet_bytes;
