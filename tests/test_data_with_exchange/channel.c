@@ -2,8 +2,8 @@
 
 char * message_type_to_str(MessageType message_type){
 	switch(message_type){
-		case DATA_INITIATE:
-			return "DATA_INITIATE";
+		case DATA_REQUEST:
+			return "DATA_REQUEST";
 		case DATA_RESPONSE:
 			return "DATA_RESPONSE";
 		case DATA_PACKET:
@@ -59,7 +59,7 @@ uint64_t channel_item_hash_func(void * channel_item, uint64_t table_size) {
 
 
 
-Channel * init_channel(uint32_t self_id, uint32_t peer_id, uint32_t capacity, MessageType message_type, uint32_t message_size, bool to_init_buffer, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp, struct ibv_cq_ex * cq) {
+Channel * init_channel(uint32_t self_id, uint32_t peer_id, uint32_t capacity, MessageType message_type, uint32_t message_size, bool is_inbound, bool to_presubmit_recv, struct ibv_pd * pd, struct ibv_qp * qp, struct ibv_cq_ex * cq) {
 
 	int ret;
 
@@ -96,15 +96,13 @@ Channel * init_channel(uint32_t self_id, uint32_t peer_id, uint32_t capacity, Me
 
 	void * buffer = NULL;
 
-	if (to_init_buffer){
-		buffer = malloc((uint64_t) capacity * message_size);
+	buffer = malloc((uint64_t) capacity * message_size);
 
-		// now need to register with ib_verbs to get mr => lkey needed for posting sends/recvs
-		ret = register_virt_memory(pd, buffer, (uint64_t) capacity * message_size, &(channel -> mr));
-		if (ret != 0){
-			fprintf(stderr, "Error: could not register ring buffer items mr\n");
-			return NULL;
-		}
+	// now need to register with ib_verbs to get mr => lkey needed for posting sends/recvs
+	ret = register_virt_memory(pd, buffer, (uint64_t) capacity * message_size, &(channel -> mr));
+	if (ret != 0){
+		fprintf(stderr, "Error: could not register ring buffer items mr\n");
+		return NULL;
 	}
 	channel -> buffer = buffer;
 

@@ -50,4 +50,6 @@ void * remove_item_table(Table * table, void * item);
 int remove_item_at_index_table(Table * table, void * item, uint64_t index);
 int remove_random_item(Table * table, void ** ret_item, uint64_t * ret_index);
 
+uint64_t get_count(Table * table);
+
 #endif

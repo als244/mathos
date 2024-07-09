@@ -52,10 +52,10 @@ typedef struct Exchanges_Client {
 	pthread_t * completion_threads;
 } Exchanges_Client;
 
-typedef struct exchanges_client_completition {
-	uint64_t completition_thread_id;
+typedef struct exchanges_client_completion {
+	uint64_t completion_thread_id;
 	Exchanges_Client * exchanges_client;
-} Exchanges_Client_Completition;
+} Exchanges_Client_Completion;
 
 
 
@@ -78,7 +78,7 @@ int submit_offer(Exchanges_Client * exchanges_client, uint32_t location_id, uint
 
 
 // can be called at end of main executable to help with testing...
-// will cause inifinte loop because completition threads never finish...
+// will cause inifinte loop because completion threads never finish...
 int keep_alive_and_block(Exchanges_Client * exchanges_client);
 
 #endif

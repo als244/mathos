@@ -7,6 +7,13 @@
 
 #define PATH_MTU 4096
 
+
+typedef struct data_request {
+	uint32_t transfer_start_id;
+	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
+} Data_Request;
+
+
 typedef struct data_packet{
 	// packet-id / transfer id's can be shared among different receiver/sender pairs
 	// (but only make sense in the context of a individual pair)
@@ -17,7 +24,6 @@ typedef struct data_packet{
 	// most likely 1024 or 4096...
 	uint16_t packet_bytes;
 } Data_Packet;
-
 
 
 typedef struct transfer {

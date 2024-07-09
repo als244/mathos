@@ -3,10 +3,10 @@ CFLAGS = -g -Wall -pedantic
 
 all: testDataExchangeClient_0 testDataExchangeClient_1
 
-testDataExchangeClient_0: main_0.c table.o deque.o fingerprint.o communicate.o exchange.o exchange_client.o channel.o data_channel.o data_controller.o
+testDataExchangeClient_0: main_0.c table.o deque.o fingerprint.o communicate.o exchange.o exchange_client.o channel.o data_channel.o data_controller.o inventory.o
 	${CC} ${CFLAGS} $^ -o $@ -lcrypto -lm -libverbs -lrdmacm
 
-testDataExchangeClient_1: main_1.c table.o deque.o fingerprint.o communicate.o exchange.o exchange_client.o channel.o data_channel.o data_controller.o
+testDataExchangeClient_1: main_1.c table.o deque.o fingerprint.o communicate.o exchange.o exchange_client.o channel.o data_channel.o data_controller.o inventory.o
 	${CC} ${CFLAGS} $^ -o $@ -lcrypto -lm -libverbs -lrdmacm
 
 table.o: table.c
@@ -34,6 +34,9 @@ data_channel.o: data_channel.c
 	${CC} ${CFLAGS} -c $^
 
 data_controller.o: data_controller.c
+	${CC} ${CFLAGS} -c $^
+
+inventory.o: inventory.c
 	${CC} ${CFLAGS} -c $^
 
 clean:

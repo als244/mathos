@@ -6,23 +6,29 @@
 #include "communicate.h"
 #include "table.h"
 #include "fingerprint.h"
+#include "inventory.h"
 #include "data_channel.h"
 
 typedef struct data_connection {
 	uint32_t peer_id;
 	Connection * connection;
-	Channel * in_data_init;
-	Channel * out_data_resp;
+	uint32_t capacity_control_channels;
+	Channel * in_data_req;
+	Channel * out_data_req;
+	uint32_t packet_max_bytes;
 	Data_Channel * in_data;
 	Data_Channel * out_data;
 } Data_Connection;
 
 typedef struct data_controller {
 	uint32_t self_id;
+	// maintians fingerprint -> obj location mappings
+	Inventory * inventory;
 	// mapping from peer_id to Data_Connection *
 	// to obtain metadata/data channels to submit items to
 	uint32_t max_connections;
 	Table * data_connections_table;
+	struct ibv_context * ibv_ctx;
 	struct ibv_pd * data_pd;
 	// really should have multiple data QPs/CQs, but need to figure out UD queue pair initialization/configuration...
 	struct ibv_qp * data_qp;
@@ -36,14 +42,15 @@ typedef struct data_controller {
 } Data_Controller;
 
 
-typedef struct data_completition {
+typedef struct data_completion {
 	int completion_thread_id;
 	Data_Controller * data_controller;
-} Data_Completition;
+} Data_Completion;
 
 
-Data_Controller * init_data_controller(uint32_t self_id, uint32_t max_connections, struct ibv_pd * data_pd, struct ibv_qp * data_qp, struct ibv_cq_ex * data_cq, int num_cqs);
+Data_Controller * init_data_controller(uint32_t self_id, Inventory * inventory, uint32_t max_connections, int num_cqs, struct ibv_context * ibv_ctx);
 
-Data_Connection * setup_data_connection();
+int setup_data_connection(Data_Controller * data_controller, uint32_t peer_id, char * self_ip, char * peer_ip, char * server_port, uint32_t capacity_control_channels, 
+	uint32_t packet_max_bytes, uint32_t max_packets, uint32_t max_packet_id, uint32_t max_transfers);
 
 #endif

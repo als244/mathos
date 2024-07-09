@@ -91,7 +91,7 @@ Exchange_Connection * init_self_connection(Exchange * exchange, Exchanges_Client
 	// DO NOT NEED TO INITIALIZE / SETUP a "Connection *" because communicating with this process directly
 
 	// Only need to setup in_channels (to be able to post receives)
-	Channel * in_bid_matches = init_channel(exchange_id, exchange_id, self_recv_capacity, BID_MATCH, sizeof(Bid_Match), true, true, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
+	Channel * in_bid_matches = init_channel(exchange_id, exchange_id, self_recv_capacity, BID_MATCH, sizeof(Bid_Match), true, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
 	if (in_bid_matches == NULL){
 		fprintf(stderr, "Error: could not initialize self-receive channel\n");
 		return NULL;
@@ -142,18 +142,18 @@ int handle_bid_match_recv(Exchanges_Client * exchanges_client, Exchange_Connecti
 }
 
 
-// For now only care about receive completitions (aka sender != self) ...
-void * exchange_client_completition_handler(void * _thread_data){
+// For now only care about receive completions (aka sender != self) ...
+void * exchange_client_completion_handler(void * _thread_data){
 
 	int ret;
 
-	Exchanges_Client_Completition * completition_handler_data = (Exchanges_Client_Completition *) _thread_data;
+	Exchanges_Client_Completion * completion_handler_data = (Exchanges_Client_Completion *) _thread_data;
 
-	uint64_t completition_thread_id = completition_handler_data -> completition_thread_id;
-	Exchanges_Client * exchanges_client = completition_handler_data -> exchanges_client;
+	uint64_t completion_thread_id = completion_handler_data -> completion_thread_id;
+	Exchanges_Client * exchanges_client = completion_handler_data -> exchanges_client;
 
 
-	// really should look up based on completition_thread_id
+	// really should look up based on completion_thread_id
 	struct ibv_cq_ex * cq = exchanges_client -> exchange_client_cq;
 
     struct ibv_poll_cq_attr poll_qp_attr = {};
@@ -161,12 +161,12 @@ void * exchange_client_completition_handler(void * _thread_data){
 
     // If Error after start, do not call "end_poll"
     if ((ret != 0) && (ret != ENOENT)){
-        fprintf(stderr, "Error: could not start poll for completition queue\n");
+        fprintf(stderr, "Error: could not start poll for completion queue\n");
         return NULL;
     }
 
     // if ret = 0, then ibv_start_poll already consumed an item
-    int seen_new_completition;
+    int seen_new_completion;
     int is_done = 0;
     
     enum ibv_wc_status status;
@@ -190,17 +190,17 @@ void * exchange_client_completition_handler(void * _thread_data){
     while (!is_done){
         // return is 0 if a new item was cosumed, otherwise it equals ENOENT
         if (ret == 0){
-            seen_new_completition = 1;
+            seen_new_completion = 1;
         }
         else{
-            seen_new_completition = 0;
+            seen_new_completion = 0;
         }
         
         // Consume the completed work request
         wr_id = cq -> wr_id;
         status = cq -> status;
         // other fields as well...
-        if (seen_new_completition){
+        if (seen_new_completion){
 
         	message_type = decode_wr_id(wr_id, &sender_id);
 
@@ -213,7 +213,7 @@ void * exchange_client_completition_handler(void * _thread_data){
             }
 
         	
-        	// for now can ignore the send completitions
+        	// for now can ignore the send completions
         	// eventually need to have an ack in place and also
         	// need to remove the send data from channel's buffer table
         	if (sender_id != self_id){
@@ -238,7 +238,7 @@ void * exchange_client_completition_handler(void * _thread_data){
 		        	}
 		        }
 	        	else{
-	        		fprintf(stderr, "Error: within completition handler, could not find exchange connection with id: %u\n", sender_id);
+	        		fprintf(stderr, "Error: within completion handler, could not find exchange connection with id: %u\n", sender_id);
 	        	}
 	        }   
         }
@@ -249,7 +249,7 @@ void * exchange_client_completition_handler(void * _thread_data){
         if ((ret != 0) && (ret != ENOENT)){
             // If Error after next, call "end_poll"
             ibv_end_poll(cq);
-            fprintf(stderr, "Error: could not do next poll for completition queue\n");
+            fprintf(stderr, "Error: could not do next poll for completion queue\n");
             return NULL;
         }
     }
@@ -416,7 +416,7 @@ Exchanges_Client * init_exchanges_client(uint32_t num_exchanges, uint32_t max_ex
 
 	// num threads should equal number of CQs
 	int num_threads = 1;
-	Exchanges_Client_Completition * handler_thread_data = malloc(num_threads * sizeof(Exchanges_Client_Completition));
+	Exchanges_Client_Completion * handler_thread_data = malloc(num_threads * sizeof(Exchanges_Client_Completion));
 	if (handler_thread_data == NULL){
 		fprintf(stderr, "Error: malloc failed allocating handler thread data\n");
 		return NULL;
@@ -424,17 +424,17 @@ Exchanges_Client * init_exchanges_client(uint32_t num_exchanges, uint32_t max_ex
 
 	pthread_t * completion_threads = (pthread_t *) malloc(num_threads * sizeof(pthread_t));
 	if (completion_threads == NULL){
-		fprintf(stderr, "Error: malloc failed allocating pthreads for completition handlers\n");
+		fprintf(stderr, "Error: malloc failed allocating pthreads for completion handlers\n");
 		return NULL;
 	}
 
 	exchanges_client -> completion_threads = completion_threads;
 
 	for (int i = 0; i < num_threads; i++){
-		handler_thread_data[i].completition_thread_id = i;
+		handler_thread_data[i].completion_thread_id = i;
 		handler_thread_data[i].exchanges_client = exchanges_client;
 		// start the completion thread
-		pthread_create(&completion_threads[i], NULL, exchange_client_completition_handler, (void *) &handler_thread_data[i]);
+		pthread_create(&completion_threads[i], NULL, exchange_client_completion_handler, (void *) &handler_thread_data[i]);
 	}
 
 	return exchanges_client;
@@ -524,11 +524,11 @@ int setup_exchange_connection(Exchanges_Client * exchanges_client, uint32_t exch
 	// now we need to allocate and register ring buffers to receive incoming orders
 	exchange_connection -> capacity_channels = capacity_channels;
 
-	exchange_connection -> out_bid_orders = init_channel(location_id, exchange_id, capacity_channels, BID_ORDER, sizeof(Bid_Order), true, false, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
-	exchange_connection -> out_offer_orders = init_channel(location_id, exchange_id, capacity_channels, OFFER_ORDER, sizeof(Offer_Order), true, false, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
-	exchange_connection -> out_future_orders = init_channel(location_id, exchange_id, capacity_channels, FUTURE_ORDER, sizeof(Future_Order), true, false, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp , exchanges_client -> exchange_client_cq);
-	// setting is_recv to true, because we will be posting sends from this channel
-	exchange_connection -> in_bid_matches = init_channel(location_id, exchange_id, capacity_channels, BID_MATCH, sizeof(Bid_Match), true, true, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
+	exchange_connection -> out_bid_orders = init_channel(location_id, exchange_id, capacity_channels, BID_ORDER, sizeof(Bid_Order), false, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
+	exchange_connection -> out_offer_orders = init_channel(location_id, exchange_id, capacity_channels, OFFER_ORDER, sizeof(Offer_Order), false, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
+	exchange_connection -> out_future_orders = init_channel(location_id, exchange_id, capacity_channels, FUTURE_ORDER, sizeof(Future_Order), false, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp , exchanges_client -> exchange_client_cq);
+	// setting is_recv to true, because we will be posting sends from this channel. however the receive wr_id's are dynamic and part of protocol, so don't pre-submit
+	exchange_connection -> in_bid_matches = init_channel(location_id, exchange_id, capacity_channels, BID_MATCH, sizeof(Bid_Match), true, false, exchanges_client -> exchange_client_pd, exchanges_client -> exchange_client_qp, exchanges_client -> exchange_client_cq);
 
 	if ((exchange_connection -> out_bid_orders == NULL) || (exchange_connection -> out_offer_orders == NULL) || 
 			(exchange_connection -> out_future_orders == NULL) || (exchange_connection -> in_bid_matches == NULL)){
@@ -731,7 +731,7 @@ int submit_offer(Exchanges_Client * exchanges_client, uint32_t location_id, uint
 	return 0;
 }
 
-// wait for completition threads to finish (currently infinite loop) for both exchange client and exchange
+// wait for completion threads to finish (currently infinite loop) for both exchange client and exchange
 int keep_alive_and_block(Exchanges_Client * exchanges_client){
 
 	// for now hardcoding to 1 thread for exchange_client and exchanges, but should be dynamic and based on NIC configurations...
@@ -739,15 +739,15 @@ int keep_alive_and_block(Exchanges_Client * exchanges_client){
 
 	Exchange * self_exchange = exchanges_client -> self_exchange;
 	int exch_num_threads = 1;
-	pthread_t * exch_completition_threads = self_exchange -> completion_threads;
+	pthread_t * exch_completion_threads = self_exchange -> completion_threads;
 	for (int i = 0; i < exch_num_threads; i++){
-		pthread_join(exch_completition_threads[i], NULL);
+		pthread_join(exch_completion_threads[i], NULL);
 	}
 
 	int client_num_threads = 1;
-	pthread_t * client_completition_threads = exchanges_client -> completion_threads;
+	pthread_t * client_completion_threads = exchanges_client -> completion_threads;
 	for (int i = 0; i < client_num_threads; i++){
-		pthread_join(client_completition_threads[i], NULL);
+		pthread_join(client_completion_threads[i], NULL);
 	}
 
 	return 0;

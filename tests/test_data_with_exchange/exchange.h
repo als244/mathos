@@ -77,10 +77,10 @@ typedef struct exchange {
 	pthread_t * completion_threads;
 } Exchange;
 
-typedef struct exchange_completition {
-	uint64_t completition_thread_id;
+typedef struct exchange_completion {
+	uint64_t completion_thread_id;
 	Exchange * exchange;
-} Exchange_Completition;
+} Exchange_Completion;
 
 
 // One bid/offer per fingerprint!!!
