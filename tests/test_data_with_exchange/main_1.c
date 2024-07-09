@@ -128,6 +128,9 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
+	// THIS EXECUTABLE IS CLIENT SO NEEDS TO WAIT FOR SERVER TO SETUP
+	sleep(5);
+
 	// 4.) Setup connection to other exchanges
 	printf("Setting up connection to exchange: %u\n\n", OTHER_ID);
 	ret = setup_exchange_connection(exchanges_client, OTHER_ID, OTHER_IP, MY_ID, MY_IP, SERVER_PORT_EXCH, capacity_channels);
@@ -135,6 +138,10 @@ int main(int argc, char * argv[]){
 		fprintf(stderr, "Error: could not setup exchange connection\n");
 		return -1;
 	}
+
+
+	// THIS EXECUTABLE IS CLIENT SO NEEDS TO WAIT FOR SERVER TO SETUP
+	sleep(5);
 
 	// 5.) Setup data connection
 	printf("Setting up data connection with peer: %u\n\n", OTHER_ID);
