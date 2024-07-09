@@ -160,7 +160,7 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
 	// assert(is_inbound == False)
 	uint32_t sender_id = data_channel -> self_id;
 
-	uint32_t packet_max_bytes = data_channel -> packet_max_bytes;
+	uint16_t packet_max_bytes = data_channel -> packet_max_bytes;
 	uint32_t num_packets = ceil((double) data_bytes / (double) packet_max_bytes);
 	uint32_t start_packet_id = start_id;
 
@@ -186,12 +186,12 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
 	// OUTBOUND TRANSFERS DON'T CARE ABOUT CHANNEL COUNT LOCK BECAUSE CHANNEL COUNT IS PROVIDED
 
 	uint32_t max_packet_id = data_channel -> max_packet_id;
-	uint32_t last_packet_bytes = data_bytes - ((num_packets - 1) * packet_max_bytes);
+	uint16_t last_packet_bytes = data_bytes - ((num_packets - 1) * packet_max_bytes);
 
 	// MAYBE NOT REALLY NECESSARY TO MAINTAIN OUT-BOUND ONGOING TRANSFERS...?
 	// doing it for potentially later implementing fault-recovery and re-transmission...
 	uint32_t cur_channel_cnt = start_packet_id;
-	uint32_t packet_bytes;
+	uint16_t packet_bytes;
 	Data_Packet * data_packet;
 	for (uint32_t i = 0; i < num_packets; i++){
 		// ensure wrap around so the encoding is correct
@@ -289,13 +289,13 @@ int submit_out_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void
 
 		encoded_wr_id = encode_wr_id(sender_id, cur_channel_cnt, DATA_PACKET);
     	printf("Posting send with wr id: %lu\n", encoded_wr_id);
-   		ret = post_send_work_request(data_channel -> qp, cur_addr, packet_bytes, lkey, encoded_wr_id);
+   		ret = post_send_work_request(data_channel -> qp, cur_addr, (uint32_t) packet_bytes, lkey, encoded_wr_id);
    		if (ret != 0){
    			fprintf(stderr, "Error: could not post send work request\n");
    			return -1;
    		}
 		cur_channel_cnt += 1;
-		cur_addr += packet_bytes;
+		cur_addr += (uint64_t) packet_bytes;
 	}
 
 
@@ -313,7 +313,7 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 	// assert(is_inbound == True)
 	uint32_t sender_id = data_channel -> peer_id;
 
-	uint32_t packet_max_bytes = data_channel -> packet_max_bytes;
+	uint16_t packet_max_bytes = data_channel -> packet_max_bytes;
 	uint32_t num_packets = ceil((double) data_bytes / (double) packet_max_bytes);
 	uint32_t max_packet_id = data_channel -> max_packet_id;
 	
@@ -362,12 +362,12 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 	// OUTBOUND TRANSFERS DON'T CARE ABOUT CHANNEL COUNT LOCK BECAUSE CHANNEL COUNT IS PROVIDED
 
 	
-	uint32_t last_packet_bytes = data_bytes - ((num_packets - 1) * packet_max_bytes);
+	uint16_t last_packet_bytes = (uint16_t) (data_bytes - ((num_packets - 1) * packet_max_bytes));
 
 	// MAYBE NOT REALLY NECESSARY TO MAINTAIN OUT-BOUND ONGOING TRANSFERS...?
 	// doing it for potentially later implementing fault-recovery and re-transmission...
 	uint32_t cur_channel_cnt = start_packet_id;
-	uint32_t packet_bytes;
+	uint16_t packet_bytes;
 	Data_Packet * data_packet;
 	for (uint32_t i = 0; i < num_packets; i++){
 		// ensure wrap around so the encoding is correct
@@ -513,7 +513,7 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 		encoded_wr_id = encode_wr_id(sender_id, cur_channel_cnt, DATA_PACKET);
 		printf("Posting receive with wr id: %lu\n", encoded_wr_id);
 
-		ret = post_recv_work_request(data_channel -> qp, cur_addr, packet_bytes, lkey, encoded_wr_id);
+		ret = post_recv_work_request(data_channel -> qp, cur_addr, (uint32_t) packet_bytes, lkey, encoded_wr_id);
 		if (ret != 0){
 			pthread_mutex_unlock(&(data_channel -> transfer_start_id_lock));
 			fprintf(stderr, "Error: posting receive work request failed\n");
@@ -522,7 +522,7 @@ int submit_in_transfer(Data_Channel * data_channel, uint8_t * fingerprint, void 
 		
 		// update values for next packet
 		cur_channel_cnt += 1;
-		cur_addr += packet_bytes;
+		cur_addr += (uint64_t) packet_bytes;
 	}
 
 
