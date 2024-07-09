@@ -2,9 +2,9 @@
 #include "data_controller.h"
 
 
-#define MY_ID 0UL
+#define MY_ID 0U
 #define MY_IP "192.168.50.23"
-#define OTHER_ID 1UL
+#define OTHER_ID 1U
 #define OTHER_IP "192.168.50.32"
 #define SERVER_PORT_EXCH "7471"
 #define SERVER_PORT_CLIENT "7472"
