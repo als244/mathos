@@ -7,7 +7,6 @@
 
 #define PATH_MTU 4096
 
-
 typedef struct data_request {
 	uint32_t transfer_start_id;
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
