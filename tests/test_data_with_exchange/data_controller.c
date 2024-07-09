@@ -541,11 +541,13 @@ int send_data_request(Data_Controller * data_controller, uint32_t peer_id, uint8
 	//		- get the start_id for receives that we will send as part of the outgoing data_request
 	Data_Channel * in_data_channel = data_connection -> in_data;
 	uint32_t transfer_start_id;
+	printf("submitting in transfer\n");
 	ret = submit_in_transfer(in_data_channel, fingerprint, recv_addr, data_bytes, lkey, &transfer_start_id);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not submit inbound transfer receives\n");
 		return -1;
 	}
+	printf("in transfer submitted at start id: %u\n", transfer_start_id);
 
 	// 3.) Now send an outbound data request to peer with the fingerprint (for the other side to lookup location) 
 	//		and the start id so it knows what wr_id's to send to
@@ -567,6 +569,12 @@ int send_data_request(Data_Controller * data_controller, uint32_t peer_id, uint8
 	if (ret != 0){
 		fprintf(stderr, "Error: could not submit outbound data request to peer_id: %u\n", peer_id);
 		return -1;
+	}
+
+
+	// 4.) Optionally return the transfer_start_id
+	if (ret_start_id != NULL){
+		*ret_start_id = transfer_start_id;
 	}
 
 	return 0;
