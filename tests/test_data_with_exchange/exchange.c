@@ -49,12 +49,12 @@ int client_item_cmp(void * client_item, void * other_item) {
 uint64_t client_hash_func(void * client_item, uint64_t table_size) {
 	uint32_t key = ((Client_Connection *) client_item) -> location_id;
 	key = (key+0x7ed55d16) + (key<<12);
-   	key = (key^0xc761c23c) ^ (key>>19);
-   	key = (key+0x165667b1) + (key<<5);
-   	key = (key+0xd3a2646c) ^ (key<<9);
-   	key = (key+0xfd7046c5) + (key<<3);
-   	key = (key^0xb55a4f09) ^ (key>>16);
-   	return (uint64_t) key % table_size;
+	key = (key^0xc761c23c) ^ (key>>19);
+	key = (key+0x165667b1) + (key<<5);
+	key = (key+0xd3a2646c) ^ (key<<9);
+	key = (key+0xfd7046c5) + (key<<3);
+	key = (key^0xb55a4f09) ^ (key>>16);
+	return (uint64_t) key % table_size;
 }
 
 // uint64_t client_hash_func(void * client_item, uint64_t table_size) {
@@ -156,28 +156,28 @@ int handle_bid_match_notify(Exchange * exchange, uint32_t offer_location_id, uin
 
 	int ret;
 
-    // used for looking up client connections needed to get to channel buffer to send to bid participant
-    Table * client_conn_table = exchange -> clients;
-    Client_Connection target_client_conn;
-    target_client_conn.location_id = bid_location_id;
+	// used for looking up client connections needed to get to channel buffer to send to bid participant
+	Table * client_conn_table = exchange -> clients;
+	Client_Connection target_client_conn;
+	target_client_conn.location_id = bid_location_id;
 
-    Client_Connection * client_connection = find_item_table(client_conn_table, &target_client_conn);
+	Client_Connection * client_connection = find_item_table(client_conn_table, &target_client_conn);
 
-    if (client_connection == NULL){
-    	fprintf(stderr, "Error: could not find client connection for id: %u\n", bid_location_id);
-    	return -1;
-    }
+	if (client_connection == NULL){
+		fprintf(stderr, "Error: could not find client connection for id: %u\n", bid_location_id);
+		return -1;
+	}
 
-    // message to send to bid participant
-    Bid_Match bid_match;
-    bid_match.location_id = offer_location_id;
+	// message to send to bid participant
+	Bid_Match bid_match;
+	bid_match.location_id = offer_location_id;
 
-    Channel * out_bid_matches = client_connection -> out_bid_matches;
+	Channel * out_bid_matches = client_connection -> out_bid_matches;
 
-    printf("[Exchange %u]. Sending BID_MATCH notification to: %u...\n", exchange -> id, bid_location_id);
+	printf("[Exchange %u]. Sending BID_MATCH notification to: %u...\n", exchange -> id, bid_location_id);
 
-    // specifying the wr_id to use and don't need the addr of bid_match within registered channel buffer
-    uint64_t wr_id_to_send = bid_match_wr_id;
+	// specifying the wr_id to use and don't need the addr of bid_match within registered channel buffer
+	uint64_t wr_id_to_send = bid_match_wr_id;
 	ret = submit_out_channel_message(out_bid_matches, &bid_match, &wr_id_to_send, NULL, NULL);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not submit out channel message with bid order\n");
@@ -267,122 +267,111 @@ void * exchange_completion_handler(void * _thread_data){
 
 
 	// really should look up based on completion_thread_id
-	struct ibv_cq_ex * cq = exchange -> exchange_cq;
+	struct ibv_cq_ex * cq_ex = exchange -> exchange_cq;
 
-    struct ibv_poll_cq_attr poll_qp_attr = {};
-    ret = ibv_start_poll(cq, &poll_qp_attr);
+	struct ibv_cq * cq = ibv_cq_ex_to_cq(cq_ex);
 
-    // If Error after start, do not call "end_poll"
-    if ((ret != 0) && (ret != ENOENT)){
-        fprintf(stderr, "Error: could not start poll for completion queue\n");
-        return NULL;
-    }
+	enum ibv_wc_status status;
+	uint64_t wr_id;
 
-    // if ret = 0, then ibv_start_poll already consumed an item
-    int seen_new_completion;
-    int is_done = 0;
-    
-    enum ibv_wc_status status;
-    uint64_t wr_id;
+	MessageType message_type;
+	uint32_t sender_id;
 
-    MessageType message_type;
-    uint32_t sender_id;
+	uint32_t self_id = exchange -> id;
 
-    uint32_t self_id = exchange -> id;
+	
+	Client_Connection * client_connection;
 
-    
-    Client_Connection * client_connection;
+	// used for looking up exchange connections needed to get to channel buffer
+	Table * client_conn_table = exchange -> clients;
+	Client_Connection target_client_conn;
 
-    // used for looking up exchange connections needed to get to channel buffer
-    Table * client_conn_table = exchange -> clients;
-    Client_Connection target_client_conn;
+	int handle_ret;
+	bool work_err;
+	bool is_done = false;
 
-    int handle_ret;
-    bool work_err;
+	int num_complete;
+	// maximum number of completion queue entries to return per poll...
+	int max_wc_entries = 1;
 
-    // For now, infinite loop
-    while (!is_done){
-        // return is 0 if a new item was cosumed, otherwise it equals ENOENT
-        if (ret == 0){
-            seen_new_completion = 1;
-        }
-        else{
-            seen_new_completion = 0;
-        }
-        
-        // Consume the completed work request
-        wr_id = cq -> wr_id;
-        status = cq -> status;
-        // other fields as well...
-        if (seen_new_completion){
+	struct ibv_wc wc;
 
-        	message_type = decode_wr_id(wr_id, &sender_id);
+	// For now, infinite loop
+	while (!is_done){
 
-        	/* DO SOMETHING WITH wr_id! */
-            printf("[Exchange %u]. Saw completion of wr_id = %lu (Sender_ID = %u, MessageType = %s)\n\tStatus: %d\n\n", self_id, wr_id, sender_id, message_type_to_str(message_type), status);
+		num_complete = 0;
 
-            if (status != IBV_WC_SUCCESS){
-                fprintf(stderr, "Error: work request id %lu had error\n", wr_id);
-                work_err = true;
-                // DO ERROR HANDLING HERE!
-            }
-            else{
-            	work_err = false;
-            }
+		// poll for next completition
+		while (num_complete == 0){
+			num_complete = ibv_poll_cq(cq, max_wc_entries, &wc);
+		}
+		if (num_complete < 0){
+			fprintf(stderr, "Error: ibv_poll_cq() failed\n");
+			is_done = true;
+			continue;
+		}
 
-        	
-        	// for now can ignore the send completions
-        	// eventually need to have an ack in place and also
-        	// need to remove the send data from channel's buffer table
-        	if ((!work_err) && (sender_id != self_id)){
+		// now we have consumed a new work completition
+		// assert(num_complete > 0 && num_complete <= max_wc_entries)
+		
+		// Consume the completed work request
+		wr_id = wc.wr_id;
+		status = wc.status;
+		// other fields as well...
+		// could get timestamp/source qp num/other info...
 
-        		// lookup the connection based on sender id
+		message_type = decode_wr_id(wr_id, &sender_id);
 
-        		target_client_conn.location_id = sender_id;
+		/* DO SOMETHING WITH wr_id! */
+		printf("[Exchange %u]. Saw completion of wr_id = %lu (Sender_ID = %u, MessageType = %s)\n\tStatus: %d\n\n", self_id, wr_id, sender_id, message_type_to_str(message_type), status);
 
-        		client_connection = find_item_table(client_conn_table, &target_client_conn);
-        		if (client_connection != NULL){
-	        		// MAY WANT TO HAVE SEPERATE THREADS FOR PROCESSING THE WORK DO BE DONE...
-		        	switch(message_type){
-		        		case BID_ORDER:
-		        			handle_ret = handle_order(exchange, client_connection, wr_id, BID_ITEM);
-		        			break;
-		        		case OFFER_ORDER:
-		        			handle_ret = handle_order(exchange, client_connection, wr_id, OFFER_ITEM);
-		        			break;
-		        		case FUTURE_ORDER:
-		        			handle_ret = handle_order(exchange, client_connection, wr_id, FUTURE_ITEM);
-		        			break;
-		        		default:
-		        			fprintf(stderr, "Error: unsupported exchanges client handler message type of: %d\n", message_type);
-		        			break;
-		        	}
-		        	if (handle_ret != 0){
-		        		fprintf(stderr, "Error: exchanges client handler had an error\n");
-		        		exit(1);
-		        	}
-		        }
-	        	else{
-	        		fprintf(stderr, "Error: within completion handler, could not find exchange connection with id: %u\n", sender_id);
-	        	}
-	        }
-        }
+		if (status != IBV_WC_SUCCESS){
+			fprintf(stderr, "Error: work request id %lu had error\n", wr_id);
+			work_err = true;
+			// DO ERROR HANDLING HERE!
+		}
+		else{
+			work_err = false;
+		}
 
-        // Check for next completed work request...
-        ret = ibv_next_poll(cq);
+		// for now can ignore the send completions
+		// eventually need to have an ack in place and also
+		// need to remove the send data from channel's buffer table
+		if ((!work_err) && (sender_id != self_id)){
 
-        if ((ret != 0) && (ret != ENOENT)){
-            // If Error after next, call "end_poll"
-            ibv_end_poll(cq);
-            fprintf(stderr, "Error: could not do next poll for completion queue\n");
-            return NULL;
-        }
-    }
+			// lookup the connection based on sender id
 
-    // should never get here...
-    ibv_end_poll(cq);
+			target_client_conn.location_id = sender_id;
 
-    return NULL;
+			client_connection = find_item_table(client_conn_table, &target_client_conn);
+			if (client_connection != NULL){
+					// MAY WANT TO HAVE SEPERATE THREADS FOR PROCESSING THE WORK DO BE DONE...
+				switch(message_type){
+				case BID_ORDER:
+					handle_ret = handle_order(exchange, client_connection, wr_id, BID_ITEM);
+					break;
+				case OFFER_ORDER:
+					handle_ret = handle_order(exchange, client_connection, wr_id, OFFER_ITEM);
+					break;
+				case FUTURE_ORDER:
+					handle_ret = handle_order(exchange, client_connection, wr_id, FUTURE_ITEM);
+					break;
+				default:
+					fprintf(stderr, "Error: unsupported exchanges client handler message type of: %d\n", message_type);
+					break;
+				}
+				if (handle_ret != 0){
+					fprintf(stderr, "Error: exchanges client handler had an error\n");
+					exit(1);
+				}
+			}
+			else{
+				fprintf(stderr, "Error: within completion handler, could not find exchange connection with id: %u\n", sender_id);
+			}
+		}
+	}
+
+	return NULL;
 }
 
 
@@ -458,7 +447,7 @@ Exchange * init_exchange(uint32_t id, uint64_t start_val, uint64_t end_val, uint
 	}
 
 	// 2.) CQ based on inputted configuration
-	int num_cq_entries = 1U << 12;
+	int num_cq_entries = 1U << 3;
 
 	/* "The pointer cq_context will be used to set user context pointer of the cq structure" */
 	
@@ -471,8 +460,8 @@ Exchange * init_exchange(uint32_t id, uint64_t start_val, uint64_t end_val, uint
 	cq_attr.cq_context = cq_context;
 	
 	// every cq will be in its own thread...
-        uint32_t cq_create_flags = IBV_CREATE_CQ_ATTR_SINGLE_THREADED;
-        cq_attr.flags = cq_create_flags;
+		uint32_t cq_create_flags = IBV_CREATE_CQ_ATTR_SINGLE_THREADED;
+		cq_attr.flags = cq_create_flags;
 
 	struct ibv_cq_ex * cq = ibv_create_cq_ex(ibv_ctx, &cq_attr);
 	if (cq == NULL){
@@ -503,8 +492,8 @@ Exchange * init_exchange(uint32_t id, uint64_t start_val, uint64_t end_val, uint
 	qp_attr.recv_cq = ibv_cq_ex_to_cq(cq);         // completion queue can be shared or you can use distinct completion queues.
 
 	// Device cap of 2^15 for each side of QP's outstanding work requests...
-	qp_attr.cap.max_send_wr = 1U << 12;  // increase if you want to keep more send work requests in the SQ.
-	qp_attr.cap.max_recv_wr = 1U << 12;  // increase if you want to keep more receive work requests in the RQ.
+	qp_attr.cap.max_send_wr = 1U << 8;  // increase if you want to keep more send work requests in the SQ.
+	qp_attr.cap.max_recv_wr = 1U << 8;  // increase if you want to keep more receive work requests in the RQ.
 	qp_attr.cap.max_send_sge = 1; // increase if you allow send work requests to have multiple scatter gather entry (SGE).
 	qp_attr.cap.max_recv_sge = 1; // increase if you allow receive work requests to have multiple scatter gather entry (SGE).
 	//qp_attr.cap.max_inline_data = 1000;
