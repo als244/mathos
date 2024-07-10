@@ -184,9 +184,8 @@ int main(int argc, char * argv[]){
 			printf("\n\n\tPrepare your BID order\n\t\tPlease input the number of bytes of the object you are searching for: ");
 			scanf("%u", &num_bytes);
 			printf("\n\t\tPlease input an object reference: ");
-			printf("Object ref size: %lu\n", sizeof(obj_ref));
 			scanf("%ms", &obj_ref);
-			do_fingerprinting(obj_ref, sizeof(obj_ref), fingerprint, FINGERPRINT_TYPE);
+			do_fingerprinting(obj_ref, strlen(obj_ref), fingerprint, FINGERPRINT_TYPE);
 			printf("\n\t\t\tFingerprint of reference: ");
 			print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
 			printf("\n");
@@ -205,23 +204,20 @@ int main(int argc, char * argv[]){
 			scanf("%ms", &obj_data);
 			
 			// 2.) register this memory with ib verbs (which would normally already exist in a registered region)
-			ret = register_virt_memory(data_controller -> data_pd, obj_data, sizeof(obj_data), &simulated_obj_mr);
+			ret = register_virt_memory(data_controller -> data_pd, obj_data, strlen(obj_data), &simulated_obj_mr);
 			if (ret != 0){
 				fprintf(stderr, "Error: couldn't register simulated object with ib verbs\n");
 				continue;
 			}
-			printf("Object data size: %lu\n", sizeof(obj_data));
-
 			// 3.) Do fingerprinting of object reference
 			printf("\n\t\tPlease input an object reference: ");
 			scanf("%ms", &obj_ref);
-			do_fingerprinting(obj_ref, sizeof(obj_ref), fingerprint, FINGERPRINT_TYPE);
+			do_fingerprinting(obj_ref, strlen(obj_ref), fingerprint, FINGERPRINT_TYPE);
 			printf("\n\t\t\tFingerprint of reference: ");
 			print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
 			printf("\n");
-			printf("Object ref size: %lu\n", sizeof(obj_ref));
 			// 4.) Tell the inventory manager where we have this object with a given fingerprint
-			ret = put_obj_local(inventory, fingerprint, obj_data, sizeof(obj_data), simulated_obj_mr -> lkey);
+			ret = put_obj_local(inventory, fingerprint, obj_data, strlen(obj_data), simulated_obj_mr -> lkey);
 			if (ret != 0){
 				fprintf(stderr, "Error: failed to put simulated object in local inventory\n");
 				return -1;

@@ -179,8 +179,7 @@ int main(int argc, char * argv[]){
 			scanf("%u", &num_bytes);
 			printf("\n\t\tPlease input an object reference: ");
 			scanf("%ms", &obj_ref);
-			printf("Object ref size: %lu\n", sizeof(obj_ref));
-			do_fingerprinting(obj_ref, sizeof(obj_ref), fingerprint, FINGERPRINT_TYPE);
+			do_fingerprinting(obj_ref, strlen(obj_ref), fingerprint, FINGERPRINT_TYPE);
 			printf("\n\t\t\tFingerprint of reference: ");
 			print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
 			printf("\n");
@@ -199,7 +198,7 @@ int main(int argc, char * argv[]){
 			scanf("%ms", &obj_data);
 			
 			// 2.) register this memory with ib verbs (which would normally already exist in a registered region)
-			ret = register_virt_memory(data_controller -> data_pd, obj_data, sizeof(obj_data), &simulated_obj_mr);
+			ret = register_virt_memory(data_controller -> data_pd, obj_data, strlen(obj_data), &simulated_obj_mr);
 			if (ret != 0){
 				fprintf(stderr, "Error: couldn't register simulated object with ib verbs\n");
 				continue;
@@ -208,7 +207,7 @@ int main(int argc, char * argv[]){
 			// 3.) Do fingerprinting of object reference
 			printf("\n\t\tPlease input an object reference: ");
 			scanf("%ms", &obj_ref);
-			do_fingerprinting(obj_ref, sizeof(obj_ref), fingerprint, FINGERPRINT_TYPE);
+			do_fingerprinting(obj_ref, strlen(obj_ref), fingerprint, FINGERPRINT_TYPE);
 			printf("\n\t\t\tFingerprint of reference: ");
 			print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
 			printf("\n");
