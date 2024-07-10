@@ -183,6 +183,10 @@ int main(int argc, char * argv[]){
 		if (strcmp(command, "BID") == 0){
 			printf("\n\n\tPrepare your BID order...\n\t\tPlease input the number of bytes of the object you are searching for: ");
 			scanf("%u", &num_bytes);
+			if (num_bytes <= 0){
+				fprintf(stderr, "Error. Your object needs to have > 0 bytes\n");
+				continue;
+			}
 			printf("\n\t\tPlease input an object reference (i.e. function representation): ");
 			scanf("%ms", &obj_ref);
 			do_fingerprinting(obj_ref, strlen(obj_ref), fingerprint, FINGERPRINT_TYPE);
