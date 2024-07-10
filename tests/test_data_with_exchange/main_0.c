@@ -172,12 +172,12 @@ int main(int argc, char * argv[]){
 	struct ibv_mr * simulated_obj_mr;
 	int command_cnt = 1;
 	while (!is_done){
-		printf("\n %d). Please input a command. Either order type [BID|OFFER] or exit [EXIT]: ", command_cnt);
+		printf("\n %d). Please input a command. Either order type [BID|OFFER|FUTURE] or exit [EXIT]: ", command_cnt);
 		scanf("%ms", &command);
 		if (strcmp(command, "BID") == 0){
-			printf("\n\n\tPrepare your BID order\n\t\tPlease input the number of bytes of the object you are searching for: ");
+			printf("\n\n\tPrepare your BID order...\n\t\tPlease input the number of bytes of the object you are searching for: ");
 			scanf("%u", &num_bytes);
-			printf("\n\t\tPlease input an object reference: ");
+			printf("\n\t\tPlease input an object reference (i.e. function representation): ");
 			scanf("%ms", &obj_ref);
 			do_fingerprinting(obj_ref, strlen(obj_ref), fingerprint, FINGERPRINT_TYPE);
 			printf("\n\t\t\tFingerprint of reference: ");
@@ -192,41 +192,68 @@ int main(int argc, char * argv[]){
 			free(obj_ref);
 		}
 		else if (strcmp(command, "OFFER") == 0){
-			printf("\n\n\tPrepare your OFFER order\n\t\tPlease input the object data you are simulating: ");
+			printf("\n\n\tPrepare your OFFER order...\n\t\tPlease input the object reference (i.e. function representation) you are simulating: ");
 			
-			// 1.) get "simulated" data (which would normally be the output of some function)
+			// 1.) get "simulated" object reference (would typically refer the hash of function you just finished computing)
+			scanf("%ms", &obj_ref);
+			
+			// 2.) Do fingerprinting of object reference
+			do_fingerprinting(obj_ref, strlen(obj_ref), fingerprint, FINGERPRINT_TYPE);
+			printf("\n\t\t\tFingerprint of reference: ");
+			print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
+			printf("\n");
+
+			// 3.) Get "simulated" data (would typically refer to the contents of the function you just finished computing)
+			printf("\n\t\tPlease input the data corresponding to simulated object ref (i.e. function output): ");
 			scanf("%ms", &obj_data);
-			
-			// 2.) register this memory with ib verbs (which would normally already exist in a registered region)
+
+			// 4.) register this memory with ib verbs (which would normally already exist in a registered region)
 			ret = register_virt_memory(data_controller -> data_pd, obj_data, strlen(obj_data), &simulated_obj_mr);
 			if (ret != 0){
 				fprintf(stderr, "Error: couldn't register simulated object with ib verbs\n");
 				continue;
 			}
 
-			// 3.) Do fingerprinting of object reference
-			printf("\n\t\tPlease input an object reference: ");
-			scanf("%ms", &obj_ref);
-			do_fingerprinting(obj_ref, strlen(obj_ref), fingerprint, FINGERPRINT_TYPE);
-			printf("\n\t\t\tFingerprint of reference: ");
-			print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
-			printf("\n");
-			// 4.) Tell the inventory manager where we have this object with a given fingerprint
+			
+			// 5.) Tell the inventory manager where we have this object with a given fingerprint
 			ret = put_obj_local(inventory, fingerprint, obj_data, sizeof(obj_data), simulated_obj_mr -> lkey);
 			if (ret != 0){
 				fprintf(stderr, "Error: failed to put simulated object in local inventory\n");
 				return -1;
 			}
 
-			// 5.) Submit offer
+			// 6.) Submit offer
 			ret = submit_offer(exchanges_client, MY_ID, fingerprint, NULL, NULL);
 			if (ret != 0){
-				fprintf(stderr, "Error: could not submit bid\n");
+				fprintf(stderr, "Error: could not submit offer\n");
 				continue;
 			}
 			printf("\nSuccessfully submitted OFFER for object reference: %s\n", obj_ref);
 			free(obj_ref);
 			// Note: can't free obj_data because now exists within inventory
+		}
+		else if (strcmp(command, "FUTURE") == 0){
+			printf("\n\n\tPrepare your FUTURE order...\n\t\tPlease input the object reference (i.e. function representation) you are simulating: ");
+			
+			// 1.) get "simulated" object reference (would typically refer the hash of function you just finished computing)
+			scanf("%ms", &obj_ref);
+			
+			// 2.) Do fingerprinting of object reference
+			do_fingerprinting(obj_ref, strlen(obj_ref), fingerprint, FINGERPRINT_TYPE);
+			printf("\n\t\t\tFingerprint of reference: ");
+			print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
+			printf("\n");
+
+			// 3.) Submit offer
+			ret = submit_future(exchanges_client, MY_ID, fingerprint, NULL, NULL);
+			if (ret != 0){
+				fprintf(stderr, "Error: could not submit future\n");
+				continue;
+			}
+			printf("\nSuccessfully submitted OFFER for object reference: %s\n", obj_ref);
+			free(obj_ref);
+			// Note: can't free obj_data because now exists within inventory
+
 		}
 		else if (strcmp(command, "EXIT") == 0){
 			printf("\nThank you for submitting your orders.\nThe program will be kept alive in case others ask for data.\nExiting order inputting terminal, hit control-c to quit program.\n\n");

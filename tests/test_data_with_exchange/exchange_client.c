@@ -775,6 +775,88 @@ int submit_offer(Exchanges_Client * exchanges_client, uint32_t location_id, uint
 	return 0;
 }
 
+
+int submit_future(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_t * fingerprint, uint64_t * ret_future_resp_wr_id, uint32_t * dest_exchange_id){
+
+	int ret;
+
+	// 1.) Determine what exchange connection to use
+	//		- for now equally partitioning across number of exchanges the lower 64 bits of fingerprint
+	
+	uint32_t self_exchange_id = exchanges_client -> self_exchange_id;
+
+	// -a.) Optionally specifiy the target exchange or use default search method
+	uint32_t target_exchange_id;
+	if (dest_exchange_id != NULL){
+		target_exchange_id = *dest_exchange_id;
+	}
+	else{
+		uint32_t num_exchanges = exchanges_client -> num_exchanges;
+		uint64_t least_sig64 = fingerprint_to_least_sig64(fingerprint, FINGERPRINT_NUM_BYTES);
+		target_exchange_id = least_sig64 % num_exchanges;
+	}
+
+	// b.) Either use self-connection or lookup in table
+	Exchange_Connection * target_exchange_connection;
+	if (target_exchange_id == self_exchange_id){
+		target_exchange_connection = exchanges_client -> self_exchange_connection;
+	}
+	else {
+		Exchange_Connection target_exch;
+		target_exch.exchange_id = target_exchange_id;
+		Exchange_Connection * dest_exchange_connection = find_item_table(exchanges_client -> exchanges, &target_exch);
+		if (dest_exchange_connection == NULL){
+			fprintf(stderr, "Error: could not find destination exchange connection with id: %u\n", target_exchange_id);
+		}
+		target_exchange_connection =  dest_exchange_connection;
+	}
+	
+
+	// 2.) Ensure that we would be able to receive a response, by submitting item to in channel
+	//	   Posts receive item 
+	// SHOULD MAKE A FUTURE RESPONSE (As an ack)
+	//	- TODO
+	uint64_t future_resp_wr_id = 0;
+
+	// 3.) Now we can populate our offre_order telling the exchange the wr_id to send when it finds match
+	// 		- If self, then just call the post_bid function directly
+	if (target_exchange_id == self_exchange_id){
+		Exchange * exchange = exchanges_client -> self_exchange;
+		printf("[Client %u]. Posting self-FUTURE...\n", self_exchange_id);
+		ret = post_future(exchange, fingerprint, location_id);
+		if (ret != 0){
+			fprintf(stderr, "Error: could not post future to self-exchange\n");
+		}
+	}
+
+	else{
+		Future_Order future_order;
+
+		// copy the fingerprint to this bid order
+		memcpy(future_order.fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
+
+		future_order.location_id = location_id;
+
+		// 4.) We can submit this bid order message now
+		Channel * out_future_orders = target_exchange_connection -> out_future_orders;
+		uint64_t future_order_wr_id;
+		uint64_t future_order_addr;
+		printf("[Client %u]. Sending FUTURE order to: %u...\n", self_exchange_id, target_exchange_id);
+		// don't have a known wr_id to send, so using specified protocol and retrieving the wr_id back
+		ret = submit_out_channel_message(out_future_orders, &future_order, NULL, &future_order_wr_id, &future_order_addr);
+		if (ret != 0){
+			fprintf(stderr, "Error: could not submit out channel message with bid order\n");
+			return -1;
+		}
+	}
+
+	if (ret_future_resp_wr_id != NULL){
+		*ret_future_resp_wr_id = future_resp_wr_id;
+	}
+
+	return 0;
+}
+
 // wait for completion threads to finish (currently infinite loop) for both exchange client and exchange
 int keep_alive_and_block(Exchanges_Client * exchanges_client){
 

@@ -79,6 +79,11 @@ int submit_bid(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_
 // The last 2 arguments are optional 
 int submit_offer(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_t * fingerprint, uint64_t * ret_offer_resp_wr_id, uint32_t * dest_exchange_id);
 
+// The last 2 arguments are optional
+// Submit offer and submit future are near identical implementations...
+int submit_future(Exchanges_Client * exchanges_client, uint32_t location_id, uint8_t * fingerprint, uint64_t * ret_future_resp_wr_id, uint32_t * dest_exchange_id);
+
+
 
 // can be called at end of main executable to help with testing...
 // will cause inifinte loop because completion threads never finish...
