@@ -179,6 +179,7 @@ int main(int argc, char * argv[]){
 			scanf("%u", &num_bytes);
 			printf("\n\t\tPlease input an object reference: ");
 			scanf("%ms", &obj_ref);
+			printf("Object ref size: %lu\n", sizeof(obj_ref));
 			do_fingerprinting(obj_ref, sizeof(obj_ref), fingerprint, FINGERPRINT_TYPE);
 			printf("\n\t\t\tFingerprint of reference: ");
 			print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
