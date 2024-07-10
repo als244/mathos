@@ -116,7 +116,7 @@ int main(int argc, char * argv[]){
 	//	- IMPORTANT: need not be symmetric across different types of channels (message types, recv vs. send)
 	//					- in reality we want the number of recv work requests for outstanding bids to be the highest by far!
 
-	uint32_t capacity_channels = 1U << 8;
+	uint32_t capacity_channels = 1U << 3;
 
 
 	// 3.) Setup connection to other exchanges
@@ -250,7 +250,7 @@ int main(int argc, char * argv[]){
 				fprintf(stderr, "Error: could not submit future\n");
 				continue;
 			}
-			printf("\nSuccessfully submitted OFFER for object reference: %s\n", obj_ref);
+			printf("\nSuccessfully submitted FUTURE for object reference: %s\n", obj_ref);
 			free(obj_ref);
 			// Note: can't free obj_data because now exists within inventory
 

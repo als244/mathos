@@ -157,6 +157,7 @@ int submit_in_channel_reservation(Channel * channel, uint64_t * ret_wr_id, uint6
 	uint64_t addr = (uint64_t) (channel -> buffer + channel -> message_size * item_ind);
 
 	// 6.) Post Receive
+	printf("Posting receive work request. Work Req ID: %lu, Addr: %lu, Message Type: %s\n", encoded_wr_id, addr, message_type_to_str(message_type));
 	ret = post_recv_work_request(channel -> qp, addr, channel -> message_size, channel -> mr -> lkey, encoded_wr_id);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not post receive work request for channel\n");
