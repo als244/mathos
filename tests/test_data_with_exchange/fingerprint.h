@@ -21,7 +21,7 @@ void print_sha256(uint8_t * fingerprint);
 uint64_t fingerprint_to_least_sig64(uint8_t * fingerprint, int fingerprint_num_bytes);
 uint8_t get_fingerprint_num_bytes(FingerprintType fingerprint_type);
 char * get_fingerprint_type_name(FingerprintType fingerprint_type);
-void do_fingerprinting(void * data, uint64_t num_bytes, uint8_t * ret_digest, FingerprintType fingerprint_type);
-void do_fingerprinting_evp(void * data, uint64_t num_bytes, uint8_t * ret_digest, FingerprintType fingerprint_type);
+void do_fingerprinting(void * data, uint64_t num_bytes, uint8_t * ret_fingerprint, FingerprintType fingerprint_type);
+void do_fingerprinting_evp(void * data, uint64_t num_bytes, uint8_t * ret_fingerprint, FingerprintType fingerprint_type);
 
 #endif

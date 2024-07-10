@@ -165,43 +165,85 @@ int main(int argc, char * argv[]){
 	}
 	
 
-	// 6.) Fake that we computed an object and put into inventory
-	//		- this is simulating what we would be done by the actual function executor...
-	printf("Creating fake object and putting in inventory...\n\n");
-	uint64_t example_data_bytes = 100 * 4096;
-	// fake object
-	int * example_data = malloc(example_data_bytes);
-	int num_ints = example_data_bytes / sizeof(int);
-	for (int i = 0; i < num_ints; i++){
-		example_data[i] = i;
-	}
-	// fake register object
-	struct ibv_mr * fake_obj_mr;
-	ret = register_virt_memory(data_controller -> data_pd, example_data, example_data_bytes, &fake_obj_mr);
-	if (ret != 0){
-		fprintf(stderr, "Error: couldn't register fake object with ib verbs\n");
-		return -1;
-	}
+	// 6.) Submit messages based on user input
+	printf("\n\nNow actually ready for orders..!\n\n");
 
-	uint8_t * example_fingerprint = (uint8_t *) malloc(FINGERPRINT_NUM_BYTES);
-	// for now assume that we will be sending to exchange 1 (in the upper half of 0xFFFF)
-	for (int i = 0; i < FINGERPRINT_NUM_BYTES; i++){
-		example_fingerprint[i] = (uint8_t) 255;
-	}
 
-	ret = put_obj_local(inventory, example_fingerprint, example_data, example_data_bytes, fake_obj_mr -> lkey);
-	if (ret != 0){
-		fprintf(stderr, "Error: failed to put fake object in inventory\n");
-		return -1;
-	}
+	bool is_done = false;
+	char *command;
+	char *obj_ref;
+	char *obj_data;
+	uint32_t num_bytes;
+	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
+	struct ibv_mr * simulated_obj_mr;
+	int command_cnt = 1;
+	while (!is_done){
+		printf("\n %d). Please input a command. Either order type [BID|OFFER] or exit [EXIT]: ", command_cnt);
+		scanf("%ms", &command);
+		if (strcmp(command, "BID") == 0){
+			printf("\n\n\tPrepare your BID order\n\t\tPlease input the number of bytes of the object you are searching for: ");
+			scanf("%u", &num_bytes);
+			printf("\n\t\tPlease input an object reference: ");
+			scanf("%ms", &obj_ref);
+			do_fingerprinting(obj_ref, sizeof(obj_ref), fingerprint, FINGERPRINT_TYPE);
+			printf("\n\t\t\tFingerprint of reference: ");
+			print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
+			printf("\n");
+			ret = submit_bid(exchanges_client, MY_ID, fingerprint, num_bytes, NULL, NULL);
+			if (ret != 0){
+				fprintf(stderr, "Error: could not submit bid\n");
+				continue;
+			}
+			printf("\n\t\tSuccessfully submitted BID for object reference: %s\n", obj_ref);
+			free(obj_ref);
+		}
+		else if (strcmp(command, "OFFER") == 0){
+			printf("\n\n\tPrepare your OFFER order\n\t\tPlease input the object data you are simulating: ");
+			
+			// 1.) get "simulated" data (which would normally be the output of some function)
+			scanf("%ms", &obj_data);
+			
+			// 2.) register this memory with ib verbs (which would normally already exist in a registered region)
+			ret = register_virt_memory(data_controller -> data_pd, obj_data, sizeof(obj_data), &simulated_obj_mr);
+			if (ret != 0){
+				fprintf(stderr, "Error: couldn't register simulated object with ib verbs\n");
+				continue;
+			}
 
-	// 7.) Submit messages
-	printf("\n\nNow actually submiting orders...!\n\n");
-	uint64_t offer_wr_id;
-	ret = submit_offer(exchanges_client, MY_ID, example_fingerprint, &offer_wr_id, NULL);
-	if (ret != 0){
-		fprintf(stderr, "Error: could not submit offer\n\n");
-		return -1;
+			// 3.) Do fingerprinting of object reference
+			printf("\n\t\tPlease input an object reference: ");
+			scanf("%ms", &obj_ref);
+			do_fingerprinting(obj_ref, sizeof(obj_ref), fingerprint, FINGERPRINT_TYPE);
+			printf("\n\t\t\tFingerprint of reference: ");
+			print_hex(fingerprint, FINGERPRINT_NUM_BYTES);
+			printf("\n");
+			// 4.) Tell the inventory manager where we have this object with a given fingerprint
+			ret = put_obj_local(inventory, fingerprint, obj_data, sizeof(obj_data), simulated_obj_mr -> lkey);
+			if (ret != 0){
+				fprintf(stderr, "Error: failed to put simulated object in local inventory\n");
+				return -1;
+			}
+
+			// 5.) Submit offer
+			ret = submit_offer(exchanges_client, MY_ID, fingerprint, NULL, NULL);
+			if (ret != 0){
+				fprintf(stderr, "Error: could not submit bid\n");
+				continue;
+			}
+			printf("\nSuccessfully submitted OFFER for object reference: %s\n", obj_ref);
+			free(obj_ref);
+			// Note: can't free obj_data because now exists within inventory
+		}
+		else if (strcmp(command, "EXIT") == 0){
+			printf("\nThank you for submitting your orders.\nThe program will be kept alive in case others ask for data.\nExiting order inputting terminal, hit control-c to quit program.\n\n");
+			is_done = true;
+		}
+		else{
+			fprintf(stderr, "Error. Unrecognized command of: %s\n", command);
+		}
+		free(command);
+		command_cnt += 1;
+
 	}
 
 	keep_alive_and_block(exchanges_client);

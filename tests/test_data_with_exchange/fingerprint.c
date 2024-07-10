@@ -110,7 +110,7 @@ void do_fingerprinting_md5(void * data, uint64_t num_bytes, uint8_t * ret_finger
  	return;
 }
 
-// ASSUMING THAT RET_DIGEST HAS PRE-ALLOCATED MEMORY!
+// ASSUMING THAT RET_FINGERPRINT HAS PRE-ALLOCATED MEMORY!
 void do_fingerprinting(void * data, uint64_t num_bytes, uint8_t * ret_fingerprint, FingerprintType fingerprint_type){
 
 	// using functions from OpenSSL's libcrypto
