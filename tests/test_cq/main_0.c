@@ -128,15 +128,17 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 	
-	ret = post_recv_work_request(qp, recv_buffer, 1, recv_mr -> lkey, 0);
+	uint64_t recv_wr_id_0 = 0;	
+	ret = post_recv_work_request(qp, recv_buffer, 1, recv_mr -> lkey, recv_wr_id_0);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not post recv request: 0\n");
+		fprintf(stderr, "Error: could not post recv request: %lu\n", recv_wr_id_0);
 		return -1;
 	}
-
-	ret = post_recv_work_request(qp, recv_buffer + 5, 1, recv_mr -> lkey, 1);
+	
+	uint64_t recv_wr_id_1 = 1;
+	ret = post_recv_work_request(qp, recv_buffer + 5, 1, recv_mr -> lkey, recv_wr_id_1);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not post recv request: 1\n");
+		fprintf(stderr, "Error: could not post recv request: %lu\n", recv_wr_id_1);
 		return -1;
 	}
 
