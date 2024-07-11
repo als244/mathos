@@ -459,12 +459,16 @@ int post_recv_work_request(struct ibv_qp * qp, uint64_t addr, uint32_t length, u
     wr.wr_id = wr_id;
     wr.next = NULL;
 
+    /*
     if (qp -> srq){
         ret = ibv_post_srq_recv(qp -> srq, &wr, &bad_wr);
     }
     else{
         ret = ibv_post_recv(qp, &wr, &bad_wr);
     }
+    */
+	
+    ret = ibv_post_recv(qp, &wr, &bad_wr);
     if (ret != 0){
         fprintf(stderr, "Error: could note post receive work request\n");
         return -1;

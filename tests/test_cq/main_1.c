@@ -114,12 +114,13 @@ int main(int argc, char * argv[]){
 		exit(1);
 	}
 
-	sleep(10);
+	sleep(2);
 
 
 	// NOW WE ARE CONNECTED LET'S POST RECVS
+	printf("\nPosting send with wr_id: 1\n\n");
 
-        uint64_t size_bytes = 10;
+        uint32_t size_bytes = 10;
         uint64_t send_buffer = (uint64_t) malloc(size_bytes);
 
         struct ibv_mr * send_mr;
@@ -131,7 +132,7 @@ int main(int argc, char * argv[]){
 	
 	// Purposely send the wr_id that was added second in the receivers recv queue
 	// to test correct functionality of CQ
-        ret = post_send_work_request(qp, send_buffer, 1, send_mr -> lkey, 1);
+        ret = post_send_work_request(qp, send_buffer, 1, send_mr -> lkey, 3);
         if (ret != 0){
                 fprintf(stderr, "Error: could not post send request: 0\n");
                 return -1;
