@@ -116,6 +116,17 @@ int main(int argc, char * argv[]){
 
 	sleep(2);
 
+	// Let's ensure QP is in good state
+	struct ibv_qp_attr qp_attr_ret;
+	struct ibv_qp_init_attr init_attr_dummy;
+	ret = ibv_query_qp(qp, &qp_attr_ret, IBV_QP_STATE, &init_attr_dummy);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not query qp\n");
+		return -1;
+	}
+
+	printf("Cur QP State: %d\n", qp_attr_ret.qp_state);
+
 
 	// NOW WE ARE CONNECTED LET'S POST RECVS
 	uint64_t send_wr_id = 3;
@@ -146,6 +157,15 @@ int main(int argc, char * argv[]){
                 fprintf(stderr, "Error: polling failed\n");
                 return -1;
         }
+
+	// Let's ensure QP is in good state
+        ret = ibv_query_qp(qp, &qp_attr_ret, IBV_QP_STATE, &init_attr_dummy);
+        if (ret != 0){
+                fprintf(stderr, "Error: could not query qp\n");
+                return -1;
+        }
+
+        printf("Cur QP State: %d\n", qp_attr_ret.qp_state);
 
         return 0;
 
