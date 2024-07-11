@@ -177,6 +177,7 @@ int main(int argc, char * argv[]){
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
 	struct ibv_mr * simulated_obj_mr;
 	int command_cnt = 1;
+	void * obj_data_saved;
 	while (!is_done){
 		printf("\n %d). Please input a command. Either order type [BID|OFFER|FUTURE] or exit [EXIT]: ", command_cnt);
 		scanf("%ms", &command);
