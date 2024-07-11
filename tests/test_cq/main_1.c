@@ -114,4 +114,37 @@ int main(int argc, char * argv[]){
 		exit(1);
 	}
 
+	sleep(10);
+
+
+	// NOW WE ARE CONNECTED LET'S POST RECVS
+
+        uint64_t size_bytes = 10;
+        uint64_t send_buffer = (uint64_t) malloc(size_bytes);
+
+        struct ibv_mr * send_mr;
+        ret = register_virt_memory(pd, (void *) send_buffer, size_bytes, &send_mr);
+        if (ret != 0){
+                fprintf(stderr, "Error: could not register virt memory region\n");
+                return -1;
+        }
+	
+	// Purposely send the wr_id that was added second in the receivers recv queue
+	// to test correct functionality of CQ
+        ret = post_send_work_request(qp, send_buffer, 1, send_mr -> lkey, 1);
+        if (ret != 0){
+                fprintf(stderr, "Error: could not post send request: 0\n");
+                return -1;
+        }
+
+        uint64_t poll_duration_ns = 10 * 1e9;
+
+        ret = poll_cq(cq, poll_duration_ns);
+        if (ret != 0){
+                fprintf(stderr, "Error: polling failed\n");
+                return -1;
+        }
+
+        return 0;
+
 }

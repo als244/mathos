@@ -111,7 +111,43 @@ int main(int argc, char * argv[]){
 	ret = setup_connection(RDMA_RC, 1, SERVER_ID, SERVER_IP, SERVER_PORT, pd, qp, cq, CLIENT_ID, CLIENT_IP, NULL, NULL, NULL, &conn);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not setup connection");
-		exit(1);
+		return -1;
 	}
+
+
+
+	// NOW WE ARE CONNECTED LET'S POST RECVS
+	
+	uint64_t size_bytes = 10;
+	uint64_t recv_buffer = (uint64_t) malloc(size_bytes);
+	
+	struct ibv_mr * recv_mr;
+	ret = register_virt_memory(pd, (void *) recv_buffer, size_bytes, &recv_mr);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not register virt memory region\n");
+		return -1;
+	}
+	
+	ret = post_recv_work_request(qp, recv_buffer, 1, recv_mr -> lkey, 0);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not post recv request: 0\n");
+		return -1;
+	}
+
+	ret = post_recv_work_request(qp, recv_buffer + 5, 1, recv_mr -> lkey, 1);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not post recv request: 1\n");
+		return -1;
+	}
+
+	uint64_t poll_duration_ns = 10 * 1e9;
+
+	ret = poll_cq(cq, poll_duration_ns);
+	if (ret != 0){
+		fprintf(stderr, "Error: polling failed\n");
+		return -1;
+	}
+
+	return 0;
 
 }
