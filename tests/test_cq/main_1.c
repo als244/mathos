@@ -144,7 +144,7 @@ int main(int argc, char * argv[]){
 	
 	// Purposely send the wr_id that was added second in the receivers recv queue
 	// to test correct functionality of CQ
-        ret = post_send_work_request(qp, send_buffer, 1, send_mr -> lkey, send_wr_id);
+        ret = post_send_work_request(qp, send_buffer, 9, send_mr -> lkey, send_wr_id);
         if (ret != 0){
                 fprintf(stderr, "Error: could not post send request: 0\n");
                 return -1;

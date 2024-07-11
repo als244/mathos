@@ -143,9 +143,10 @@ int main(int argc, char * argv[]){
 		fprintf(stderr, "Error: could not post recv request: %lu\n", recv_wr_id_0);
 		return -1;
 	}
-	
+
 	uint64_t recv_wr_id_1 = 1;
-	ret = post_recv_work_request(qp, recv_buffer + 5, 1, recv_mr -> lkey, recv_wr_id_1);
+	
+	ret = post_recv_work_request(qp, recv_buffer + 1, 9, recv_mr -> lkey, recv_wr_id_1);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not post recv request: %lu\n", recv_wr_id_1);
 		return -1;
