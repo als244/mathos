@@ -310,10 +310,7 @@ int handle_connection_events(RDMAConnectionType connection_type, ConnectionServe
 
     // for this simple example, do doing any sync with posting send/recv so just retry a lot...
     // 3-bit value. Setting to 7 means infinite re-try
-    conn_params.rnr_retry_count=0;
-    conn_params.responder_resources=1;
-    conn_params.initiator_depth=1;
-
+    // conn_params.rnr_retry_count=0;
 
     while (!is_done){
 
