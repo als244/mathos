@@ -171,6 +171,7 @@ int main(int argc, char * argv[]){
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
 	struct ibv_mr * simulated_obj_mr;
 	int command_cnt = 1;
+	void * obj_data_saved;
 	while (!is_done){
 		printf("\n %d). Please input a command. Either order type [BID|OFFER|FUTURE] or exit [EXIT]: ", command_cnt);
 		scanf("%ms", &command);
@@ -210,9 +211,12 @@ int main(int argc, char * argv[]){
 			// 3.) Get "simulated" data (would typically refer to the contents of the function you just finished computing)
 			printf("\n\t\tPlease input the data corresponding to simulated object ref (i.e. function output): ");
 			scanf("%ms", &obj_data);
-
+			
+			size_t data_size = strlen(obj_data);
+			obj_data_saved = malloc(data_size);
+			memcpy(obj_data_saved, obj_data, data_size);
 			// 4.) register this memory with ib verbs (which would normally already exist in a registered region)
-			ret = register_virt_memory(data_controller -> data_pd, obj_data, strlen(obj_data), &simulated_obj_mr);
+			ret = register_virt_memory(data_controller -> data_pd, obj_data_saved, data_size, &simulated_obj_mr);
 			if (ret != 0){
 				fprintf(stderr, "Error: couldn't register simulated object with ib verbs\n");
 				continue;
@@ -220,7 +224,7 @@ int main(int argc, char * argv[]){
 
 			
 			// 5.) Tell the inventory manager where we have this object with a given fingerprint
-			ret = put_obj_local(inventory, fingerprint, obj_data, sizeof(obj_data), simulated_obj_mr -> lkey);
+			ret = put_obj_local(inventory, fingerprint, obj_data_saved, data_size, simulated_obj_mr -> lkey);
 			if (ret != 0){
 				fprintf(stderr, "Error: failed to put simulated object in local inventory\n");
 				return -1;
@@ -234,7 +238,8 @@ int main(int argc, char * argv[]){
 			}
 			printf("\nSuccessfully submitted OFFER for object reference: %s\n", obj_ref);
 			free(obj_ref);
-			// Note: can't free obj_data because now exists within inventory
+			// Note can free obj_data because now exists within inventory by using obj_data_saved (clear memory leak but ok for demo)
+			free(obj_data);
 		}
 		else if (strcmp(command, "FUTURE") == 0){
 			printf("\n\n\tPrepare your FUTURE order...\n\t\tPlease input the object reference (i.e. function representation) you are simulating: ");
