@@ -144,7 +144,7 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	uint64_t recv_wr_id_1 = 1;
+	uint64_t recv_wr_id_1 = 3;
 	
 	ret = post_recv_work_request(qp, recv_buffer + 1, 9, recv_mr -> lkey, recv_wr_id_1);
 	if (ret != 0){
