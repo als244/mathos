@@ -552,7 +552,7 @@ Self_Net * init_self_net(int self_id, int num_qp_types, QueuePairUsageType * qp_
 	self_net -> total_ports = total_ports;
 	self_net -> total_qps_node = total_qps_node;
 
-	self_net -> start_qpn = (uint32_t) self_id * total_qps_node;
+	self_net -> start_qpn = (uint32_t) (self_id + 1) * total_qps_node;
 	self_net -> cur_qpn = self_net -> start_qpn;
 	
 	// 7.) Create Node_Net for self which contains information about ports and Queue Pairs
