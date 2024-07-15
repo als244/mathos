@@ -33,6 +33,7 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
+	Self_Net * self_net = net -> self_net;
 	Node_Net * self_node = net -> self_net -> self_node;
 
 	int device_ind = 0;
@@ -51,6 +52,7 @@ int main(int argc, char * argv[]){
 	printf("\n\n");
 
 	// all_gids node_id/device_id/port_num
+	/* SAVING LOCAL GID
 	FILE * gid_file = fopen("./all_gids/1/0/1.gid", "w");
 	if (gid_file == NULL){
 		fprintf(stderr, "Error: could not open gid file\n");
@@ -58,6 +60,7 @@ int main(int argc, char * argv[]){
 	}
 	fwrite(&gid, sizeof(gid), 1, gid_file);
 	fclose(gid_file);
+	*/
 
 	QP *** queue_pairs = port -> qp_collection -> queue_pairs;
 
@@ -66,17 +69,31 @@ int main(int argc, char * argv[]){
 	QP * data_qp = queue_pairs[1][0];
 	printf("Data QP (device %d):\n\tPort Num: %d\n\tQP Num: %u\n\tQKey: %u\n\t\n\n", device_ind, data_qp -> port_num, data_qp -> qp_num, data_qp -> qkey);
 
-	printf("Network setup successful!\n");
+	
+	union ibv_gid dgid;
+	// Read the GID from node 0, dev 0, port 1
+	FILE * dgid_file = fopen("./all_gids/0/0/1.gid", "r");
+	fread(&dgid, sizeof(dgid), 1, dgid_file);
+	fclose(dgid_file);
 
-
-
-	struct ibv_ah *ah;
+	
 	struct ibv_ah_attr ah_attr;
 	memset(&ah_attr, 0, sizeof(ah_attr));
 
-	ah_attr.is_global = 0;
+	ah_attr.grh.dgid = dgid;
+	ah_attr.is_global = 1;
 	ah_attr.dlid = 0;
-	ah_attr.port_num = 0;
+	ah_attr.port_num = 1;
+
+	struct ibv_pd * dev_pd = (self_net -> dev_pds)[device_ind];
+	struct ibv_ah *ah = ibv_create_ah(dev_pd, &ah_attr);
+	if (ah == NULL){
+		fprintf(stderr, "Error: could not create address handle\n");
+		return -1;
+	}
+
+
+	printf("Network setup successful!\n");
 
 
 	return 0;

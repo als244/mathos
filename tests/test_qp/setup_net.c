@@ -128,8 +128,9 @@ QP * init_qp(QueuePairUsageType qp_usage_type, struct ibv_context * ibv_dev_ctx,
 	qp_attr.send_ops_flags |= send_ops_flags;
 	qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
 
+	// For some reason this is not working...???
 	qp_attr.source_qpn = source_qpn;
-	qp_attr.create_flags |= IBV_QP_CREATE_SOURCE_QPN;
+	qp_attr.create_flags = IBV_QP_CREATE_SOURCE_QPN;
 
 	struct ibv_qp * ibv_qp = ibv_create_qp_ex(ibv_dev_ctx, &qp_attr);
 	if (ibv_qp == NULL){
@@ -158,7 +159,7 @@ QP * init_qp(QueuePairUsageType qp_usage_type, struct ibv_context * ibv_dev_ctx,
 	qp -> port_num = port_num;
 	qp -> qkey = qkey;
 	qp -> qp_num = ibv_qp -> qp_num;
-
+	
 	return qp;
 }
 
