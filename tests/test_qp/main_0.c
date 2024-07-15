@@ -50,6 +50,17 @@ int main(int argc, char * argv[]){
 	print_hex(gid_raw, GID_NUM_BYTES);
 	printf("\n\n");
 
+
+	// all_gids node_id/device_id/port_num
+	FILE * gid_file = fopen("./all_gids/0/0/1.gid", "w");
+	if (gid_file == NULL){
+		fprintf(stderr, "Error: could not open gid file\n");
+		return NULL;
+	}
+	fwrite(&gid, sizeof(gid), 1, gid_file);
+	fclose(gid_file);
+
+
 	QP *** queue_pairs = port -> qp_collection -> queue_pairs;
 
 	QP * control_qp = queue_pairs[0][0];

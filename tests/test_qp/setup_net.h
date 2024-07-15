@@ -174,6 +174,7 @@ typedef struct network {
 Network * init_net(int self_id, int num_qp_types, QueuePairUsageType * qp_usage_types, bool * to_use_srq_by_type, int * num_qps_per_type, 
 						int num_cq_types, CompletionQueueUsageType * cq_usage_types);
 
+
 // called when all nodes in system have initialized self-net
 // and values for qkey's, qnums, gids, lids can be populated
 int setup_world_net(Network * net, int num_others);
