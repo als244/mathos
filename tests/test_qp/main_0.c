@@ -17,7 +17,7 @@ int main(int argc, char * argv[]){
 	int num_qp_types = 2;
 	QueuePairUsageType qp_usage_types[2] = {CONTROL_QP, DATA_QP};
 	bool to_use_srq_by_type[2] = {true, false};
-	int num_qps_per_type[2] = {1, 2};
+	int num_qps_per_type[2] = {4, 16};
 
 	int num_cq_types = 2;
 	CompletionQueueUsageType cq_usage_types[2] = {CONTROL_CQ, DATA_CQ};
