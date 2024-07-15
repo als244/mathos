@@ -120,6 +120,7 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
+	/*
 	// 3.) Transition QP into correct stages
 
 	// first go to INIT, then RTS, then to RTS
@@ -151,6 +152,7 @@ int main(int argc, char * argv[]){
 		fprintf(stderr, "Error: could not move QP to Ready-to-Send state\n");
 		return -1;
 	}
+	*/
 
 
 	// 4.) Wait for incoming receive

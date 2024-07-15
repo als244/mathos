@@ -115,13 +115,16 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 	
-	// 2.) Transition qp into correct stages
+	/*
+
+	// 2.) Transition qp into correct stages (do i need to do this for UD queue pairs..??)
 
 	// first go to INIT, then RTS, then to RTS
 	struct ibv_qp_attr mod_attr;
 	memset(&mod_attr, 0, sizeof(mod_attr));
 
 	mod_attr.qp_state = IBV_QPS_INIT;
+	mod_attr
 	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not move QP to Init state\n");
@@ -145,7 +148,7 @@ int main(int argc, char * argv[]){
 		fprintf(stderr, "Error: could not move QP to Ready-to-Send state\n");
 		return -1;
 	}
-
+	*/
 
 	// 3.) Send send message
 
