@@ -101,7 +101,7 @@ int main(int argc, char * argv[]){
 
 	// 1.) register memory region
 	struct ibv_mr * mr;
-	int * buffer = malloc(NUM_INTS * sizeof(int) + 40);
+	void * buffer = malloc(NUM_INTS * sizeof(int) + 40);
 	ret = register_virt_memory(dev_pd, (void *) buffer, NUM_INTS * sizeof(int) + 40, &mr);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not register memory region\n");
@@ -170,8 +170,9 @@ int main(int argc, char * argv[]){
 	}
 
 	// 5.) Now print message (blocked above, so now we know buffer is ready...)
+	int * int_buffer = (int *) buffer + 40;
 	for (int i = 0; i < NUM_INTS; i++){
-		printf("%d\n", buffer[i]);
+		printf("%d\n", int_buffer[i]);
 	}
 
 	return 0;
