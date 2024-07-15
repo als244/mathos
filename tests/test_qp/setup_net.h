@@ -24,6 +24,7 @@ typedef struct qp {
 	// found with ibv_query_qp()
 	uint32_t port_num;
 	uint32_t qkey;
+	uint32_t qp_num;
 	// Might also want to pkey_index...? 
 	// only needed if partitions and subnet manager handles..?
 } QP;
@@ -92,8 +93,7 @@ typedef struct port {
 	// the device that this port is associated with
 	// refers to index within network ibv_dev_ctxs
 	int device_id;
-	// refers to index into second level of node_net -> ports
-	uint8_t port_ind;
+	uint8_t port_num;
 	// populated with ibv_query_port()
 	struct ibv_port_attr port_attr;
 	// a field within port_attr, 

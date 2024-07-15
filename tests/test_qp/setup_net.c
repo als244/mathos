@@ -133,7 +133,7 @@ QP * init_qp(QueuePairUsageType qp_usage_type, struct ibv_context * ibv_dev_ctx,
 
 	struct ibv_qp * ibv_qp = ibv_create_qp_ex(ibv_dev_ctx, &qp_attr);
 	if (ibv_qp == NULL){
-		fprintf(stderr, "Error: could not create qp for exchanges_client\n");
+		fprintf(stderr, "Error: could not create qp\n");
 		return NULL;
 	}
 
@@ -157,6 +157,7 @@ QP * init_qp(QueuePairUsageType qp_usage_type, struct ibv_context * ibv_dev_ctx,
 
 	qp -> port_num = port_num;
 	qp -> qkey = qkey;
+	qp -> qp_num = ibv_qp -> qp_num;
 
 	return qp;
 }
@@ -254,7 +255,7 @@ QP_Collection * init_qp_collection(Self_Net * self_net, int device_id,
 // called from within init_port_container()
 // upon port initialization QP_Collection is populated based on num_qp_types and num_qps_per_type
 // port -> ah is left NULL and initialized upon setup_world_net
-Port * init_port(Self_Net * self_net, int device_id, uint8_t port_ind, 
+Port * init_port(Self_Net * self_net, int device_id, uint8_t port_num, 
 					int num_qp_types, QueuePairUsageType * qp_usage_types, bool * to_use_srq_by_type, int * num_qps_per_type) {
 
 	int ret;
@@ -267,17 +268,17 @@ Port * init_port(Self_Net * self_net, int device_id, uint8_t port_ind,
 
 	port -> device_id = device_id;
 	// index into Node_Net -> Ports
-	port -> port_ind = port_ind;
+	port -> port_num = port_num;
 
 	// opened device context associated with this port
 	struct ibv_context * dev_ctx = (self_net -> ibv_dev_ctxs)[device_id];
 
 	// 1.) Initially query port to get attributes (lid, mtu, speed)
 	//		- note that over course of system runtime these attributes may change!
-	ret = ibv_query_port(dev_ctx, port_ind, &(port -> port_attr));
+	ret = ibv_query_port(dev_ctx, port_num, &(port -> port_attr));
 	if (ret != 0){
 		fprintf(stderr, "Error: ibv_query_port failed for device #%d, port ind #%d\n", 
-							device_id, (int) port_ind);
+							device_id, (int) port_num);
 		return NULL;
 	}
 
@@ -337,6 +338,9 @@ Port *** init_port_container(Self_Net * self_net, int num_qp_types, QueuePairUsa
 	int * num_ports_per_dev = self_net -> num_ports_per_dev;
 
 	uint8_t num_ports;
+	// physical port start at num = 1...?
+	// port 0 reserved for subnet manager...?
+	uint8_t phys_port_start_ind = 1;
 	for (int device_id = 0; device_id < num_ib_devices; device_id++){
 		num_ports = (uint8_t) num_ports_per_dev[device_id];
 		ports[device_id] = (Port **) malloc(num_ports * sizeof(Port *));
@@ -345,7 +349,7 @@ Port *** init_port_container(Self_Net * self_net, int num_qp_types, QueuePairUsa
 			return NULL;
 		}
 		for (uint8_t phys_port_num = 0; phys_port_num < num_ports; phys_port_num++){
-			ports[device_id][phys_port_num] = init_port(self_net, device_id, phys_port_num, 
+			ports[device_id][phys_port_num] = init_port(self_net, device_id, phys_port_num + phys_port_start_ind, 
 												num_qp_types, qp_usage_types, to_use_srq_by_type, num_qps_per_type);
 			if (ports[device_id][phys_port_num] == NULL){
 				fprintf(stderr, "Error: failed to initialize port for device #%d, phys port num #%d\n", 
