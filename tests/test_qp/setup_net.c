@@ -558,7 +558,7 @@ Self_Net * init_self_net(int self_id, int num_qp_types, QueuePairUsageType * qp_
 Network * init_net(int self_id, int num_qp_types, QueuePairUsageType * qp_usage_types, bool * to_use_srq_by_type, int * num_qps_per_type, int num_cq_types, CompletionQueueUsageType * cq_usage_types) {
 
 	Network * net = (Network *) malloc(sizeof(Network));
-	if (net != NULL){
+	if (net == NULL){
 		fprintf(stderr, "Error: malloc failed for initializing network\n");
 		return NULL;
 	}
