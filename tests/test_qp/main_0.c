@@ -1,6 +1,8 @@
 #include "setup_net.h"
 #include "fingerprint.h"
 
+#define THIS_ID 0
+
 int main(int argc, char * argv[]){
 
 
@@ -14,7 +16,7 @@ int main(int argc, char * argv[]){
 
 	*/
 
-	int self_id = 0;
+	int self_id = THIS_ID;
 	int num_qp_types = 2;
 	QueuePairUsageType qp_usage_types[2] = {CONTROL_QP, DATA_QP};
 	bool to_use_srq_by_type[2] = {true, false};
