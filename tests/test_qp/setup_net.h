@@ -3,6 +3,8 @@
 
 #include "common.h"
 
+#define GID_NUM_BYTES 16
+
 typedef enum queue_pair_usage_type {
 	CONTROL_QP,
 	DATA_QP
@@ -103,14 +105,15 @@ typedef struct port {
 	
 	// MIGHT NEED THESE FOR WORLD_NET_CONFIGURATION
 	// But subnet manager might already take care of them...?
-	/*
+	
 	// populated with ibv_query_gid()
 	// NEEDED FOr configuration of world_net 
 	// to create Address Handle's to remote ports
+	// index 0 containrs the port GID, which is a constant value, provided by the vendor
 	union ibv_gid gid;
 	// populated iwth ibv_query_pkey()
 	uint16_t pkey;
-	*/
+	
 	// used to break up set of qps into types
 	QP_Collection * qp_collection;
 	// only used within world_net

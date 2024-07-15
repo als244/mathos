@@ -277,7 +277,7 @@ Port * init_port(Self_Net * self_net, int device_id, uint8_t port_num,
 	//		- note that over course of system runtime these attributes may change!
 	ret = ibv_query_port(dev_ctx, port_num, &(port -> port_attr));
 	if (ret != 0){
-		fprintf(stderr, "Error: ibv_query_port failed for device #%d, port ind #%d\n", 
+		fprintf(stderr, "Error: ibv_query_port failed for device #%d, port num #%d\n", 
 							device_id, (int) port_num);
 		return NULL;
 	}
@@ -286,12 +286,23 @@ Port * init_port(Self_Net * self_net, int device_id, uint8_t port_num,
 	uint16_t lid = (port -> port_attr).lid;
 	port -> lid = lid;
 
-	// 1b.) Might Need to Deal with GIDs and PKeys 
+	// 2.) Deal with GIDs and PKeys 
 	//	But subnet manager might already take care of this...?
-	// 		- Skipping for now
+	// 		- Skipping for Partition Key now
+
+	union ibv_gid gid;
+	// index 0 means port GID (provided by vendor)
+	ret = ibv_query_gid(dev_ctx, port_num, 0, &gid);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not not query GID for device #%d, port num #%d\n", 
+					device_id, (int) port_num);
+		return NULL;
+	}
+
+	port -> gid = gid;
 
 
-	// 2.) Setup QP collection!
+	// 3.) Setup QP collection!
 	//		- Here we probably want a different data structure to maintain seperate lists for each type
 	//		- But maybe we build this QP pool structure at a higher level (node-level) 
 	//			that maintains data qp locks/free list

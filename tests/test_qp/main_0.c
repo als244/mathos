@@ -1,4 +1,5 @@
 #include "setup_net.h"
+#include "fingerprint.h"
 
 int main(int argc, char * argv[]){
 
@@ -39,7 +40,13 @@ int main(int argc, char * argv[]){
 	uint8_t port_num = port -> port_num;
 	uint16_t lid = port -> lid;
 
-	printf("Device %d, Port Index: %d\n\tPort Number: %d\n\tLID: %d\n\n", device_ind, port_ind, (int) port_num, (int) lid);
+	union ibv_gid gid = port -> gid;
+	// 16 bytes
+	uint8_t * gid_raw = gid.raw;
+
+	printf("Device %d, Port Index: %d\n\tPort Number: %d\n\tLID: %d\n\tGID: ", device_ind, port_ind, (int) port_num, (int) lid);
+	print_hex(gid_raw, GID_NUM_BYTES);
+	printf("\n\n");
 
 	QP *** queue_pairs = port -> qp_collection -> queue_pairs;
 
@@ -49,6 +56,17 @@ int main(int argc, char * argv[]){
 	printf("Data QP (device %d):\n\tPort Num: %d\n\tQP Num: %u\n\tQKey: %u\n\t\n\n", device_ind, data_qp -> port_num, data_qp -> qp_num, data_qp -> qkey);
 
 	printf("Network setup successful!\n");
+
+
+
+	struct ibv_ah *ah;
+	struct ibv_ah_attr ah_attr;
+	memset(&ah_attr, 0, sizeof(ah_attr));
+
+	ah_attr.is_global = 0;
+	ah_attr.dlid = 0;
+	ah_attr.port_num = 0;
+
 
 	return 0;
 }
