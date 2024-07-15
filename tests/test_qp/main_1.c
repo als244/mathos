@@ -1,5 +1,8 @@
 #include "setup_net.h"
 #include "fingerprint.h"
+#include "verbs_ops.h"
+
+#define NUM_INTS 100
 
 #define THIS_ID 1
 
@@ -92,9 +95,72 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
+	// Get ready to receive message
 
-	printf("Network setup successful!\n");
+	struct ibv_qp * ctrl_qp = control_qp -> ibv_qp;
 
+	// 1.) register memory region
+	struct ibv_mr * mr;
+	int * buffer = malloc(NUM_INTS * sizeof(int));
+	ret = register_virt_memory(dev_pd, (void *) buffer, NUM_INTS * sizeof(int), &mr);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not register memory region\n");
+		return -1;
+	}
+
+	// 2.) post recv message (to shared queue)
+
+	uint64_t recv_wr_id = 2;
+
+	// need to add 40 because of Global Routing Header (first 40 bytes of UD sends)
+	uint32_t length = NUM_INTS * sizeof(int) + 40;
+	ret = post_recv_work_request(ctrl_qp, (uint64_t) buffer, length, mr -> lkey, recv_wr_id);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not post recv request\n");
+		return -1;
+	}
+
+	// 3.) Transition QP into correct stages
+
+	// first go to RTR then to RTS
+	struct ibv_qp_attr mod_attr;
+
+	mod_attr.qp_state = IBV_QPS_RTR;
+
+	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not move QP to Ready-to-Receive state\n");
+		return -1;
+	}
+
+	// now go to RTS state
+
+	mod_attr.qp_state = IBV_QPS_RTS;
+
+	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not move QP to Ready-to-Send state\n");
+		return -1;
+	}
+
+
+	// 4.) Wait for incoming receive
+	//		- here using our CQ built structs, but could have also use ctrl_qp -> recv_cq
+	printf("Network setup successful!\n\nReady for incoming message...\n");
+
+	CQ_Collection * cq_collection = (self_net -> dev_cq_collections)[device_ind];
+	CQ * recv_cq = (cq_collection -> recv_cqs)[0];
+	struct ibv_cq_ex * ibv_recv_cq = recv_cq -> ibv_cq;
+	ret = block_for_wr_comp(ibv_recv_cq, recv_wr_id);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not block for wr completion\n");
+		return -1;
+	}
+
+	// 5.) Now print message (blocked above, so now we know buffer is ready...)
+	for (int i = 0; i < NUM_INTS; i++){
+		printf("%d\n", buffer[i]);
+	}
 
 	return 0;
 }

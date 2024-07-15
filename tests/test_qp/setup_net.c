@@ -126,7 +126,7 @@ QP * init_qp(QueuePairUsageType qp_usage_type, struct ibv_context * ibv_dev_ctx,
 		
 	uint64_t send_ops_flags = IBV_QP_EX_WITH_SEND;
 	qp_attr.send_ops_flags |= send_ops_flags;
-	qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
+	qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD | IBV_QP_INIT_ATTR_CREATE_FLAGS;
 
 	// For some reason this is not working...???
 	qp_attr.source_qpn = source_qpn;
@@ -159,7 +159,7 @@ QP * init_qp(QueuePairUsageType qp_usage_type, struct ibv_context * ibv_dev_ctx,
 	qp -> port_num = port_num;
 	qp -> qkey = qkey;
 	qp -> qp_num = ibv_qp -> qp_num;
-	
+
 	return qp;
 }
 

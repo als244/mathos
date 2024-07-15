@@ -1,5 +1,8 @@
 #include "setup_net.h"
 #include "fingerprint.h"
+#include "verbs_ops.h"
+
+#define NUM_INTS 100
 
 #define THIS_ID 0
 
@@ -94,7 +97,84 @@ int main(int argc, char * argv[]){
 	}
 
 
-	printf("Network setup successful!\n");
+	// Get ready to send message
 
+	struct ibv_qp * ctrl_qp = control_qp -> ibv_qp;
+	struct ibv_qp_ex * ctrl_qp_ex = ibv_qp_to_qp_ex(control_qp -> ibv_qp);
+
+	// 1.) register memory region
+	struct ibv_mr * mr;
+	int * buffer = malloc(NUM_INTS * sizeof(int));
+	// populated buffer with NUM_INTS integers and get ready to send
+	for (int i = 0; i < NUM_INTS; i++){
+		buffer[i] = i;
+	}
+	ret = register_virt_memory(dev_pd, (void *) buffer, NUM_INTS * sizeof(int), &mr);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not register memory region\n");
+		return -1;
+	}
+	
+	// 2.) Transition qp into correct stages
+
+	// first go to RTR then to RTS
+	struct ibv_qp_attr mod_attr;
+
+	mod_attr.qp_state = IBV_QPS_RTR;
+
+	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not move QP to Ready-to-Receive state\n");
+		return -1;
+	}
+
+	// now go to RTS state
+
+	mod_attr.qp_state = IBV_QPS_RTS;
+
+	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not move QP to Ready-to-Send state\n");
+		return -1;
+	}
+
+
+	// 3.) Send send message
+
+	uint64_t send_wr_id = 3;
+
+	ibv_wr_start(ctrl_qp_ex);
+
+	ctrl_qp_ex -> wr_id = send_wr_id;
+	ctrl_qp_ex -> wr_flags = 0;
+
+	uint32_t remote_qpn = 0;
+	uint32_t remote_qkey = 0;
+
+	// not sure if it needs to be +40 to inclue GRH
+	uint32_t length = NUM_INTS * sizeof(int) + 40;
+	ibv_wr_set_sge(ctrl_qp_ex, mr -> lkey, (uint64_t) buffer, length);
+	ibv_wr_set_ud_addr(ctrl_qp_ex, ah, remote_qpn, remote_qkey);
+
+	// call complete to actually send message
+	ret = ibv_wr_complete(ctrl_qp_ex);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: issue with ibv_wr_complete\n");
+		return -1;
+	}
+
+	// 4.) Block to ensure message sent
+	CQ_Collection * cq_collection = (self_net -> dev_cq_collections)[device_ind];
+	CQ * send_cq = (cq_collection -> send_cqs)[0];
+	struct ibv_cq_ex * ibv_send_cq = send_cq -> ibv_cq;
+	ret = block_for_wr_comp(ibv_send_cq, send_wr_id);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not block for wr completion\n");
+		return -1;
+	}
+
+	printf("Network setup and sending UD message successful!\n");
+	
 	return 0;
 }
