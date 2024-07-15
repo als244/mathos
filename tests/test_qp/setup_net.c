@@ -4,13 +4,13 @@
 // BID TODO: fix this configuration of queue sizes to be more flexible!!!
 
 #define NUM_CQ_ENTRIES 1U << 12
-#define SRQ_MAX_WR 1U << 14
+#define SRQ_MAX_WR 1U << 12
 #define SRQ_MAX_SGE 1
 
-#define QP_MAX_SEND_WR 1U << 12
+#define QP_MAX_SEND_WR 1U << 8
 #define QP_MAX_SEND_SGE 1
 
-#define QP_MAX_RECV_WR 1U << 12
+#define QP_MAX_RECV_WR 1U << 8
 #define QP_MAX_RECV_SGE 1
 
 CQ * init_cq(struct ibv_context * ibv_dev_ctx, CompletionQueueUsageType cq_usage_type){
@@ -353,7 +353,7 @@ Port *** init_port_container(Self_Net * self_net, int num_qp_types, QueuePairUsa
 												num_qp_types, qp_usage_types, to_use_srq_by_type, num_qps_per_type);
 			if (ports[device_id][phys_port_num] == NULL){
 				fprintf(stderr, "Error: failed to initialize port for device #%d, phys port num #%d\n", 
-							device_id, (int) phys_port_num);
+							device_id, (int) phys_port_num + phys_port_start_ind);
 				return NULL;
 			}
 		}
