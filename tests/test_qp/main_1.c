@@ -122,8 +122,17 @@ int main(int argc, char * argv[]){
 
 	// 3.) Transition QP into correct stages
 
-	// first go to RTR then to RTS
+	// first go to INIT, then RTS, then to RTS
 	struct ibv_qp_attr mod_attr;
+	memset(&mod_attr, 0, sizeof(mod_attr));
+
+	mod_attr.qp_state = IBV_QPS_INIT;
+	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not move QP to Init state\n");
+		return -1;
+	}
+
 
 	mod_attr.qp_state = IBV_QPS_RTR;
 
