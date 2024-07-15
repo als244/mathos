@@ -101,8 +101,8 @@ int main(int argc, char * argv[]){
 
 	// 1.) register memory region
 	struct ibv_mr * mr;
-	int * buffer = malloc(NUM_INTS * sizeof(int));
-	ret = register_virt_memory(dev_pd, (void *) buffer, NUM_INTS * sizeof(int), &mr);
+	int * buffer = malloc(NUM_INTS * sizeof(int) + 40);
+	ret = register_virt_memory(dev_pd, (void *) buffer, NUM_INTS * sizeof(int) + 40, &mr);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not register memory region\n");
 		return -1;
@@ -140,8 +140,7 @@ int main(int argc, char * argv[]){
 
 	// now transition to RTR
 	mod_attr.qp_state = IBV_QPS_RTR;
-	mod_attr.path_mtu = PATH_MTU;
-	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE | IBV_QP_PATH_MTU);
+	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not move QP to Ready-to-Receive state\n");
 		return -1;
@@ -149,7 +148,8 @@ int main(int argc, char * argv[]){
 
 	// now go to RTS state
 	mod_attr.qp_state = IBV_QPS_RTS;
-	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
+	mod_attr.sq_psn = 0;
+	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE | IBV_QP_SQ_PSN);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not move QP to Ready-to-Send state\n");
 		return -1;

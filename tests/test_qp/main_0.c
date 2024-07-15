@@ -85,6 +85,7 @@ int main(int argc, char * argv[]){
 	memset(&ah_attr, 0, sizeof(ah_attr));
 
 	ah_attr.grh.dgid = dgid;
+	ah_attr.grh.sgid_index = 0;
 	ah_attr.is_global = 1;
 	ah_attr.dlid = 0;
 	ah_attr.port_num = 1;
@@ -114,7 +115,6 @@ int main(int argc, char * argv[]){
 		fprintf(stderr, "Error: could not register memory region\n");
 		return -1;
 	}
-	
 
 	// 2.) Transition qp into correct stages (do i need to do this for UD queue pairs..??)
 
@@ -135,8 +135,7 @@ int main(int argc, char * argv[]){
 
 	// now transition to RTR
 	mod_attr.qp_state = IBV_QPS_RTR;
-	mod_attr.path_mtu = PATH_MTU;
-	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE | IBV_QP_PATH_MTU);
+	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not move QP to Ready-to-Receive state\n");
 		return -1;
@@ -144,12 +143,12 @@ int main(int argc, char * argv[]){
 
 	// now go to RTS state
 	mod_attr.qp_state = IBV_QPS_RTS;
-	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
+	mod_attr.sq_psn = 0;
+	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE | IBV_QP_SQ_PSN);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not move QP to Ready-to-Send state\n");
 		return -1;
 	}
-
 
 
 	// 3.) Send send message

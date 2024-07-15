@@ -44,8 +44,6 @@ int post_recv_work_request(struct ibv_qp * qp, uint64_t addr, uint32_t length, u
     return 0;
 }
 
-
-
 int post_send_work_request(struct ibv_qp * qp, uint64_t addr, uint32_t length, uint32_t lkey, uint64_t wr_id) {
 
     int ret;
