@@ -128,8 +128,8 @@ QP * init_qp(QueuePairUsageType qp_usage_type, struct ibv_context * ibv_dev_ctx,
 	qp_attr.send_ops_flags |= send_ops_flags;
 
 	// For some reason this is not working...???
-	qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD | IBV_QP_INIT_ATTR_CREATE_FLAGS;
-	qp_attr.source_qpn = 10000 + source_qpn;
+	qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
+	qp_attr.source_qpn = source_qpn;
 	qp_attr.create_flags |= IBV_QP_CREATE_SOURCE_QPN;
 
 	struct ibv_qp * ibv_qp = ibv_create_qp_ex(ibv_dev_ctx, &qp_attr);
@@ -143,8 +143,6 @@ QP * init_qp(QueuePairUsageType qp_usage_type, struct ibv_context * ibv_dev_ctx,
 	// 2.) Now call ibv_query_qp() to get qkey and
 
 	struct ibv_qp_attr query_attr;
-	struct ibv_qp_init_attr dummy_init_attr;
-
 
 	// maybe also include IBV_QP_PKEY_INDEX..?
 	ret = ibv_query_qp(ibv_qp, &query_attr, IBV_QP_PORT | IBV_QP_QKEY, &dummy_init_attr);
