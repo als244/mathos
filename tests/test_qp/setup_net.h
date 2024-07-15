@@ -4,7 +4,7 @@
 #include "common.h"
 
 #define GID_NUM_BYTES 16
-#define PATH_MTU 4096
+#define PATH_MTU IBV_MTU_4096
 
 typedef enum queue_pair_usage_type {
 	CONTROL_QP,

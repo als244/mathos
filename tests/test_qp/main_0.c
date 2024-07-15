@@ -115,7 +115,6 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 	
-	/*
 
 	// 2.) Transition qp into correct stages (do i need to do this for UD queue pairs..??)
 
@@ -123,32 +122,35 @@ int main(int argc, char * argv[]){
 	struct ibv_qp_attr mod_attr;
 	memset(&mod_attr, 0, sizeof(mod_attr));
 
+	// transition from reset to init
 	mod_attr.qp_state = IBV_QPS_INIT;
-	mod_attr
-	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
+	mod_attr.pkey_index = 0;
+	mod_attr.port_num = 1;
+	mod_attr.qkey = 0;
+	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_QKEY);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not move QP to Init state\n");
 		return -1;
 	}
 
+	// now transition to RTR
 	mod_attr.qp_state = IBV_QPS_RTR;
-
-	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
+	mod_attr.path_mtu = PATH_MTU;
+	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE | IBV_QP_PATH_MTU);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not move QP to Ready-to-Receive state\n");
 		return -1;
 	}
 
 	// now go to RTS state
-
 	mod_attr.qp_state = IBV_QPS_RTS;
-
 	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not move QP to Ready-to-Send state\n");
 		return -1;
 	}
-	*/
+
+
 
 	// 3.) Send send message
 
@@ -159,19 +161,25 @@ int main(int argc, char * argv[]){
 	ctrl_qp_ex -> wr_id = send_wr_id;
 	ctrl_qp_ex -> wr_flags = 0;
 
-	uint32_t remote_qpn = 0;
-	uint32_t remote_qkey = 0;
+	// PEFORM Send
+    ibv_wr_send(ctrl_qp_ex);
 
-	// not sure if it needs to be +40 to inclue GRH
-	uint32_t length = NUM_INTS * sizeof(int) + 40;
+    // Now add details of the send
+
+	// Location of Send Data / Length / MR Key
+	uint32_t length = NUM_INTS * sizeof(int);
 	ibv_wr_set_sge(ctrl_qp_ex, mr -> lkey, (uint64_t) buffer, length);
+
+	// UD Details (Address Header/Remote QP Num)
+	uint32_t remote_qpn = 5138;
+	uint32_t remote_qkey = 0;
 	ibv_wr_set_ud_addr(ctrl_qp_ex, ah, remote_qpn, remote_qkey);
 
 	// call complete to actually send message
 	ret = ibv_wr_complete(ctrl_qp_ex);
 
 	if (ret != 0){
-		fprintf(stderr, "Error: issue with ibv_wr_complete\n");
+		fprintf(stderr, "Error: issue with ibv_wr_complete: %d\n", ret);
 		return -1;
 	}
 

@@ -108,7 +108,25 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	// 2.) post recv message (to shared queue)
+	// 2.) Transition qp into correct stages (do i need to do this for UD queue pairs..??)
+
+	// first go to INIT, then RTS, then to RTS
+	struct ibv_qp_attr mod_attr;
+	memset(&mod_attr, 0, sizeof(mod_attr));
+
+	// transition from reset to init
+	mod_attr.qp_state = IBV_QPS_INIT;
+	mod_attr.pkey_index = 0;
+	mod_attr.port_num = 1;
+	mod_attr.qkey = 0;
+	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_QKEY);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not move QP to Init state\n");
+		return -1;
+	}
+
+	// 2b.) post recv message (to shared queue)
+	//			- good practice to post receives in init state before moving to RTR
 
 	uint64_t recv_wr_id = 2;
 
@@ -120,39 +138,22 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	/*
-	// 3.) Transition QP into correct stages
-
-	// first go to INIT, then RTS, then to RTS
-	struct ibv_qp_attr mod_attr;
-	memset(&mod_attr, 0, sizeof(mod_attr));
-
-	mod_attr.qp_state = IBV_QPS_INIT;
-	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
-	if (ret != 0){
-		fprintf(stderr, "Error: could not move QP to Init state\n");
-		return -1;
-	}
-
-
+	// now transition to RTR
 	mod_attr.qp_state = IBV_QPS_RTR;
-
-	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
+	mod_attr.path_mtu = PATH_MTU;
+	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE | IBV_QP_PATH_MTU);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not move QP to Ready-to-Receive state\n");
 		return -1;
 	}
 
 	// now go to RTS state
-
 	mod_attr.qp_state = IBV_QPS_RTS;
-
 	ret = ibv_modify_qp(ctrl_qp, &mod_attr, IBV_QP_STATE);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not move QP to Ready-to-Send state\n");
 		return -1;
 	}
-	*/
 
 
 	// 4.) Wait for incoming receive
