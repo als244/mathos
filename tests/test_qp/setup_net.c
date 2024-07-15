@@ -486,7 +486,7 @@ Self_Net * init_self_net(int self_id, int num_qp_types, QueuePairUsageType * qp_
 
 	for (int i = 0; i < num_devices; i++){
 		dev_cq_collections[i] = init_cq_collection(ibv_dev_ctxs[i], i, num_cq_types, cq_usage_types);
-		if (dev_cq_collections[i] != 0){
+		if (dev_cq_collections[i] == NULL){
 			fprintf(stderr, "Error: could not initialize qp collection\n");
 			return NULL;
 		}
@@ -566,6 +566,7 @@ Network * init_net(int self_id, int num_qp_types, QueuePairUsageType * qp_usage_
 	Self_Net * self_net = init_self_net(self_id, num_qp_types, qp_usage_types, to_use_srq_by_type, num_qps_per_type, num_cq_types, cq_usage_types);
 	if (self_net == NULL){
 		fprintf(stderr, "Error: could not initialize self net\n");
+		return NULL;
 	}
 
 	net -> self_net = self_net;
