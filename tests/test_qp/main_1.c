@@ -171,7 +171,7 @@ int main(int argc, char * argv[]){
 
 	// 5.) Now print message (blocked above, so now we know buffer is ready...)
 	printf("\n\n\nReceieved Data:\n");
-	int * int_buffer = (int *) buffer + 40;
+	int * int_buffer = (int *) (buffer + 40);
 	for (int i = 0; i < NUM_INTS; i++){
 		printf("%d\n", int_buffer[i]);
 	}
