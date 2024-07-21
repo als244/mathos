@@ -170,7 +170,7 @@ int main(int argc, char * argv[]){
 	ibv_wr_set_sge(ctrl_qp_ex, mr -> lkey, (uint64_t) buffer, length);
 
 	// UD Details (Address Header/Remote QP Num)
-	uint32_t remote_qpn = 4537;
+	uint32_t remote_qpn = 4553;
 	uint32_t remote_qkey = 0;
 	ibv_wr_set_ud_addr(ctrl_qp_ex, ah, remote_qpn, remote_qkey);
 
