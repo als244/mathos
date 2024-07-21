@@ -291,6 +291,9 @@ int block_for_wr_comp(struct ibv_cq_ex * cq, uint64_t target_wr_id){
 	uint64_t wr_id;
 	enum ibv_wc_status status;
 
+    uint32_t qp_num, src_qp;
+    uint64_t hca_timestamp_ns, wallclock_timestamp_ns;
+
 	while (1) {
 		
 		// return is 0 if a new item was cosumed, otherwise it equals ENOENT
@@ -305,16 +308,18 @@ int block_for_wr_comp(struct ibv_cq_ex * cq, uint64_t target_wr_id){
         	wr_id = cq -> wr_id;
         	status = cq -> status;
 
-            uint32_t qp_num = ibv_wc_read_qp_num(cq);
-            uint32_t src_qp = ibv_wc_read_src_qp(cq);
-            uint64_t hca_timestamp_ns = ibv_wc_read_completion_ts(cq);
-            uint64_t wallclock_timestamp_ns = ibv_wc_read_completion_wallclock_ns(cq);
+           
 
 		if (seen_new_completition){
 			printf("Saw completion of wr_id = %ld\n\tStatus: %d\n", wr_id, status);
             if (status != IBV_WC_SUCCESS){
                 fprintf(stderr, "Error: work request id %ld had error\n", wr_id);
             }
+
+            qp_num = ibv_wc_read_qp_num(cq);
+            src_qp = ibv_wc_read_src_qp(cq);
+            hca_timestamp_ns = ibv_wc_read_completion_ts(cq);
+            wallclock_timestamp_ns = ibv_wc_read_completion_wallclock_ns(cq);
             printf("\t\tQP Num: %u\n\t\tSrc QP Num: %u\n\t\tHCA Timestamp: %lu\n\t\tWallclock Timestamp: %lu\n\n");
 			
 			if (wr_id == target_wr_id){
