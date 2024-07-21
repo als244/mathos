@@ -574,9 +574,9 @@ Self_Net * init_self_net(int self_id, int num_qp_types, QueuePairUsageType * qp_
 	self_net -> total_ports = total_ports;
 	self_net -> total_qps_node = total_qps_node;
 	printf("\
-			Total QPs Per Port: %d \
-			Total Ports: %d \
-			Total QPs Node: %d\n", total_qps_per_port, total_ports, total_qps_node);
+			Total QPs Per Port: %d\n \
+			Total Ports: %d\n \
+			Total QPs Node: %d\n\n", total_qps_per_port, total_ports, total_qps_node);
 
 	self_net -> start_qpn = (uint32_t) (self_id + 1) * total_qps_node;
 	printf("Start QPN: %u\n", self_net -> start_qpn);
