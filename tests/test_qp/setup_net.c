@@ -126,16 +126,16 @@ QP * init_qp(QueuePairUsageType qp_usage_type, struct ibv_context * ibv_dev_ctx,
 	}
 		
 	uint64_t send_ops_flags = IBV_QP_EX_WITH_SEND;
-	qp_attr.send_ops_flags |= send_ops_flags;
+	qp_attr.send_ops_flags = send_ops_flags;
 
-	qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
+	//qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
 
 	// Want to assign SOURCE QPN for easy configuration/interpretation/less data transfer for control messagtes
 	// For some reason this is not working...???
 
-	// qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD | IBV_QP_INIT_ATTR_CREATE_FLAGS;
-	// qp_attr.source_qpn = source_qpn;
-	// qp_attr.create_flags = IBV_QP_CREATE_SOURCE_QPN;
+	qp_attr.comp_mask = IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD | IBV_QP_INIT_ATTR_CREATE_FLAGS;
+	qp_attr.source_qpn = source_qpn;
+	qp_attr.create_flags = IBV_QP_CREATE_SOURCE_QPN;
 
 	struct ibv_qp * ibv_qp = ibv_create_qp_ex(ibv_dev_ctx, &qp_attr);
 	if (ibv_qp == NULL){
@@ -573,13 +573,7 @@ Self_Net * init_self_net(int self_id, int num_qp_types, QueuePairUsageType * qp_
 	self_net -> total_qps_per_port = total_qps_per_port;
 	self_net -> total_ports = total_ports;
 	self_net -> total_qps_node = total_qps_node;
-	printf("\
-			Total QPs Per Port: %d\n \
-			Total Ports: %d\n \
-			Total QPs Node: %d\n\n", total_qps_per_port, total_ports, total_qps_node);
-
 	self_net -> start_qpn = (uint32_t) (self_id + 1) * total_qps_node;
-	printf("Start QPN: %u\n", self_net -> start_qpn);
 	self_net -> cur_qpn = self_net -> start_qpn;
 	
 	// 7.) Create Node_Net for self which contains information about ports and Queue Pairs
