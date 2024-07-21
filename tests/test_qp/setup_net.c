@@ -132,11 +132,10 @@ QP * init_qp(QueuePairUsageType qp_usage_type, struct ibv_context * ibv_dev_ctx,
 
 	// Want to assign SOURCE QPN for easy configuration/interpretation/less data transfer for control messagtes
 	// For some reason this is not working...???
-	/*
+
 	qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD | IBV_QP_INIT_ATTR_CREATE_FLAGS;
 	qp_attr.source_qpn = source_qpn;
 	qp_attr.create_flags = IBV_QP_CREATE_SOURCE_QPN;
-	*/
 
 	struct ibv_qp * ibv_qp = ibv_create_qp_ex(ibv_dev_ctx, &qp_attr);
 	if (ibv_qp == NULL){
@@ -197,7 +196,10 @@ QP_Collection * init_qp_collection(Self_Net * self_net, int device_id,
 
 	// opened device context associated with this port
 	struct ibv_context * ibv_dev_ctx = (self_net -> ibv_dev_ctxs)[device_id];
-	struct ibv_pd * ibv_pd = (self_net -> dev_pds)[device_id];
+	
+	//struct ibv_pd * ibv_pd = (self_net -> dev_pds)[device_id];
+	struct ibv_pd * ibv_pd = (self_net -> dev_parent_domains)[device_id];
+
 	struct ibv_srq * dev_srq = (self_net -> dev_srqs)[device_id];
 
 	
@@ -572,6 +574,7 @@ Self_Net * init_self_net(int self_id, int num_qp_types, QueuePairUsageType * qp_
 	self_net -> total_qps_node = total_qps_node;
 
 	self_net -> start_qpn = (uint32_t) (self_id + 1) * total_qps_node;
+	printf("Start QPN: %u\n", self_net -> start_qpn);
 	self_net -> cur_qpn = self_net -> start_qpn;
 	
 	// 7.) Create Node_Net for self which contains information about ports and Queue Pairs
