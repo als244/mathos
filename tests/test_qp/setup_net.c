@@ -13,6 +13,8 @@
 #define QP_MAX_RECV_WR 1U << 8
 #define QP_MAX_RECV_SGE 2
 
+#define QP_MAX_INLINE_DATA 1024
+
 CQ * init_cq(struct ibv_context * ibv_dev_ctx, struct ibv_pd * ibv_parent_domain, CompletionQueueUsageType cq_usage_type){
 
 	CQ * cq = (CQ *) malloc(sizeof(CQ));
@@ -117,6 +119,8 @@ QP * init_qp(QueuePairUsageType qp_usage_type, struct ibv_context * ibv_dev_ctx,
 	qp_attr.cap.max_send_wr = QP_MAX_SEND_WR;  // increase if you want to keep more send work requests in the SQ.
 	qp_attr.cap.max_send_sge = QP_MAX_SEND_SGE; // increase if you allow send work requests to have multiple scatter gather entry (SGE).
 
+	qp_attr.cap.max_inline_data = QP_MAX_INLINE_DATA;
+
 	if (ibv_srq == NULL){
 		qp_attr.cap.max_recv_wr = QP_MAX_RECV_WR;  // increase if you want to keep more receive work requests in the RQ.
 		qp_attr.cap.max_recv_sge = QP_MAX_RECV_SGE; // increase if you allow receive work requests to have multiple scatter gather entry (SGE).
@@ -132,10 +136,11 @@ QP * init_qp(QueuePairUsageType qp_usage_type, struct ibv_context * ibv_dev_ctx,
 
 	// Want to assign SOURCE QPN for easy configuration/interpretation/less data transfer for control messagtes
 	// For some reason this is not working...???
+	// Maybe only on infiniband??
 
 	qp_attr.comp_mask = IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD | IBV_QP_INIT_ATTR_CREATE_FLAGS;
 	qp_attr.source_qpn = source_qpn;
-	qp_attr.create_flags = 1 << 3;
+	qp_attr.create_flags = IBV_QP_CREATE_SOURCE_QPN;
 
 	struct ibv_qp * ibv_qp = ibv_create_qp_ex(ibv_dev_ctx, &qp_attr);
 	if (ibv_qp == NULL){

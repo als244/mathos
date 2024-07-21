@@ -316,12 +316,16 @@ int block_for_wr_comp(struct ibv_cq_ex * cq, uint64_t target_wr_id){
                 fprintf(stderr, "Error: work request id %ld had error\n", wr_id);
             }
 
+            /* THESE OUTPUTS SEEM WRONG??
+            // Maybe only works on infinband, or need to use thread domains...?
+            
             qp_num = ibv_wc_read_qp_num(cq);
             src_qp = ibv_wc_read_src_qp(cq);
             hca_timestamp_ns = ibv_wc_read_completion_ts(cq);
             wallclock_timestamp_ns = ibv_wc_read_completion_wallclock_ns(cq);
             printf("\t\tQP Num: %u\n\t\tSrc QP Num: %u\n\t\tHCA Timestamp: %lu\n\t\tWallclock Timestamp: %lu\n\n");
-			
+			*/
+            
 			if (wr_id == target_wr_id){
 				printf("Target wr id found. Exiting poll\n");
 				break;
@@ -329,11 +333,11 @@ int block_for_wr_comp(struct ibv_cq_ex * cq, uint64_t target_wr_id){
 		}
 
 		// Check for next completed work request...
-        	ret = ibv_next_poll(cq);
+        ret = ibv_next_poll(cq);
 
-        	if ((ret != 0) && (ret != ENOENT)){
-            		// If Error after next, call "end_poll"
-            		ibv_end_poll(cq);
+        if ((ret != 0) && (ret != ENOENT)){
+            // If Error after next, call "end_poll"
+            	ibv_end_poll(cq);
             		fprintf(stderr, "Error: could not do next poll for completition queue\n");
             		return -1;
         	}
