@@ -133,9 +133,9 @@ QP * init_qp(QueuePairUsageType qp_usage_type, struct ibv_context * ibv_dev_ctx,
 	// Want to assign SOURCE QPN for easy configuration/interpretation/less data transfer for control messagtes
 	// For some reason this is not working...???
 
-	qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD | IBV_QP_INIT_ATTR_CREATE_FLAGS;
-	qp_attr.source_qpn = source_qpn;
-	qp_attr.create_flags = IBV_QP_CREATE_SOURCE_QPN;
+	// qp_attr.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD | IBV_QP_INIT_ATTR_CREATE_FLAGS;
+	// qp_attr.source_qpn = source_qpn;
+	// qp_attr.create_flags = IBV_QP_CREATE_SOURCE_QPN;
 
 	struct ibv_qp * ibv_qp = ibv_create_qp_ex(ibv_dev_ctx, &qp_attr);
 	if (ibv_qp == NULL){
