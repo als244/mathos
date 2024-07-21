@@ -13,7 +13,7 @@
 #define QP_MAX_RECV_WR 1U << 8
 #define QP_MAX_RECV_SGE 2
 
-CQ * init_cq(struct ibv_context * ibv_dev_ctx, CompletionQueueUsageType cq_usage_type){
+CQ * init_cq(struct ibv_context * ibv_dev_ctx, struct ibv_pd * ibv_pd, CompletionQueueUsageType cq_usage_type){
 
 	CQ * cq = (CQ *) malloc(sizeof(CQ));
 	if (cq == NULL){
@@ -38,8 +38,9 @@ CQ * init_cq(struct ibv_context * ibv_dev_ctx, CompletionQueueUsageType cq_usage
 	uint64_t wc_flags = IBV_WC_EX_WITH_QP_NUM | IBV_WC_EX_WITH_SRC_QP | IBV_WC_EX_WITH_SLID | IBV_WC_EX_WITH_BYTE_LEN 
 							 | IBV_WC_EX_WITH_COMPLETION_TIMESTAMP | IBV_WC_EX_WITH_COMPLETION_TIMESTAMP_WALLCLOCK;
 
-	cq_attr.comp_mask |= IBV_CQ_INIT_ATTR_MASK_FLAGS;
+	cq_attr.comp_mask = IBV_CQ_INIT_ATTR_MASK_FLAGS | IBV_CQ_INIT_ATTR_MASK_PD;
 	cq_attr.wc_flags = wc_flags;
+	cq_attr.parent_domain = ibv_pd;
 
 	struct ibv_cq_ex * ibv_cq = ibv_create_cq_ex(ibv_dev_ctx, &cq_attr);
 	if (ibv_cq == NULL){
@@ -52,7 +53,7 @@ CQ * init_cq(struct ibv_context * ibv_dev_ctx, CompletionQueueUsageType cq_usage
 	return cq;
 }
 
-CQ_Collection * init_cq_collection(struct ibv_context * ibv_dev_ctx, int device_id, int num_cq_types, CompletionQueueUsageType * cq_usage_types){
+CQ_Collection * init_cq_collection(struct ibv_context * ibv_dev_ctx, struct ibv_pd * ibv_pd, int device_id, int num_cq_types, CompletionQueueUsageType * cq_usage_types){
 
 	CQ_Collection * cq_collection = (CQ_Collection *) malloc(sizeof(CQ_Collection));
 	if (cq_collection == NULL){
@@ -72,8 +73,8 @@ CQ_Collection * init_cq_collection(struct ibv_context * ibv_dev_ctx, int device_
 	}
 
 	for (int i = 0; i < num_cq_types; i++){
-		send_cqs[i] = init_cq(ibv_dev_ctx, cq_usage_types[i]);
-		recv_cqs[i] = init_cq(ibv_dev_ctx, cq_usage_types[i]);
+		send_cqs[i] = init_cq(ibv_dev_ctx, ibv_pd, cq_usage_types[i]);
+		recv_cqs[i] = init_cq(ibv_dev_ctx, ibv_pd, cq_usage_types[i]);
 		if ((send_cqs[i] == NULL) || (recv_cqs[i] == NULL)){
 			fprintf(stderr, "Error: failed to initialize cq for device #%d\n", device_id);
 			return NULL;
@@ -505,7 +506,7 @@ Self_Net * init_self_net(int self_id, int num_qp_types, QueuePairUsageType * qp_
 	}
 
 	for (int i = 0; i < num_devices; i++){
-		dev_cq_collections[i] = init_cq_collection(ibv_dev_ctxs[i], i, num_cq_types, cq_usage_types);
+		dev_cq_collections[i] = init_cq_collection(ibv_dev_ctxs[i], dev_pds[i], i, num_cq_types, cq_usage_types);
 		if (dev_cq_collections[i] == NULL){
 			fprintf(stderr, "Error: could not initialize qp collection\n");
 			return NULL;
