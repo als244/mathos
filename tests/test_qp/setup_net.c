@@ -13,7 +13,7 @@
 #define QP_MAX_RECV_WR 1U << 8
 #define QP_MAX_RECV_SGE 2
 
-#define QP_MAX_INLINE_DATA 1024
+#define QP_MAX_INLINE_DATA 512 // SEEMS LIKE 956 is the max for qp creation error...?
 
 CQ * init_cq(struct ibv_context * ibv_dev_ctx, struct ibv_pd * ibv_parent_domain, CompletionQueueUsageType cq_usage_type){
 
@@ -119,7 +119,7 @@ QP * init_qp(QueuePairUsageType qp_usage_type, struct ibv_context * ibv_dev_ctx,
 	qp_attr.cap.max_send_wr = QP_MAX_SEND_WR;  // increase if you want to keep more send work requests in the SQ.
 	qp_attr.cap.max_send_sge = QP_MAX_SEND_SGE; // increase if you allow send work requests to have multiple scatter gather entry (SGE).
 
-	//qp_attr.cap.max_inline_data = QP_MAX_INLINE_DATA;
+	qp_attr.cap.max_inline_data = QP_MAX_INLINE_DATA;
 
 	if (ibv_srq == NULL){
 		qp_attr.cap.max_recv_wr = QP_MAX_RECV_WR;  // increase if you want to keep more receive work requests in the RQ.
