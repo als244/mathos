@@ -556,13 +556,13 @@ Self_Net * init_self_net(int self_id, int num_qp_types, QueuePairUsageType * qp_
 	self_net -> dev_srqs = dev_srqs;
 
 	// 6. Keep some easy accounting numbers around for debugging/qp numbering help...
-	int total_qps_per_port;
+	int total_qps_per_port = 0;
 	for (int i = 0; i < num_qp_types; i++){
 		total_qps_per_port += num_qps_per_type[i];
 	}
 
 	int num_devs = self_net -> num_ib_devices;
-	int total_ports;
+	int total_ports = 0;
 	for (int i = 0; i < num_devs; i++){
 		total_ports += (self_net -> num_ports_per_dev)[i];
 	}
