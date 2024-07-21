@@ -14,7 +14,7 @@ typedef struct obj_location {
 	// needed to acquire to increment when starting outbound transfer and decrement when completed
 	pthread_mutex_t outbound_lock;
 	uint32_t outbound_inflight_cnt;
-} Obj_Locations;
+} Obj_Location;
 
 // BY Construction, each pool only contains 1 copy of the object
 typedef struct object {
@@ -30,21 +30,23 @@ typedef struct inventory {
 	// these pools were intialized with the backend-plugin
 	Mempool ** compute_pools;
 	// pool associated with system memory
-	Mempool * cache_pool;
+	// FOR NOW NOT USING
+	// Cache * cache_pool;
 	// mapping from fingerprint -> obj
 	Table * fingerprints;
 } Inventory;
 
 // Assume that the compute pools (memory assoicated with a computing device) were intialized prior
 // This initialization creates the cache pool and the fingerprint table
-Inventory * init_inventory(int num_compute_pools, Mempool ** compute_pools, uint64_t cache_pool_chunk_size, uint64_t num_cache_pool_chunks, uint64_t min_fingerprints, uint64_t max_fingerprints);
+Inventory * init_inventory(int num_compute_pools, Mempool ** compute_pools, uint64_t min_fingerprints, uint64_t max_fingerprints);
 
 // returns 0 upon success, otherwise error
 
 // Responsible for first checking if fingerprint is in inventory -> fingerprints. If not, allocate object and insert
 // Allocates an object location and populates it with the mem_reservation returned from reserve_memory
 // Inserts the object location into object -> locations
-int reserve_object(Inventory * inventory, int pool_id, uint8_t * fingerprint, uint64_t size_bytes);
+// Populates ret_obj_location
+int reserve_object(Inventory * inventory, int pool_id, uint8_t * fingerprint, uint64_t size_bytes, Obj_Location * ret_obj_location);
 
 // Responsbile for checking if fingerprint exists in fingerprint table and exists at that objects's locations(pool_id). Otherwise error
 // Once object at location is found, call release_memory upon obj_location -> reservation
@@ -56,6 +58,6 @@ int release_object(Inventory * inventory, int pool_id, uint8_t * fingerprint);
 int destroy_object(Inventory * inventory, uint8_t * fingerprint)
 
 // returns the object within fingerprint table
-int lookup_object(Inventory * inventory, uint8_t * fingerprint);
+int lookup_object(Inventory * inventory, uint8_t * fingerprint, Object * ret_object);
 
 #endif
