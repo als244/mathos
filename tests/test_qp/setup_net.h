@@ -143,9 +143,6 @@ typedef struct self_net {
 	// have one pd per rdma device
 	// created with ib_alloc_pd()
 	struct ibv_pd ** dev_pds;
-	// create waith ibv_alloc_parent_domains()
-	// use the pd from dev_pds. using this to test CQ capabilities
-	struct ibv_pd ** dev_parent_domains;
 	// number of physical ports per device
 	int * num_ports_per_dev;
 	// Create CQ collections for each device

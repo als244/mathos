@@ -15,7 +15,7 @@
 
 #define QP_MAX_INLINE_DATA 512 // SEEMS LIKE 956 is the max for qp creation error...?
 
-CQ * init_cq(struct ibv_context * ibv_dev_ctx, struct ibv_pd * ibv_parent_domain, CompletionQueueUsageType cq_usage_type){
+CQ * init_cq(struct ibv_context * ibv_dev_ctx, CompletionQueueUsageType cq_usage_type){
 
 	CQ * cq = (CQ *) malloc(sizeof(CQ));
 	if (cq == NULL){
@@ -40,9 +40,8 @@ CQ * init_cq(struct ibv_context * ibv_dev_ctx, struct ibv_pd * ibv_parent_domain
 	uint64_t wc_flags = IBV_WC_EX_WITH_QP_NUM | IBV_WC_EX_WITH_SRC_QP | IBV_WC_EX_WITH_SLID | IBV_WC_EX_WITH_BYTE_LEN 
 							 | IBV_WC_EX_WITH_COMPLETION_TIMESTAMP | IBV_WC_EX_WITH_COMPLETION_TIMESTAMP_WALLCLOCK;
 
-	cq_attr.comp_mask = IBV_CQ_INIT_ATTR_MASK_FLAGS | IBV_CQ_INIT_ATTR_MASK_PD;
+	cq_attr.comp_mask = IBV_CQ_INIT_ATTR_MASK_FLAGS;
 	cq_attr.wc_flags = wc_flags;
-	cq_attr.parent_domain = ibv_parent_domain;
 
 	struct ibv_cq_ex * ibv_cq = ibv_create_cq_ex(ibv_dev_ctx, &cq_attr);
 	if (ibv_cq == NULL){
@@ -55,7 +54,7 @@ CQ * init_cq(struct ibv_context * ibv_dev_ctx, struct ibv_pd * ibv_parent_domain
 	return cq;
 }
 
-CQ_Collection * init_cq_collection(struct ibv_context * ibv_dev_ctx, struct ibv_pd * ibv_parent_domain, int device_id, int num_cq_types, CompletionQueueUsageType * cq_usage_types){
+CQ_Collection * init_cq_collection(struct ibv_context * ibv_dev_ctx, int device_id, int num_cq_types, CompletionQueueUsageType * cq_usage_types){
 
 	CQ_Collection * cq_collection = (CQ_Collection *) malloc(sizeof(CQ_Collection));
 	if (cq_collection == NULL){
@@ -75,8 +74,8 @@ CQ_Collection * init_cq_collection(struct ibv_context * ibv_dev_ctx, struct ibv_
 	}
 
 	for (int i = 0; i < num_cq_types; i++){
-		send_cqs[i] = init_cq(ibv_dev_ctx, ibv_parent_domain, cq_usage_types[i]);
-		recv_cqs[i] = init_cq(ibv_dev_ctx, ibv_parent_domain, cq_usage_types[i]);
+		send_cqs[i] = init_cq(ibv_dev_ctx, cq_usage_types[i]);
+		recv_cqs[i] = init_cq(ibv_dev_ctx, cq_usage_types[i]);
 		if ((send_cqs[i] == NULL) || (recv_cqs[i] == NULL)){
 			fprintf(stderr, "Error: failed to initialize cq for device #%d\n", device_id);
 			return NULL;
@@ -203,8 +202,7 @@ QP_Collection * init_qp_collection(Self_Net * self_net, int device_id,
 	// opened device context associated with this port
 	struct ibv_context * ibv_dev_ctx = (self_net -> ibv_dev_ctxs)[device_id];
 	
-	//struct ibv_pd * ibv_pd = (self_net -> dev_pds)[device_id];
-	struct ibv_pd * ibv_pd = (self_net -> dev_parent_domains)[device_id];
+	struct ibv_pd * ibv_pd = (self_net -> dev_pds)[device_id];
 
 	struct ibv_srq * dev_srq = (self_net -> dev_srqs)[device_id];
 
@@ -469,36 +467,23 @@ Self_Net * init_self_net(int self_id, int num_qp_types, QueuePairUsageType * qp_
 
 	self_net -> ibv_dev_ctxs = ibv_dev_ctxs;
 
-	// 3.) Create Protection Domain for each ibv_context, and also create parent domain
+	// 3.) Create Protection Domain for each ibv_context, 
+	// (could also optionally create parent domain to be more precise about locking and thread domains)
 	struct ibv_pd ** dev_pds = malloc(num_devices * sizeof(struct ibv_pd *));
 	if (dev_pds == NULL){
 		fprintf(stderr, "Error: malloc failed for allocating device pd container\n");
 		return NULL;
 	}
-	struct ibv_pd ** dev_parent_domains = malloc(num_devices * sizeof(struct ibv_pd *));
-	if (dev_parent_domains == NULL){
-		fprintf(stderr, "Error: malloc failed for allocating device parent domain container\n");
-		return NULL;
-	}
 
-	struct ibv_parent_domain_init_attr parent_domain_attr;
-	memset(&parent_domain_attr, 0, sizeof(struct ibv_parent_domain_init_attr));
 	for (int i = 0; i < num_devices; i++){
 		dev_pds[i] = ibv_alloc_pd(ibv_dev_ctxs[i]);
 		if (dev_pds[i] == NULL){
 			fprintf(stderr, "Error: could not create pd for device #%d\n", i);
 			return NULL;
 		}
-		parent_domain_attr.pd = dev_pds[i];
-		dev_parent_domains[i] = ibv_alloc_parent_domain(ibv_dev_ctxs[i], &parent_domain_attr);
-		if (dev_parent_domains[i] == NULL){
-			fprintf(stderr, "Error: could not create dev parent domains\n");
-			return NULL;
-		}
 	}
 
 	self_net -> dev_pds = dev_pds;
-	self_net -> dev_parent_domains = dev_parent_domains;
 
 	// 4.) Get the number of physical ports per device
 	int * num_ports_per_dev = malloc(num_devices * sizeof(int));
@@ -528,7 +513,7 @@ Self_Net * init_self_net(int self_id, int num_qp_types, QueuePairUsageType * qp_
 	}
 
 	for (int i = 0; i < num_devices; i++){
-		dev_cq_collections[i] = init_cq_collection(ibv_dev_ctxs[i], dev_parent_domains[i], i, num_cq_types, cq_usage_types);
+		dev_cq_collections[i] = init_cq_collection(ibv_dev_ctxs[i], i, num_cq_types, cq_usage_types);
 		if (dev_cq_collections[i] == NULL){
 			fprintf(stderr, "Error: could not initialize qp collection\n");
 			return NULL;
