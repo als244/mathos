@@ -44,6 +44,62 @@ int post_recv_work_request(struct ibv_qp * qp, uint64_t addr, uint32_t length, u
     return 0;
 }
 
+struct ibv_sge * build_sge_list(int num_sge, uint64_t * addr_list, uint64_t * length_list, uint32_t * lkey_list) {
+    
+    struct ibv_sge * sg_entries = (struct ibv_sge *) malloc(num_sge * sizeof(struct ibv_sge));
+    if (sg_entries == NULL){
+        fprintf(stderr, "Error: could not malloc sg_entries list\n");
+        return NULL;
+    }
+
+    for (int i = 0; i < num_sge; i++){
+        sg_entries[i].addr = addr_list[i];
+        sg_entries[i].length = length_list[i];
+        sg_entries[i].lkey = lkey_list[i];
+    }
+
+    return sg_entries;
+}
+
+int post_recv_work_request_sge(struct ibv_qp * qp, int num_sge, uint64_t * addr_list, uint64_t * length_list, uint32_t * lkey_list, uint64_t wr_id) {
+    
+    int ret;
+
+    struct ibv_recv_wr wr;
+    memset(&wr, 0, sizeof(struct ibv_recv_wr));
+
+    struct ibv_recv_wr * bad_wr = NULL;
+
+    struct ibv_sge * sg_list = build_sge_list(num_sge, addr_list, length_list, lkey_list);
+    
+    if (sg_list == NULL){
+        fprintf(stderr, "Error: could not create sg list\n");
+        return -1;
+    }
+
+    wr.sg_list = sg_list;
+    wr.num_sge = num_sge;
+    wr.wr_id = wr_id;
+    wr.next = NULL;
+
+    if (qp -> srq){
+        ret = ibv_post_srq_recv(qp -> srq, &wr, &bad_wr);
+    }
+    else{
+        ret = ibv_post_recv(qp, &wr, &bad_wr);
+    }
+    
+    if (ret != 0){
+        fprintf(stderr, "Error: could note post receive work request\n");
+        return -1;
+    }
+
+    // Assume sg_list was dynamically allocated. Can free now
+    free(sg_list);
+
+    return 0;
+}
+
 int post_send_work_request(struct ibv_qp * qp, uint64_t addr, uint32_t length, uint32_t lkey, uint64_t wr_id) {
 
     int ret;

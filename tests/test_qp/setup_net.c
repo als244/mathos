@@ -5,13 +5,13 @@
 
 #define NUM_CQ_ENTRIES 1U << 12
 #define SRQ_MAX_WR 1U << 12
-#define SRQ_MAX_SGE 1
+#define SRQ_MAX_SGE 2
 
 #define QP_MAX_SEND_WR 1U << 8
-#define QP_MAX_SEND_SGE 1
+#define QP_MAX_SEND_SGE 2
 
 #define QP_MAX_RECV_WR 1U << 8
-#define QP_MAX_RECV_SGE 1
+#define QP_MAX_RECV_SGE 2
 
 CQ * init_cq(struct ibv_context * ibv_dev_ctx, CompletionQueueUsageType cq_usage_type){
 

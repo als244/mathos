@@ -64,6 +64,8 @@ int register_virt_memory(struct ibv_pd * pd, void * addr, size_t size_bytes, str
 int register_dmabuf_memory(struct ibv_pd * pd, int fd, size_t size_bytes, uint64_t offset, uint64_t iova, struct ibv_mr ** ret_mr);
 
 int post_recv_work_request(struct ibv_qp * qp, uint64_t addr, uint32_t length, uint32_t lkey, uint64_t wr_id);
+int post_recv_work_request_sge(struct ibv_qp * qp, int num_sge, uint64_t * addr_list, uint64_t * length_list, uint32_t * lkey_list, uint64_t wr_id);
+
 int post_send_work_request(struct ibv_qp * qp, uint64_t addr, uint32_t length, uint32_t lkey, uint64_t wr_id);
 
 int post_cmp_swap_send_work_request(struct ibv_qp * qp, struct ibv_mr * mr, uint64_t wr_id, uint32_t rkey, uint64_t remote_addr, uint64_t compare_val, uint64_t swap_val);

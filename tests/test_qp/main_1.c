@@ -100,9 +100,16 @@ int main(int argc, char * argv[]){
 	struct ibv_qp * ctrl_qp = control_qp -> ibv_qp;
 
 	// 1.) register memory region
-	struct ibv_mr * mr;
-	void * buffer = malloc(NUM_INTS * sizeof(int) + 40);
-	ret = register_virt_memory(dev_pd, (void *) buffer, NUM_INTS * sizeof(int) + 40, &mr);
+	struct ibv_mr * data_mr, *grh_mr;
+	void * data_buffer = malloc(NUM_INTS * sizeof(int));
+	ret = register_virt_memory(dev_pd, (void *) data_buffer, NUM_INTS * sizeof(int), &data_mr);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not register memory region\n");
+		return -1;
+	}
+
+	void * grh_buffer = malloc(40);
+	ret = register_virt_memory(dev_pd, (void *) grh_buffer, 40, &grh_mr);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not register memory region\n");
 		return -1;
@@ -130,9 +137,12 @@ int main(int argc, char * argv[]){
 
 	uint64_t recv_wr_id = 2;
 
-	// need to add 40 because of Global Routing Header (first 40 bytes of UD sends)
-	uint32_t length = NUM_INTS * sizeof(int) + 40;
-	ret = post_recv_work_request(ctrl_qp, (uint64_t) buffer, length, mr -> lkey, recv_wr_id);
+	int num_sge = 2;
+	uint64_t addr_list[2] = {grh_buffer, data_buffer};
+	uint64_t length_list[2] = {40, NUM_INTS * sizeof(int)};
+	uint32_t lkey_list[2] = {grh_mr -> lkey, data_mr -> lkey};
+
+	ret = post_recv_work_request_sge(ctrl_qp, num_sge, addr_list, length_list, lkey_list, recv_wr_id);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not post recv request\n");
 		return -1;
@@ -171,7 +181,7 @@ int main(int argc, char * argv[]){
 
 	// 5.) Now print message (blocked above, so now we know buffer is ready...)
 	printf("\n\n\nReceieved Data:\n");
-	int * int_buffer = (int *) (buffer + 40);
+	int * int_buffer = (int *) (data_buffer);
 	for (int i = 0; i < NUM_INTS; i++){
 		printf("%d\n", int_buffer[i]);
 	}
