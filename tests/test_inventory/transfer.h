@@ -7,17 +7,6 @@
 #include "table.h"
 #include "fingerprint.h"
 
-typedef struct network_destination {
-	// can have a table mapping node id + port num => ah
-	// create this table upon system intialization
-	struct ibv_ah * ah;
-	// should be specfied within the transfer requests
-	// the remote_qp_num refers to the qp_num of the
-	// Data QP aqcuired for exclusive access on the receiver's end 
-	uint32_t remote_qp_num;
-	uint32_t remote_qkey;
-} Network_Destination;
-
 // When remain_packets reaches zero, can mark the is_available bit within obj_location
 // and then can move to run queue
 typedef struct ongoing_transfer {
@@ -52,12 +41,10 @@ typedef struct Transfers {
 // here data_packet_size doesn't inlcude the 40 bytes for GRH
 
 // here recv_data_qp must have been acquired for exlusive access first, then after completion can release it
-int recv_data(Transfers * transfers, struct ibv_qp * recv_data_qp, Mem_Reservation * reservation, uint16_t data_packet_size);
+int recv_data(Net_World * net_world, Transfers * transfers, struct ibv_qp * recv_data_qp, Mem_Reservation * reservation, uint16_t data_packet_size);
 
 // network destination based upon the DATA_REQUEST control message
-int send_data(Transfers * transfers, struct ibv_qp * send_data_qp, Mem_Reservation * reservation, uint16_t data_packet_size, Network_Destination * network_destination);
+int send_data(Net_World * net_world, struct ibv_qp * send_data_qp, Mem_Reservation * reservation, uint16_t data_packet_size);
 
-
-// Network Location
 
 #endif

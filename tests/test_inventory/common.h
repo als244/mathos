@@ -10,14 +10,21 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <stdatomic.h> 
 #include <math.h>
 #include <time.h>
 #include <pthread.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <sys/types.h>
 #include <semaphore.h>
 #include <unistd.h>
+
+// For initial TCP connections
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+/* To convert ip addr strings to network-byte ordered uint32's*/
+#include <arpa/inet.h>
 
 // for libibverbs 
 #include <infiniband/verbs.h>

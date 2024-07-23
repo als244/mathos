@@ -28,7 +28,8 @@ typedef struct mempool {
 	uint64_t free_cnt;
 	// contains the chunk ids (index within phys_chunks array)
 	// that have been marked free
-	Deque * free_list;	
+	Deque * free_list;
+	// The data QPs that are assoicated with transfering in/out of this pool	
 } Mempool;
 
 
