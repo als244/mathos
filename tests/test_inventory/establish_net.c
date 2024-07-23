@@ -16,6 +16,7 @@ typedef struct connection_thread_data {
 } Connection_Thread_Data;
 
 // Called for each thread
+// SAME FUNCTION IS CALLED BY BOTH SERVER ACCEPTING AND CLIENT INTIATING!
 void * process_rdma_init_connection(void * _connection_thread_data) {
 	
 	int ret;
@@ -30,6 +31,7 @@ void * process_rdma_init_connection(void * _connection_thread_data) {
 
 
 
+	// EPILOGUE
 	// At the end acquire lock and enqueue this back to free threads
 	pthread_mutex_lock(connection_thread_data -> free_threads_lock);
 
@@ -46,8 +48,10 @@ void * process_rdma_init_connection(void * _connection_thread_data) {
 	exit(0);
 }
 
-
-int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, uint32_t max_accepts){
+// NUM_ACCEPTS is the known number of clients that will connect this server
+// (i.e. given a fixed amount of nodes, it is the number of nodes whose node_id > this node_id)
+// When exchanging rdma init info between node i and node j, if i < j => i is the server, j is the client
+int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, uint32_t num_accepts){
 
 	int ret;
 
