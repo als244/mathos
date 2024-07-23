@@ -48,10 +48,15 @@ void * process_rdma_init_connection(void * _connection_thread_data) {
 	exit(0);
 }
 
-// NUM_ACCEPTS is the known number of clients that will connect this server
-// (i.e. given a fixed amount of nodes, it is the number of nodes whose node_id > this node_id)
 // When exchanging rdma init info between node i and node j, if i < j => i is the server, j is the client
-int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, uint32_t num_accepts){
+// This function should be run in a seperate thread than main program. 
+// max_accepts should be set >= known number of connecteding nodes (i.e. the number of nodes with id's greater than server node id)
+// If max_accepts is set equal to known number upon intializaition (based on config file) the thread will terminate.
+
+// However, max_accepts can be set larger to account for new joiners of system, even while system is runnning (meaning, acutally processing/computing requests)
+// BUT, other functionality is necessary to account for new joiners (rebalancing exchange metadata).
+// Assumption is that new joiners will have node id > this node id, meaning that in order to accept new joiner to system this tcp server needs to be running 
+void * run_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, uint32_t max_accepts){
 
 	int ret;
 
@@ -59,7 +64,7 @@ int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, 
 	int serv_sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (serv_sockfd != 0){
 		fprintf(stderr, "Error: could not create server socket\n");
-		return -1;
+		return NULL;
 	}
 
 	// 2.) Init server info
@@ -78,14 +83,14 @@ int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, 
 	ret = bind(serv_sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
 	if (ret != 0){
 		fprintf(stderr, "Error: could not bind server socket to address: %s, port: %u\n", inet_ntoa(self_network_ip_addr), ESTABLISH_NET_PORT);
-		return -1;
+		return NULL;
 	}
 
 	// 4.) Create threads that will be used to process each communication intialization
 	pthread_t * threads = (pthread_t *) malloc(num_threads * sizeof(pthread_t));
 	if (threads == NULL){
 		fprintf(stderr, "Error: malloc failed to allocate pthreads array\n");
-		return -1;
+		return NULL;
 	}
 
 	// SHOULD REALLY BE A PRODUCER-CONSUMER BUFFER HERE!
@@ -95,7 +100,7 @@ int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, 
 	ret = pthread_mutex_init(&free_threads_lock, NULL);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not create free thread lock\n");
-		return -1;
+		return NULL;
 	}
 
 	// will contain connection_thread_data objects that can be dequeued 
@@ -103,13 +108,13 @@ int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, 
 	Deque * free_threads = init_deque();
 	if (free_threads == NULL){
 		fprintf(stderr, "Error: could not initialize free threads deque\n");
-		return -1;
+		return NULL;
 	}
 
 	Connection_Thread_Data * connection_thread_data_arr = (Connection_Thread_Data *) malloc(num_threads * sizeof(Connection_Thread_Data));
 	if (connection_thread_data_arr == NULL){
 		fprintf(stderr, "Error: malloc failed to allocate connection_threads array\n");
-		return -1;
+		return NULL;
 	}
 
 	// only thing that differs is the thread ind
@@ -128,15 +133,15 @@ int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, 
 		ret = enqueue(free_threads, &(connection_thread_data_arr[i]));
 		if (ret != 0){
 			fprintf(stderr, "Error: could not enqueue thread #%u to deque\n", i);
-			return -1;
+			return NULL;
 		}
 	}
 
 	// 5.) Start Listening
-	ret = listen(serv_sockfd, num_accepts);
+	ret = listen(serv_sockfd, max_accepts);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not start listening on server socket\n");
-		return -1;
+		return NULL;
 	}
 
 
@@ -151,14 +156,14 @@ int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, 
 	Connection_Thread_Data * thread_data;
 	volatile bool is_empty;
 
-	while(accept_cnt < num_accepts){
+	while(accept_cnt < max_accepts){
 
 		// 1.) accept new connection (blocking)
 
 		accept_sockfd = accept(serv_sockfd, (struct sockaddr *) &client_addr, &client_len);
 		if (accept_sockfd < 0){
 			fprintf(stderr, "Error: could not process accept within tcp inti server\n");
-			return -1;
+			return NULL;
 		}
 
 		// 2.) Once accepted, dequeue a thread to use for processing 
@@ -183,7 +188,7 @@ int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, 
 		ret = dequeue(free_threads, &thread_data);
 		if (ret != 0){
 			fprintf(stderr, "Error: could not dequeue thread from free threads deque\n");
-			return -1;
+			return NULL;
 		}
 		pthread_mutex_unlock(&free_threads_lock);
 
@@ -197,7 +202,7 @@ int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, 
 		ret = pthread_create(&threads[thread_ind], NULL, process_rdma_init_connection, (void *) thread_data);
 		if (ret != 0){
 			fprintf(stderr, "Error: pthread_create failed\n");
-			return -1;
+			return NULL;
 		}
 
 		// 5.) Update accept_cnt
@@ -205,7 +210,7 @@ int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, 
 
 	}
 
-	return 0;
+	return NULL;
 }
 
 
