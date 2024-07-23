@@ -133,7 +133,7 @@ int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, 
 	}
 
 	// 5.) Start Listening
-	ret = listen(serv_sockfd, max_accepts);
+	ret = listen(serv_sockfd, num_accepts);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not start listening on server socket\n");
 		return -1;
@@ -151,7 +151,7 @@ int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, 
 	Connection_Thread_Data * thread_data;
 	volatile bool is_empty;
 
-	while(accept_cnt < max_accepts){
+	while(accept_cnt < num_accepts){
 
 		// 1.) accept new connection (blocking)
 
@@ -204,6 +204,8 @@ int start_tcp_server_for_rdma_init(Net_World * net_world, uint32_t num_threads, 
 		accept_cnt++;
 
 	}
+
+	return 0;
 }
 
 
