@@ -505,11 +505,11 @@ void * remove_item_table(Table * table, void * item) {
 
 
 // Notes: 
-//	- Returns a view of all items
+//	- Returns 0 on success, -1 on error
 //		- DO NOT FREE THE ITEMS WITHIN THIS ARRAY, BUT SHOULD FREE THE RETURNED ARRAY!
 // 	- These functions acquire size & count locks for duration 
 //		- (i.e. completely block out other functions until completition)
-uint64_t get_all_items_table(Table * table, bool to_start_rand, bool to_sort, void *** ret_all_items){
+int get_all_items_table(Table * table, bool to_start_rand, bool to_sort, uint64_t * ret_cnt, void *** ret_all_items) {
 
 	if (table == NULL){
 		fprintf(stderr, "Error in get_all_items_table, item table is null\n");
@@ -529,7 +529,7 @@ uint64_t get_all_items_table(Table * table, bool to_start_rand, bool to_sort, vo
 	void ** all_items = (void **) malloc(cnt * sizeof(void *));
 	if (all_items == NULL){
 		fprintf(stderr, "Error: malloc failed to allocate all_items container\n");
-		return 0;
+		return -1;
 	}
 
 	// 3.) Iterate over table and add items
@@ -550,7 +550,7 @@ uint64_t get_all_items_table(Table * table, bool to_start_rand, bool to_sort, vo
 	}
 
 	uint64_t table_ind;
-	for (uint64_t i = table_ind_start; table_ind < table_ind_start + size; table_ind++){
+	for (uint64_t i = table_ind_start; i < table_ind_start + size; i++){
 		table_ind = i % size;
 		pthread_mutex_lock(&(slot_locks[table_ind]));
 		// there was an item at this location
@@ -567,6 +567,11 @@ uint64_t get_all_items_table(Table * table, bool to_start_rand, bool to_sort, vo
 
 	}
 
+	if (num_added != cnt){
+		fprintf(stderr, "Error: in get_all_items_table(). The table count (%lu) differs from items added (%lu)\n", cnt, num_added);
+		return -1;
+	}
+
 
 	// 4.) Release the locks so the table can be modified again
 	pthread_mutex_unlock(&(table -> cnt_lock));
@@ -577,7 +582,9 @@ uint64_t get_all_items_table(Table * table, bool to_start_rand, bool to_sort, vo
 		qsort(all_items, cnt, sizeof(void *), table -> item_cmp);
 	}
 
-	// 6.) Set the container of all items and return count
-	*ret_all_items = all_items; 
-	return cnt;
+	// 6.) Set the returned count and container of all items
+	*ret_cnt = cnt;
+	*ret_all_items = all_items;
+
+	return 0;
 }

@@ -14,23 +14,25 @@ int connect_to_master(char * self_ip_addr, char * master_ip_addr, unsigned short
 		return -1;
 	}
 
-	// 2.) Bind to the appropriate local network interface 
-	struct sockaddr_in local_addr;
-	local_addr.sin_family = AF_INET;
-	// local binding on any port works
-	local_addr.sin_port = 0;
-	// use the interface assoicated with IP address passed in as argument
-	// INET_ATON return 0 on error!
-	ret = inet_aton(self_ip_addr, &local_addr.sin_addr);
-	if (ret == 0){
-		fprintf(stderr, "Error: self ip address: %s -- invalid\n", self_ip_addr);
-		return -1;
-	}
-	ret = bind(client_sockfd, (struct sockaddr *)&local_addr, sizeof(local_addr));
-	if (ret != 0){
-		fprintf(stderr, "Error: could not bind local client (self) to IP addr: %s\n", self_ip_addr);
-		close(client_sockfd);
-		return -1;
+	// 2.) Bind to the appropriate local network interface  (if self_ip_addr != master_ip_addr)
+	if (strcmp(self_ip_addr, master_ip_addr) != 0){
+		struct sockaddr_in local_addr;
+		local_addr.sin_family = AF_INET;
+		// local binding on any port works
+		local_addr.sin_port = 0;
+		// use the interface assoicated with IP address passed in as argument
+		// INET_ATON return 0 on error!
+		ret = inet_aton(self_ip_addr, &local_addr.sin_addr);
+		if (ret == 0){
+			fprintf(stderr, "Error: self ip address: %s -- invalid\n", self_ip_addr);
+			return -1;
+		}
+		ret = bind(client_sockfd, (struct sockaddr *)&local_addr, sizeof(local_addr));
+		if (ret != 0){
+			fprintf(stderr, "Error: could not bind local client (self) to IP addr: %s\n", self_ip_addr);
+			close(client_sockfd);
+			return -1;
+		}
 	}
 
 	// 3.) Prepare server socket ip and port
@@ -70,7 +72,7 @@ int process_join_net_response(int sockfd, bool * ret_is_join_successful, Join_Re
 	// Deference the pointer passed in that we are going to populate
 	//	- doing this for readability
 	// ASSUMES THE CALLER ALLOCATED MEMORY (either on stack or dynamically) for ret_join_response
-	Join_Response join_response = *ret_join_response;
+	Join_Response join_response;
 
 	// 1.) Read the header send from master
 	byte_cnt = recv(sockfd, &join_response.header, sizeof(Join_Response_H), MSG_WAITALL);
@@ -80,6 +82,7 @@ int process_join_net_response(int sockfd, bool * ret_is_join_successful, Join_Re
 		*ret_is_join_successful = false;
 		return 0;
 	}
+
 
 	// 2.) Allocate an array to store the Node_Configs (if node_cnt > 0)
 	//		- this will be used to form connetions to these nodes' RDMA_INIT tcp servers
@@ -125,13 +128,23 @@ int process_join_net_response(int sockfd, bool * ret_is_join_successful, Join_Re
 		return 0;
 	}
 
+	// 5.) Block for confirmation of addition to table
+	//		- ensures that this node has been properly added and that it will receive rdma_init connection requests from future joiners
+	byte_cnt = recv(sockfd, &ack, sizeof(bool), MSG_WAITALL);
+	if (byte_cnt != sizeof(bool)){
+		fprintf(stderr, "Error: Didn't receive confirmation that the node config was added to table. Errno String: %s", strerror(errno));
+		close(sockfd);
+		*ret_is_join_successful = false;
+		return 0;
+	}
 
-	// 5.) Set return values and close connection
+
+	// 6.) Set return values
 
 	*ret_is_join_successful = true;
+	*ret_join_response = join_response;
 
-	// ret_join_response has already been populated by join_response beign set equal to *ret_join_response
-
+	// 7.) Close successful connection
 	close(sockfd);
 
 	return 0;
@@ -154,23 +167,23 @@ Join_Response * join_net(char * self_ip_addr, char * master_ip_addr) {
 
 		client_sockfd = connect_to_master(self_ip_addr, master_ip_addr, JOIN_NET_PORT);
 		if (client_sockfd == -1){
-			fprintf(stderr, "Error: join_net failed because couldn't connect to master\n");
-			return NULL;
+			fprintf(stderr, "Couldn't connect to master. Timeout and retrying...\n");
 		}
-	
-		// Note: this function will handle closing the socket
-		ret = process_join_net_response(client_sockfd, &is_join_successful, join_response);
-		if (ret == -1){
-			fprintf(stderr, "Error: fatal problem within processing join response\n");
-			return NULL;
+		else{
+			// Note: this function will handle closing the socket
+			ret = process_join_net_response(client_sockfd, &is_join_successful, join_response);
+			if (ret == -1){
+				fprintf(stderr, "Error: fatal problem within processing join response\n");
+				return NULL;
+			}
 		}
 
 		// timeout before trying again
-		// defined within config.h => default is 10ms
+		// defined within config.h => default is 1 sec
 		usleep(JOIN_NET_TIMEOUT_MICROS);
 	}
 
-	printf("Successfully joined network! Was assigned id: %u\n", (join_response -> header).node_id);
+	printf("\nSuccessfully joined network! Was assigned id: %u\n", (join_response -> header).node_id);
 
 	return join_response;
 }

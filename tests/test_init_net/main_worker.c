@@ -10,6 +10,8 @@ int main(int argc, char * argv[]){
 	char * self_ip_addr = argv[1];
 	char * master_ip_addr = argv[2];
 
+	printf("\n\nAttempting to join_net...\n");
+
 	Join_Response * join_response = join_net(self_ip_addr, master_ip_addr);
 	if (join_response == NULL){
 		fprintf(stderr, "Error: could not join net, exiting\n");
@@ -17,7 +19,7 @@ int main(int argc, char * argv[]){
 	}
 
 
-	printf("\n\n\nReceived Join Response!\n\n");
+	printf("\n\nReceived Join Response!\n\n");
 
 	printf("Join Response Header:\n");
 	

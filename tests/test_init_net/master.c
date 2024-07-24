@@ -128,7 +128,15 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 	Node_Config ** all_node_config;
 	bool to_start_rand = false;
 	bool to_sort = true;
-	uint32_t node_cnt = (uint32_t) get_all_items_table(master -> node_configs, to_start_rand, to_sort, (void *) &all_node_config);
+	uint32_t node_cnt;
+	ret = (uint32_t) get_all_items_table(master -> node_configs, to_start_rand, to_sort, (uint64_t *) &node_cnt, (void *) &all_node_config);
+	if (ret != 0){
+		fprintf(stderr, "Error: failure in get_all_items_table()\n");
+		pthread_mutex_unlock(&(master -> id_to_assign_lock));
+		close(sockfd);
+		*ret_is_join_successful = false;
+		return -1;
+	}
 
 	// 3.) Prepare Join Response
 	Join_Response join_response;
@@ -143,7 +151,7 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 
 	if (node_cnt > 0){
 		join_response.node_config_arr = (Node_Config *) malloc(node_cnt * sizeof(Node_Config));
-		if (join_response.node_config_arr){
+		if (join_response.node_config_arr == NULL){
 			fprintf(stderr, "Error: malloc failed to allocate node_config array\n");
 			pthread_mutex_unlock(&(master -> id_to_assign_lock));
 			close(sockfd);
@@ -152,7 +160,7 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 		}
 		// pack the all_node_config into single buffer to send for convenience
 		for (uint32_t i = 0; i < node_cnt; i++){
-			memcpy(&join_response.node_config_arr[i], all_node_config[i], sizeof(Node_Config));
+			memcpy(&(join_response.node_config_arr[i]), all_node_config[i], sizeof(Node_Config));
 		}
 	}	
 	else{
@@ -160,6 +168,16 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 	}
 
 	// 4.) Send the join response header
+
+	printf("\
+			Node ID: %u\n \
+			Max Nodes: %u\n \
+			Min Init Nodes: %u\n \
+			Node Count: %u\n\n", 
+			join_response.header.node_id, 
+			join_response.header.max_nodes, 
+			join_response.header.min_init_nodes, 
+			join_response.header.node_cnt);
 
 	byte_cnt = send(sockfd, &join_response.header, sizeof(Join_Response_H), 0);
 	if (byte_cnt != sizeof(Join_Response_H)){
@@ -195,26 +213,16 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 	bool ack;
 	byte_cnt = recv(sockfd, &ack, sizeof(bool), MSG_WAITALL);
 	if (byte_cnt != sizeof(bool)){
-		fprintf(stderr, "Error: Didn't confirmation that worker was successful. Errno String: %s", strerror(errno));
+		fprintf(stderr, "Error: Didn't receive confirmation that worker was successful. Errno String: %s", strerror(errno));
 		pthread_mutex_unlock(&(master -> id_to_assign_lock));
 		close(sockfd);
 		*ret_is_join_successful = false;
 		return 0;
 	}
 
-	// 7.) Successfully added a node to network, so should:
-
-	//	a.) Dynamically allocate a new node_config
-	// 	b.) Add this node to the table, so future joiners will receive its Node_Config data
-	//	c.) Set is_successful to true and populate id_assigned
-	//	d.) Update counters
-	//			- Increment id_to_assign
-	//			- Decrement avail_node_cnt_sem (sem_wait)
-	//	e.) Release id_to_assign lock
-	//	f.) Close connection
+	// 7.) The receiving end successfully obtained join_response
+	//		now need to add its node_config to table for future joiners
 	
-
-
 	// a.) Create configuration for node (dynamically allocated because inserting to table)
 	
 	Node_Config * node_config = (Node_Config *) malloc(sizeof(Node_Config));
@@ -238,8 +246,7 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 
 	// 	- should probably check for duplicate first...
 	ret = insert_item_table(master -> node_configs, node_config);
-	// SHOULD NEVER FAIL (by construction of max_nodes table limit + avail_node_count semaphore)
-	// 	- IF FAILURE, THEN THE CURRENT CONNECTED WORKER WILL NOT RECEIVE RDMA_INIT CONNECTION REQUESTS FROM FUTURE JOINERS
+	// IF FAILURE, THEN THE CURRENT CONNECTED WORKER WILL NOT RECEIVE RDMA_INIT CONNECTION REQUESTS FROM FUTURE JOINERS
 	if (ret != 0){
 		fprintf(stderr, "Error: failed to insert node with id: %u\n", id_to_assign);
 		pthread_mutex_unlock(&(master -> id_to_assign_lock));
@@ -249,18 +256,39 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 		return -1;
 	}
 
-	// c.) Set is successful to true and populate id_assigned
+	// 8.) Now send confirmation ack that this node was successfully added to table
+	//		- ensures the receiving end is blocking until properly added
+
+	ack = true;
+	byte_cnt = send(sockfd, &ack, sizeof(bool), 0);
+	if (byte_cnt != sizeof(bool)){
+		fprintf(stderr, "Error: Couldn't send the ack indicating success of addition to node_config table. Errno String: %s", strerror(errno));
+		close(sockfd);
+		*ret_is_join_successful = false;
+		return 0;
+	}
+
+	// 9.) Complete the connection
+
+	//	a.) Set is_successful to true and populate id_assigned
+	//	b.) Update counters
+	//			- Increment id_to_assign
+	//			- Decrement avail_node_cnt_sem (sem_wait)
+	//	c.) Release id_to_assign lock
+	//	d.) Close connection
+	
+	// a.) Set is successful to true and populate id_assigned
 	*ret_is_join_successful = true;
 	*ret_id_assigned = id_to_assign;
 
-	// d.) Update counters
+	// b.) Update counter 
+	// Note: The semaphore counter has been updated optimistically and already accounted for this join
 	master -> id_to_assign = id_to_assign + 1;
-	sem_wait(&(master -> avail_node_cnt_sem));
 	
-	// e.) Release lock
+	// c.) Release lock
 	pthread_mutex_unlock(&(master -> id_to_assign_lock));
 
-	// f.) Close connection
+	// d.) Close connection
 	close(sockfd);
 
 	return 0;
@@ -333,7 +361,14 @@ void * run_join_net_server(void * _master) {
 	bool is_join_successful;
 	uint32_t id_assigned;
 
+	int sem_val;
+
 	while(1){
+
+		sem_getvalue(&(master -> avail_node_cnt_sem), &sem_val);
+		if (sem_val <= 0){
+			printf("Network is full (%u nodes)\nWaiting for a node to leave before allowing more connections...\n\n", master -> max_nodes);
+		}
 
 		// Is blocking until there is an "available node" (means max_nodes - node_cnt)
 		// for master to accept new joiner
@@ -342,6 +377,8 @@ void * run_join_net_server(void * _master) {
 			fprintf(stderr, "Error: sem_wait failed for avail_node_cnt_sem\n");
 			return NULL;
 		}
+
+		printf("Waiting for clients to connect...\n\n");
 
 		// now we decremented avail_node_count and reserved a spot for a new jointer
 
@@ -360,18 +397,19 @@ void * run_join_net_server(void * _master) {
 
 		// If initializing a very large cluster, this part should be handled in seperate thread
 		// with a thread pool!
+		// This function will handle closing socket
 		ret = process_join_net_request(&worker_connection, &is_join_successful, &id_assigned);
 		if (ret != 0){
-			fprintf(stderr, "Error: could not process connection from remote addr: %s. A fatal error occured on server end, exiting\n", inet_ntoa(remote_sockaddr.sin_addr));
+			fprintf(stderr, "Error: could not process connection from remote addr: %s\nA fatal error occured on server end, exiting\n", inet_ntoa(remote_sockaddr.sin_addr));
 			return NULL;
 		}
 
 		// FOR NOW: Print out the result of processing request
 		if (is_join_successful){
-			printf("Successful join! IP Address: %s, got assigned to id: %u\n", inet_ntoa(remote_sockaddr.sin_addr), id_assigned);
+			printf("Successful join! Worker IP Address: %s, got assigned to id: %u\n\n", inet_ntoa(remote_sockaddr.sin_addr), id_assigned);
 		}
 		else {
-			printf("Error: Unsuccessful join from IP Address: %s. No fatal error, likely a connection error. Continuing.\n", inet_ntoa(remote_sockaddr.sin_addr));
+			printf("Error: Unsuccessful join from Worker IP Address: %s\nNot fatal error, likely a connection error, continuing...\n\n", inet_ntoa(remote_sockaddr.sin_addr));
 		}
 	}
 
@@ -392,6 +430,8 @@ int run_master(Master * master) {
 	// Should never return...
 
 	pthread_t join_net_server_thread;
+
+	printf("Starting Master Server!\n\n");
 
 	ret = pthread_create(&join_net_server_thread, NULL, run_join_net_server, (void *) master);
 	if (ret != 0){
