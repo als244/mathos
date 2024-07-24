@@ -158,19 +158,19 @@ Join_Response * join_net(char * self_ip_addr, char * master_ip_addr) {
 
 		client_sockfd = connect_to_master(self_ip_addr, master_ip_addr, JOIN_NET_PORT);
 		if (client_sockfd == -1){
-			fprintf(stderr, "Error: join_net failed because couldn't connect to master\n");
-			return NULL;
+			fprintf(stderr, "Couldn't connect to master. Timeout and retrying...\n");
 		}
-	
-		// Note: this function will handle closing the socket
-		ret = process_join_net_response(client_sockfd, &is_join_successful, join_response);
-		if (ret == -1){
-			fprintf(stderr, "Error: fatal problem within processing join response\n");
-			return NULL;
+		else{
+			// Note: this function will handle closing the socket
+			ret = process_join_net_response(client_sockfd, &is_join_successful, join_response);
+			if (ret == -1){
+				fprintf(stderr, "Error: fatal problem within processing join response\n");
+				return NULL;
+			}
 		}
 
 		// timeout before trying again
-		// defined within config.h => default is 10ms
+		// defined within config.h => default is 1 sec
 		usleep(JOIN_NET_TIMEOUT_MICROS);
 	}
 

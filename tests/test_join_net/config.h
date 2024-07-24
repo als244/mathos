@@ -7,8 +7,8 @@
 //	- Master's run_join_net_server()
 //	- Worker's join_net -> connect_to_master()
 #define JOIN_NET_PORT 9123
-// set timeout to be 10ms for a worker to try joining net again
-#define JOIN_NET_TIMEOUT_MICROS 10000
+// set timeout to be 1 sec for a worker to try joining net again
+#define JOIN_NET_TIMEOUT_MICROS 1000000
 
 //  used within:
 //	- Worker node's RDMA_INIT tcp server

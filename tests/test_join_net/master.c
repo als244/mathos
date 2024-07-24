@@ -143,7 +143,7 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 
 	if (node_cnt > 0){
 		join_response.node_config_arr = (Node_Config *) malloc(node_cnt * sizeof(Node_Config));
-		if (join_response.node_config_arr){
+		if (join_response.node_config_arr == NULL){
 			fprintf(stderr, "Error: malloc failed to allocate node_config array\n");
 			pthread_mutex_unlock(&(master -> id_to_assign_lock));
 			close(sockfd);
@@ -372,7 +372,7 @@ void * run_join_net_server(void * _master) {
 		// with a thread pool!
 		ret = process_join_net_request(&worker_connection, &is_join_successful, &id_assigned);
 		if (ret != 0){
-			fprintf(stderr, "Error: could not process connection from remote addr: %s. A fatal error occured on server end, exiting\n", inet_ntoa(remote_sockaddr.sin_addr));
+			fprintf(stderr, "Error: could not process connection from remote addr: %s\nA fatal error occured on server end, exiting\n", inet_ntoa(remote_sockaddr.sin_addr));
 			return NULL;
 		}
 
@@ -381,7 +381,7 @@ void * run_join_net_server(void * _master) {
 			printf("Successful join! IP Address: %s, got assigned to id: %u\n", inet_ntoa(remote_sockaddr.sin_addr), id_assigned);
 		}
 		else {
-			printf("Error: Unsuccessful join from IP Address: %s. No fatal error, likely a connection error. Continuing.\n", inet_ntoa(remote_sockaddr.sin_addr));
+			printf("Error: Unsuccessful join from IP Address: %s\nNot fatal error, likely a connection error, continuing...\n", inet_ntoa(remote_sockaddr.sin_addr));
 		}
 	}
 
