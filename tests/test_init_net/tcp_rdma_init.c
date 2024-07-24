@@ -1,4 +1,20 @@
-#include "establish_net.h"
+#include "tcp_rdma_init.h"
+
+// Internal Structures
+
+typedef struct server_thread_data {
+	Net_World * net_world;
+	uint32_t max_accepts;
+	uint32_t num_accepts_processed;
+} Server_Thread_Data;
+
+typedef struct client_thread_data {
+	Net_World * net_world;
+	uint32_t num_connects;
+	// list of 
+	uint32_t * server_addr_in;
+	uint32_t num_connects_processed;
+} Client_Thread_Data;
 
 // MIGHT WANT TO CONVERT THREADS TO LIBEVENT FOR BETTER SCALABILITY (if initialization time is a concern)
 //	- Ref: https://github.com/jasonish/libevent-examples/blob/master/echo-server/libevent_echosrv1.c
@@ -11,6 +27,7 @@ typedef struct connection_data {
 	// For server: sockfd = returned socket from accpet()
 	// For client: sockfd = client_fd used as part of connect()
 	int sockfd;
+
 } Connection_Data;
 
 // Called for each thread
@@ -18,38 +35,27 @@ typedef struct connection_data {
 int process_tcp_connection_for_rdma_init(Connection_Data * connection_data) {
 	
 	int ret;
-
+	ssize_t byte_cnt;
 
 	Net_World * net_world = connection_data -> net_world;
+	Self_Net * self_net = net_world -> self_net;
 
-	// the other side's ip address
-	struct sockaddr_in remote_sockaddr = connection_data -> remote_sockaddr;
-	uint32_t remote_addr = (uint32_t) (remote_sockaddr.sin_addr.s_addr);
+	// Keeping design simple.
 
-	// 1.) Look up from within net_world table to obtain node_id
-	Table * ip_to_node = net_world -> ip_to_node;
-	Node_Ip_Config target_node;
-	target_node.ip_addr = remote_addr;
-
-	Node_Ip_Config * found_node = find_item_table(ip_to_node, &target_node);
-	if (found_node == NULL){
-		fprintf(stderr, "Error: could not find node in ip_to_node table with ip addr: %u\n", remote_addr);
-		return -1;
-	}
-
-	uint32_t remote_node_id = found_node -> node_id;
-
+	// First send of all of own self_net rdma_init info, 
+	// The read the other send in same order
 
 	// Socket to write/read from!
 	int sockfd = connection_data -> sockfd;
 
-	// HANDLE PROCESSING THE CONNECTION HERE....
 
-	// 1.) Write data from self_net containing RDMA_details
+	// 1.) Send node id (populated upon connection processing with master's join_net server)
 
+	
 
-	// 2.) Read other end from socket 
-	//		and create node with RDMA details and add to net_world -> nodes
+	// the other side's ip address
+	struct sockaddr_in remote_sockaddr = connection_data -> remote_sockaddr;
+	uint32_t remote_s_addr = (uint32_t) (remote_sockaddr.sin_addr.s_addr);
 	
 
 	return 0;
@@ -93,13 +99,13 @@ void * run_tcp_server_for_rdma_init(void * _server_thread_data){
 	uint32_t self_network_ip_addr = net_world -> self_net -> ip_addr;
 	serv_addr.sin_addr.s_addr = self_network_ip_addr;
 	// Using the same port on all nodes for initial connection establishment to trade rdma info
-	// defined within establish_net.h
-	serv_addr.sin_port = htons(ESTABLISH_NET_PORT);
+	// defined within join_net.h
+	serv_addr.sin_port = htons(INTERNAL_JOIN_NET_PORT);
 
 	// 3.) Bind server to port
 	ret = bind(serv_sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
 	if (ret != 0){
-		fprintf(stderr, "Error: could not bind server socket to address: %s, port: %u\n", inet_ntoa(serv_addr.sin_addr), ESTABLISH_NET_PORT);
+		fprintf(stderr, "Error: could not bind server socket to address: %s, port: %u\n", inet_ntoa(serv_addr.sin_addr), INTERNAL_JOIN_NET_PORT);
 		return NULL;
 	}
 
@@ -163,7 +169,6 @@ void * run_tcp_server_for_rdma_init(void * _server_thread_data){
 }
 
 
-// NOTE: This function should be run in a seperate thread than main program.
 
 
 

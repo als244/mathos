@@ -8,6 +8,7 @@
 typedef struct master {
 	char * ip_addr;
 	uint32_t max_nodes;
+	uint32_t min_init_nodes;
 	pthread_mutex_t id_to_assign_lock;
 	// Monotonically increasing and set when doing a new join
 	// First acquire lock, read value, and upon successful join, release lock
@@ -24,7 +25,7 @@ typedef struct master {
 } Master;
 
 
-Master * init_master(char * ip_addr, uint32_t max_nodes);
+Master * init_master(char * ip_addr, uint32_t max_nodes, uint32_t min_init_nodes);
 
 // should ideally never return
 // only shutdown message or error

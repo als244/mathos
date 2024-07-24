@@ -1,12 +1,13 @@
-#ifndef JOIN_NET_H
-#define JOIN_NET_H
+#ifndef INIT_NET_H
+#define INIT_NET_H
 
 #include "common.h"
+#include "config.h"
+#include "table.h"
 #include "self_net.h"
 #include "net.h"
-#include "config.h"
+#include "join_net.h"
 
-#define INTERNAL_JOIN_NET_PORT 9272
 
 // PRIOR TO INTIALIZING NET, THE NODE NEEDS TO HAVE ALREADY INTIALIZED EVERYTHING ELSE. THIS INCLUDES:
 // - Inventory Manager:
@@ -35,16 +36,18 @@
 //				- i.) Now this node should set its id within self_net
 //		- b.) The master will send the maximum node capacity (uint32_t) of network (which was set as argument when starting the master)
 //				- i.) Now this node can initialize net_world because it has its id & maximum capacity of network
-//				- ii.) After intializing net_world, this node should create a thread and start its rdma_init TCP server
+//				- ii.) MAYBE? After intializing net_world, this node should create a thread and start its rdma_init TCP server
 //						- Doing this step here (instead of after e.), because in case of failure of starting TCP server we want to alert master of failure and exit
-//		- c.) The master will report the number of nodes (uint32_t) that are currently in network
+//						- FOR NOW: doing this after step 3 completes
+//		- c.) The master will send the minimum number of node 'connections' required to "come online" (i.e. the number of Net_Nodes in Net_World -> nodes table):
+//				- i.) This is needed for step 7.)
+//		- d.) The master will report the number of nodes (uint32_t) that are currently in network
 //				- i.) Now this node should allocate an array of this size where the items are of type Node_Ip_Config
-//				- ii.) This array will be used in step 4
-//		- d.) For each node currently in the network the master will send Node_Ip_Config data:
+//				- ii.) This array will be used in step 7.)
+//		- e.) For each node currently in the network the master will send Node_Ip_Config data:
 //				- i.) This node should receive this data in the array allocated in 3.c.i
-//		- e.) Send a confirmation "true" boolean to master Once all Node_Ip_Config data has been received
-//				- i.) Upon any error this node has seen in steps a.) - d.), this node should send a "false" boolean and exit
-//						- This ensures that the id will not truely be assigned and the master can work on letting the next node join 
+//		- f.) Send a confirmation "true" boolean to master Once all Node_Ip_Config data has been received
+//				- i.) This ensures that the server will block and helps with debugging/readability
 
 // CONNECT TO REMOTE RDMA_INIT TCP SERVERS
 
@@ -53,7 +56,7 @@
 // 4.) For each Node_Ip_Config array, initiate connection to this node's rdma_init TCP server:
 //		
 
-// PROCESS TCP CONNECTION FOR RDMA_INIT_CONNECTION
+// PROCESS TCP CONNECTION FOR RDMA_INIT_CONNECTION (within tcp_rdma_init.c)
 
 // Now a connection has been formed between two worker nodes. 
 // Note that the server and client will both call the same function to properly exchange rdam_init info
@@ -92,13 +95,14 @@
 
 // Now the Net_World -> nodes table should start to become populated
 
-// 7.) The "num_nodes_threshold" argument within join_net indicates the minimum number of nodes within Net_World -> nodes
-// 		need to be populated before returning from this "join_net" function
-//		- a.) After returning from this initialization function notify the master server
-//				- i.) TODO (this doesn't make much sense): Now the "network's request firewall" will open up this node and it can start to handle requests
+// 7.) The "min_init_nodes" argument passed into the master and received within join_net indicates 
+//		the minimum number of nodes within Net_World -> nodes need to be populated before returning from this "join_net" function
+//		- a.) TODO: After returning from this initialization function ca notify the master server
+//				- i.) Now the "network's request firewall" will open up this node and it can start to handle requests
+//						- Think about this harder, (feels like doesn't make much sense)
 //		
 
-// 8.) The rdma_init TCP server will still be running in the background (there may be future joiners)
+// 8.) TODO: The rdma_init TCP server will still be running in the background (there may be future joiners)
 //	- Upon every new "join" (detected by an incoming connection request to this node's rdma_init server)
 //	  or "leave" (detected by a message from the master) => need to rebalance this node's exchange metadata based on new network_node count
 //		- Expect this to be infrequent, but very nice/convienent functionality to have!
@@ -108,9 +112,6 @@
 //			- In this way the nodes' exchange responsibilities can be partitioned proportionally to their system memory capacities
 
 
-
-// Entry Point To Establish All Network Settings
-// For now calling init_self within this function with default qp_num/type & cq_num/type settings
-Net_World * join_net(char * self_ip_addr, char * master_ip_addr, uint32_t num_net_nodes_threshold);
+Net_World * init_net(char * self_ip_addr, char * master_ip_addr);
 
 #endif

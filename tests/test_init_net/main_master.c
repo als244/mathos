@@ -5,15 +5,16 @@ int main(int argc, char * argv[]){
 
 	int ret;
 
-	if (argc != 3){
-		fprintf(stderr, "Error: Usage ./runMaster <master_ip_addr> <max_workers>\n");
+	if (argc != 4){
+		fprintf(stderr, "Error: Usage ./testMaster <master_ip_addr> <max_workers> <min_init_nodes>\n");
 		return -1;
 	}
 
 	char * ip_addr = argv[1];
 	uint32_t max_workers = (uint32_t) atol(argv[2]);
+	uint32_t min_init_nodes = (uint32_t) atol(argv[3]);
 
-	Master * master = init_master(ip_addr, max_workers);
+	Master * master = init_master(ip_addr, max_workers, min_init_nodes);
 	if (master == NULL){
 		fprintf(stderr, "Error: could not initialize master\n");
 		return -1;

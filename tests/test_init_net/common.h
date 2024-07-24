@@ -33,6 +33,8 @@
 #define FINGERPRINT_NUM_BYTES 32
 #define FINGERPRINT_TYPE SHA256_HASH
 
-#define JOIN_NET_PORT 9123
+#define likely(x)       __builtin_expect(!!(x), 1)
+#define unlikely(x)     __builtin_expect(!!(x), 0)
+
 
 #endif

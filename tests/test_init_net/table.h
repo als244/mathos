@@ -57,9 +57,10 @@ int remove_random_item(Table * table, void ** ret_item, uint64_t * ret_index);
 // 	- These functions acquire size & count locks for duration 
 //		- (i.e. completely block out other functions until completition)
 // It allocates a container array for all items, but doesn't copy item
-uint64_t get_all_items_table(Table * table, void *** ret_all_items);
-// Same as above, but calls the table -> item_cmp function on array before returning
-uint64_t get_all_items_sorted_table(Table * table, void *** ret_all_items);
+
+// to_start_rand means retrieving items starting at a random index
+// to_sort means calling the Table -> Item_Cmp function on the all_items container before returning
+uint64_t get_all_items_table(Table * table, bool to_start_rand, bool to_sort, void *** ret_all_items);
 
 uint64_t get_count(Table * table);
 

@@ -509,15 +509,13 @@ void * remove_item_table(Table * table, void * item) {
 //		- DO NOT FREE THE ITEMS WITHIN THIS ARRAY, BUT SHOULD FREE THE RETURNED ARRAY!
 // 	- These functions acquire size & count locks for duration 
 //		- (i.e. completely block out other functions until completition)
-uint64_t get_all_items_table(Table * table, void *** ret_all_items){
+uint64_t get_all_items_table(Table * table, bool to_start_rand, bool to_sort, void *** ret_all_items){
 
 	if (table == NULL){
 		fprintf(stderr, "Error in get_all_items_table, item table is null\n");
 		return 0;
 	}
 
-	int ret;
-
 	// 1.) Acquire size & cnt lock to ensure table doesn't get modified while this function is running
 	
 	// Only need the size lock if min_size != max_size, but keeping it here anyways
@@ -542,9 +540,18 @@ uint64_t get_all_items_table(Table * table, void *** ret_all_items){
 	pthread_mutex_t * slot_locks = table -> slot_locks;
 
 	uint64_t num_added = 0;
-	for (uint64_t table_ind = 0; table_ind < size; table_ind++){
 
-		
+	// normally start at index 0 and count up
+	uint64_t table_ind_start = 0;
+	// if the to_start_rand bool is set, then choose a random starting index 
+	// and count up/loop around
+	if (to_start_rand){
+		table_ind_start = rand() % size;
+	}
+
+	uint64_t table_ind;
+	for (uint64_t i = table_ind_start; table_ind < table_ind_start + size; table_ind++){
+		table_ind = i % size;
 		pthread_mutex_lock(&(slot_locks[table_ind]));
 		// there was an item at this location
 		if (tab[table_ind] != NULL){
@@ -565,74 +572,12 @@ uint64_t get_all_items_table(Table * table, void *** ret_all_items){
 	pthread_mutex_unlock(&(table -> cnt_lock));
 	pthread_mutex_unlock(&(table -> size_lock));
 
-	// 5.) Set the container of all items and return count
-	*ret_all_items = all_items; 
-	return cnt;
-}
-
-
-// Same as get_all_items_table, but calls the table -> item_cmp function on array before returning
-uint64_t get_all_items_sorted_table(Table * table, void *** ret_all_items) {
-
-	if (table == NULL){
-		fprintf(stderr, "Error in get_all_items_sorted_table, item table is null\n");
-		return 0;
+	// 5.) If to_sort is set then call qsort on all items
+	if (to_sort){
+		qsort(all_items, cnt, sizeof(void *), table -> item_cmp);
 	}
-
-	int ret;
-
-	// 1.) Acquire size & cnt lock to ensure table doesn't get modified while this function is running
-	
-	// Only need the size lock if min_size != max_size, but keeping it here anyways
-	pthread_mutex_lock(&(table -> size_lock));
-	uint64_t size = table -> size;
-
-	pthread_mutex_lock(&(table -> cnt_lock));
-	uint64_t cnt = table -> cnt;
-
-	// 2.) Allocate container for all the items
-	void ** all_items = (void **) malloc(cnt * sizeof(void *));
-	if (all_items == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate all_items container\n");
-		return NULL;
-	}
-
-	// 3.) Iterate over table and add items
-
-	void ** tab = table -> table;
-	// shouldn't need to acquire any slot_locks because
-	// other functions are locked out, but doing it anyways for readability
-	pthread_mutex_t * slot_locks = table -> slot_locks;
-
-	uint64_t num_added = 0;
-	for (uint64_t table_ind = 0; table_ind < size; table_ind++){
-
-		
-		pthread_mutex_lock(&(slot_locks[table_ind]));
-		// there was an item at this location
-		if (tab[table_ind] != NULL){
-			all_items[num_added] = tab[table_ind];
-			num_added++;
-		}
-		pthread_mutex_unlock(&(slot_locks[table_ind]));
-
-		// can break early if we've already seen everything
-		if (num_added == cnt){
-			break;
-		}
-
-	}
-
-	// 4.) Release the locks so the table can be modified again
-	pthread_mutex_unlock(&(table -> cnt_lock));
-	pthread_mutex_unlock(&(table -> size_lock));
-
-	// 5.) Sort the items before returning
-	qsort(all_items, cnt, sizeof(void *), table -> item_cmp);
 
 	// 6.) Set the container of all items and return count
 	*ret_all_items = all_items; 
 	return cnt;
-
-
 }
