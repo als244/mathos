@@ -128,14 +128,23 @@ int process_join_net_response(int sockfd, bool * ret_is_join_successful, Join_Re
 		return 0;
 	}
 
+	// 5.) Block for confirmation of addition to table
+	//		- ensures that this node has been properly added and that it will receive rdma_init connection requests from future joiners
+	byte_cnt = recv(sockfd, &ack, sizeof(bool), MSG_WAITALL);
+	if (byte_cnt != sizeof(bool)){
+		fprintf(stderr, "Error: Didn't receive confirmation that the node config was added to table. Errno String: %s", strerror(errno));
+		close(sockfd);
+		*ret_is_join_successful = false;
+		return 0;
+	}
 
-	// 5.) Set return values and close connection
+
+	// 6.) Set return values
 
 	*ret_is_join_successful = true;
-
-	// Set return of join response
 	*ret_join_response = join_response;
 
+	// 7.) Close successful connection
 	close(sockfd);
 
 	return 0;

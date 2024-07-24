@@ -60,7 +60,7 @@ int remove_random_item(Table * table, void ** ret_item, uint64_t * ret_index);
 
 // to_start_rand means retrieving items starting at a random index
 // to_sort means calling the Table -> Item_Cmp function on the all_items container before returning
-uint64_t get_all_items_table(Table * table, bool to_start_rand, bool to_sort, void *** ret_all_items);
+int get_all_items_table(Table * table, bool to_start_rand, bool to_sort, uint64_t * ret_cnt, void *** ret_all_items);
 
 uint64_t get_count(Table * table);
 
