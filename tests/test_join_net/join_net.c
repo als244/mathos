@@ -72,7 +72,7 @@ int process_join_net_response(int sockfd, bool * ret_is_join_successful, Join_Re
 	// Deference the pointer passed in that we are going to populate
 	//	- doing this for readability
 	// ASSUMES THE CALLER ALLOCATED MEMORY (either on stack or dynamically) for ret_join_response
-	Join_Response join_response = *ret_join_response;
+	Join_Response join_response;
 
 	// 1.) Read the header send from master
 	byte_cnt = recv(sockfd, &join_response.header, sizeof(Join_Response_H), MSG_WAITALL);
@@ -82,6 +82,7 @@ int process_join_net_response(int sockfd, bool * ret_is_join_successful, Join_Re
 		*ret_is_join_successful = false;
 		return 0;
 	}
+
 
 	// 2.) Allocate an array to store the Node_Configs (if node_cnt > 0)
 	//		- this will be used to form connetions to these nodes' RDMA_INIT tcp servers
@@ -132,7 +133,8 @@ int process_join_net_response(int sockfd, bool * ret_is_join_successful, Join_Re
 
 	*ret_is_join_successful = true;
 
-	// ret_join_response has already been populated by join_response beign set equal to *ret_join_response
+	// Set return of join response
+	*ret_join_response = join_response;
 
 	close(sockfd);
 
@@ -172,7 +174,7 @@ Join_Response * join_net(char * self_ip_addr, char * master_ip_addr) {
 		usleep(JOIN_NET_TIMEOUT_MICROS);
 	}
 
-	printf("Successfully joined network! Was assigned id: %u\n", (join_response -> header).node_id);
+	printf("\nSuccessfully joined network! Was assigned id: %u\n", (join_response -> header).node_id);
 
 	return join_response;
 }

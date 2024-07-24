@@ -161,6 +161,16 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 
 	// 4.) Send the join response header
 
+	printf("\
+			Node ID: %u\n \
+			Max Nodes: %u\n \
+			Min Init Nodes: %u\n \
+			Node Count: %u\n\n", 
+			join_response.header.node_id, 
+			join_response.header.max_nodes, 
+			join_response.header.min_init_nodes, 
+			join_response.header.node_cnt);
+
 	byte_cnt = send(sockfd, &join_response.header, sizeof(Join_Response_H), 0);
 	if (byte_cnt != sizeof(Join_Response_H)){
 		fprintf(stderr, "Error: Bad sending of join response header. Only sent %zd bytes out of %zu\n", byte_cnt, sizeof(Join_Response_H));
@@ -253,9 +263,9 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 	*ret_is_join_successful = true;
 	*ret_id_assigned = id_to_assign;
 
-	// d.) Update counters
+	// d.) Update counter 
+	// Note: The semaphore counter has been updated optimistically and already accounted for this join
 	master -> id_to_assign = id_to_assign + 1;
-	sem_wait(&(master -> avail_node_cnt_sem));
 	
 	// e.) Release lock
 	pthread_mutex_unlock(&(master -> id_to_assign_lock));
@@ -394,7 +404,7 @@ int run_master(Master * master) {
 	pthread_t join_net_server_thread;
 
 	printf("Starting Master Server!\n\nWaiting for clients to connect...\n");
-	
+
 	ret = pthread_create(&join_net_server_thread, NULL, run_join_net_server, (void *) master);
 	if (ret != 0){
 		fprintf(stderr, "Error: pthread_create failed to start join server\n");

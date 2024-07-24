@@ -19,7 +19,7 @@ int main(int argc, char * argv[]){
 	}
 
 
-	printf("\n\n\nReceived Join Response!\n\n");
+	printf("\n\nReceived Join Response!\n\n");
 
 	printf("Join Response Header:\n");
 	
