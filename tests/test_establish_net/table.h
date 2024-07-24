@@ -52,14 +52,14 @@ int remove_random_item(Table * table, void ** ret_item, uint64_t * ret_index);
 
 
 // Notes: 
-//	- Returns a view of all items
+//	- Returns the count and populated the 2nd argument with a view of all the items
 //		- DO NOT FREE THE ITEMS WITHIN THIS ARRAY, BUT SHOULD FREE THE RETURNED ARRAY!
 // 	- These functions acquire size & count locks for duration 
 //		- (i.e. completely block out other functions until completition)
 // It allocates a container array for all items, but doesn't copy item
-void ** get_all_items_table(Table * table);
+uint64_t get_all_items_table(Table * table, void *** ret_all_items);
 // Same as above, but calls the table -> item_cmp function on array before returning
-void ** get_all_items_sorted_table(Table * table);
+uint64_t get_all_items_sorted_table(Table * table, void *** ret_all_items);
 
 uint64_t get_count(Table * table);
 

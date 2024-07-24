@@ -572,7 +572,7 @@ Self_Net * init_self_net(int self_id, int num_qp_types, QueuePairUsageType * qp_
 		return NULL;
 	}
 
-	self_net -> ip_addr = (uint32_t) (in_addr.s_addr);
+	self_net -> s_addr = (uint32_t) (in_addr.s_addr);
 
 	return self_net;
 

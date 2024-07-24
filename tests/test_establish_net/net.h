@@ -6,7 +6,7 @@
 // REALLY CAN BE USING A NON-LOCKING TABLE HERE...
 // SHOULDN'T BE MODIFIED AFTER INTIALIZATION (EXCEPT RE-STARTS)
 #include "table.h"
-#include "node_ip_config.h"
+#include "config.h"
 
 
 #define GRH_SIZE_BYTES 40
@@ -44,7 +44,11 @@ typedef struct net_port {
 
 
 typedef struct net_node {
+	// Assigned by master join_net server
 	uint32_t node_id;
+	// keeping the ip address here in case disruption in RDMA 
+	// network-byte order (s_addr)
+	uint32_t s_addr;
 	// Note that on mellnox cards each port is counted as a device
 	uint8_t num_devices;
 	// Note that on mellanox cards there is typically 1 port per dev, because each dev is actually a port
@@ -57,31 +61,23 @@ typedef struct net_node {
 	// Every remote node will assign the other side a specfiic QP (for whole node)
 	// to use for sending control messages to
 	Net_Endpoint ctrl_dest;
-	// keeping the ip address here in case disruption in RDMA 
-	// network-byte order
-	uint32_t ip_addr;
 } Net_Node;
 
 
 
 typedef struct net_world {
+	// Can be allocated before success joining except for self_net -> node_id
 	Self_Net * self_net;
-	// mapping from uinit32_t network-ordered ip addr => Node_Ip_Config (from node_ip_config.h)
-	// needed when intializating system to exchange RDMA info
-	// created based on a configuration file
-	Table * ip_to_node;
-	// reverse mapping of above. Also created at init
-	Table * node_to_ip;
 	// mapping from node id => node_net
-	// Populated during the system intialization when exchanging info
-	// over TCP connections
+	// Populated from either this node's rdma_init tcp server
+	// or when it assumes client role and connects to a remote rdma_init tcp server (i.e. all the nodes in server_nodes_to_ip)
 	Table * nodes;
 } Net_World;
 
 
 // called before exchanging any info. Intializes that nodes table
 // That table then gets populated based on tcp exchange
-Net_World * init_net_world(Self_Net * self_net, int min_nodes, int max_nodes, char * node_ip_config_filename);
+Net_World * init_net_world(Self_Net * self_net, uint32_t max_nodes);
 
 
 // Used for Data Transmission

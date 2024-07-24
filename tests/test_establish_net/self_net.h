@@ -2,6 +2,7 @@
 #define SELF_NET_H
 
 #include "common.h"
+
 #define GID_NUM_BYTES 16
 
 typedef enum queue_pair_usage_type {
@@ -154,7 +155,7 @@ typedef struct self_net {
 	Self_Node * self_node;
 	// used for tcp connection at initialization
 	// network_byte order
-	uint32_t ip_addr;
+	uint32_t s_addr;
 } Self_Net;
 
 

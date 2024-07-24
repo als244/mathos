@@ -18,6 +18,7 @@
 #include <sys/types.h>
 #include <semaphore.h>
 #include <unistd.h>
+#include <errno.h>
 
 // For initial TCP connections
 #include <sys/socket.h>
@@ -31,5 +32,7 @@
 
 #define FINGERPRINT_NUM_BYTES 32
 #define FINGERPRINT_TYPE SHA256_HASH
+
+#define JOIN_NET_PORT 9123
 
 #endif

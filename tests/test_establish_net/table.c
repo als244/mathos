@@ -509,11 +509,11 @@ void * remove_item_table(Table * table, void * item) {
 //		- DO NOT FREE THE ITEMS WITHIN THIS ARRAY, BUT SHOULD FREE THE RETURNED ARRAY!
 // 	- These functions acquire size & count locks for duration 
 //		- (i.e. completely block out other functions until completition)
-void ** get_all_items_table(Table * table){
+uint64_t get_all_items_table(Table * table, void *** ret_all_items){
 
 	if (table == NULL){
 		fprintf(stderr, "Error in get_all_items_table, item table is null\n");
-		return NULL;
+		return 0;
 	}
 
 	int ret;
@@ -531,7 +531,7 @@ void ** get_all_items_table(Table * table){
 	void ** all_items = (void **) malloc(cnt * sizeof(void *));
 	if (all_items == NULL){
 		fprintf(stderr, "Error: malloc failed to allocate all_items container\n");
-		return NULL;
+		return 0;
 	}
 
 	// 3.) Iterate over table and add items
@@ -565,17 +565,18 @@ void ** get_all_items_table(Table * table){
 	pthread_mutex_unlock(&(table -> cnt_lock));
 	pthread_mutex_unlock(&(table -> size_lock));
 
-	// 5.) Return the container of all items
-	return all_items;
+	// 5.) Set the container of all items and return count
+	*ret_all_items = all_items; 
+	return cnt;
 }
 
 
 // Same as get_all_items_table, but calls the table -> item_cmp function on array before returning
-void ** get_all_items_sorted_table(Table * table) {
+uint64_t get_all_items_sorted_table(Table * table, void *** ret_all_items) {
 
 	if (table == NULL){
 		fprintf(stderr, "Error in get_all_items_sorted_table, item table is null\n");
-		return NULL;
+		return 0;
 	}
 
 	int ret;
@@ -629,8 +630,9 @@ void ** get_all_items_sorted_table(Table * table) {
 	// 5.) Sort the items before returning
 	qsort(all_items, cnt, sizeof(void *), table -> item_cmp);
 
-	// 6.) Return the container of all items
-	return all_items;
+	// 6.) Set the container of all items and return count
+	*ret_all_items = all_items; 
+	return cnt;
 
 
 }
