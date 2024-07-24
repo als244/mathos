@@ -291,9 +291,10 @@ void * run_join_net_server(void * _master) {
 	serv_addr.sin_family = AF_INET;
 
 	// set IP address of server
+	// INET_ATON return 0 on error!
 	ret = inet_aton(ip_addr, &serv_addr.sin_addr);
-	if (ret != 0){
-		fprintf(stderr, "Error: join server ip address: %s -- invalid\n", ip_addr);
+	if (ret == 0){
+		fprintf(stderr, "Error: master join server ip address: %s -- invalid\n", ip_addr);
 		return NULL;
 	}
 	// defined within config.h
