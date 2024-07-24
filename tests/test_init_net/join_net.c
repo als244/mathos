@@ -20,8 +20,9 @@ int connect_to_master(char * self_ip_addr, char * master_ip_addr, unsigned short
 	// local binding on any port works
 	local_addr.sin_port = 0;
 	// use the interface assoicated with IP address passed in as argument
+	// INET_ATON return 0 on error!
 	ret = inet_aton(self_ip_addr, &local_addr.sin_addr);
-	if (ret != 0){
+	if (ret == 0){
 		fprintf(stderr, "Error: self ip address: %s -- invalid\n", self_ip_addr);
 		return -1;
 	}
@@ -38,7 +39,8 @@ int connect_to_master(char * self_ip_addr, char * master_ip_addr, unsigned short
 	// port is defined in config.h and master/workers agree
 	serv_addr.sin_port = htons(master_port);
 	ret = inet_aton(master_ip_addr, &serv_addr.sin_addr);
-	if (ret != 0){
+	// INET_ATON return 0 on error!
+	if (ret == 0){
 		fprintf(stderr, "Error: master ip address: %s -- invalid\n", master_ip_addr);
 		close(client_sockfd);
 		return -1;
