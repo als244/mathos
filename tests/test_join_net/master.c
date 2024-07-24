@@ -393,6 +393,8 @@ int run_master(Master * master) {
 
 	pthread_t join_net_server_thread;
 
+	printf("Starting Master Server!\n\nWaiting for clients to connect...\n");
+	
 	ret = pthread_create(&join_net_server_thread, NULL, run_join_net_server, (void *) master);
 	if (ret != 0){
 		fprintf(stderr, "Error: pthread_create failed to start join server\n");
