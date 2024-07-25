@@ -15,7 +15,7 @@ int main(int argc, char * argv[]){
 		self_ip_addr = argv[2];
 	}	
 
-	printf("\n\nCreatiang self net\n\n");
+	printf("\n\nCreating self net\n\n");
 
 	Self_Net * self_net = default_worker_config_init_self_net(self_ip_addr);
 	if (self_net == NULL){
@@ -25,7 +25,7 @@ int main(int argc, char * argv[]){
 
 	printf("\n\nAttempting to join_net...\n");
 
-	Join_Response * join_response = join_net(self_ip_addr, master_ip_addr);
+	Join_Response * join_response = join_net(master_ip_addr, self_ip_addr);
 	if (join_response == NULL){
 		fprintf(stderr, "Error: could not join net, exiting\n");
 		return -1;
