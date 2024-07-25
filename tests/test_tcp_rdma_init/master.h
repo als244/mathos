@@ -5,6 +5,7 @@
 #include "config.h"
 #include "table.h"
 #include "self_net.h"
+#include "tcp_rdma_init.h"
 
 typedef struct master {
 	char * ip_addr;
