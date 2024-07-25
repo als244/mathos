@@ -91,6 +91,8 @@ Master * init_master(char * ip_addr, uint32_t max_nodes, uint32_t min_init_nodes
 		return NULL;
 	}
 
+	master -> self_net = self_net;
+
 	return master;
 }
 
@@ -379,11 +381,7 @@ void * run_join_net_server(void * _master) {
 
 		// Is blocking until there is an "available node" (means max_nodes - node_cnt)
 		// for master to accept new joiner
-		ret = sem_wait(&(master -> avail_node_cnt_sem));
-		if (ret != 0){
-			fprintf(stderr, "Error: sem_wait failed for avail_node_cnt_sem\n");
-			return NULL;
-		}
+		sem_wait(&(master -> avail_node_cnt_sem));
 
 		printf("Waiting for clients to connect...\n\n");
 
@@ -417,6 +415,8 @@ void * run_join_net_server(void * _master) {
 		}
 		else {
 			printf("Error: Unsuccessful join from Worker IP Address: %s\nNot fatal error, likely a connection error, continuing...\n\n", inet_ntoa(remote_sockaddr.sin_addr));
+			// we optimistically decremeneted the semaphore, but there was an error so we should post back
+			sem_post(&(master -> avail_node_cnt_sem));
 		}
 	}
 

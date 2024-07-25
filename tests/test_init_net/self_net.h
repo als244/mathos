@@ -19,7 +19,8 @@ typedef struct net_endpoint {
 typedef enum queue_pair_usage_type {
 	CONTROL_QP,
 	DATA_QP,
-	MASTER_QP
+	MASTER_QP,
+	ALERT_MULTICAST_QP
 } QueuePairUsageType;
 
 typedef struct qp {
@@ -120,7 +121,7 @@ struct self_port {
 	// index 0 containrs the port GID
 	// It is 16 bytes, where the high order 8 bytes refer to subnet and lower 8 bytes refer to vendor suplied GUID
 	union ibv_gid gid;
-	// The below 4 fields are found using ibv_query_port()
+	// The below 6 fields are found using ibv_query_port()
 	// a field within port_attr,
 	// but needed for configuring world_net
 	// so just storing as extra field for clarity
@@ -136,6 +137,9 @@ struct self_port {
 	// but keeping here for convenience
 	// use port_attr active_speed_ex, but if active_speed_ex is 0, then use port_attr uint8_t active_speed
 	uint32_t active_speed;
+	// needed for creating a multicast group
+	uint16_t sm_lid;
+	uint8_t sm_sl;
 	// populated iwth ibv_query_pkey()
 	// only needed if doing fancy partitioning for QoS or security
 	uint16_t pkey;
@@ -152,12 +156,20 @@ typedef struct self_node {
 	int total_qps;
 	// all devices' ports are packed together for easy lookup / transmission
 	Self_Port * ports;
+	// Maintaining bit masks to indicate if port active
+	// This will be sent to others upon rdma_init and upon any local async port_up/port_down
+	// Detect local change through ibv_get_async_event upon specific device context 
+	//		- (would see IBV_EVENT_PORT_ACTIVE or IBV_EVENT_PORT_ERR)
+	// size of array will be ceil(total_ports / 64)
+	uint64_t * active_port_bitmasks;
 	// NOTE: the two fields below are populated during Join Net
 	//			- Only relevant for worker_nodes (not master)
 	uint32_t node_id;
 	// destination of master QP
 	// used to send messages to master
-	Net_Endpoint master_dest;
+	// array of size total_ports
+	// Keeping an endpoint per-port in case a link goes down
+	Net_Endpoint * master_dests;
 } Self_Node;
 
 typedef struct self_net {

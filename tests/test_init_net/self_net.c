@@ -356,8 +356,8 @@ Self_Port init_self_port(Self_Net * self_net, int device_id, uint8_t port_num, u
 	port.lid = port_attr.lid;
 	port.active_mtu = port_attr.active_mtu;
 	port.active_speed = port_attr.active_speed;
-	
-
+	port.sm_lid = port_attr.sm_lid;
+	port.sm_sl = port_attr.sm_sl;
 
 	// 3.) Deal with Partitioning
 	//		- This is for either QoS or Security
@@ -393,7 +393,7 @@ Self_Port init_self_port(Self_Net * self_net, int device_id, uint8_t port_num, u
 
 // called from within init_self_node()
 // At initialization time port -> ah is left blank and populated during setup_world_net()
-Self_Port * init_self_port_container(Self_Net * self_net, int total_ports, int num_qp_types, QueuePairUsageType * qp_usage_types, bool * to_use_srq_by_type, int * num_qps_per_type) {
+Self_Port * init_self_port_container(Self_Net * self_net, int total_ports, uint64_t * active_port_bitmasks, int num_qp_types, QueuePairUsageType * qp_usage_types, bool * to_use_srq_by_type, int * num_qps_per_type) {
 
 	// Obtain device info from Self_Net
 	int num_ib_devices = self_net -> num_ib_devices;
@@ -413,6 +413,9 @@ Self_Port * init_self_port_container(Self_Net * self_net, int total_ports, int n
 	// physical port start at num = 1...?
 	// port 0 reserved for subnet manager...?
 	uint8_t device_num_ports;
+
+	int bitmask_arr_ind;
+	int bit_ind;
 	for (int device_id = 0; device_id < num_ib_devices; device_id++){
 		device_num_ports = (uint8_t) num_ports_per_dev[device_id];
 		// in InfiniBand physical port numbers start at 1
@@ -426,6 +429,17 @@ Self_Port * init_self_port_container(Self_Net * self_net, int total_ports, int n
 							device_id, phys_port_num);
 				return NULL;
 			}
+
+			// Creating port (& all QPs attached to it) succeeded
+
+			// If port is active, set the value in bitmask
+			if (ports[cur_logical_port_ind].state == IBV_PORT_ACTIVE){
+				bitmask_arr_ind = cur_logical_port_ind / 64;
+				bit_ind = cur_logical_port_ind % 64;
+				// set the bit to 1
+				active_port_bitmasks[bitmask_arr_ind] |= (1 << bit_ind);
+			}
+
 			cur_logical_port_ind += 1;
 		}
 	}
@@ -461,13 +475,25 @@ Self_Node * init_self_node(Self_Net * self_net, int num_qp_types, QueuePairUsage
 
 	self_node -> total_qps = total_ports * total_qps_per_port;
 
-	Self_Port * ports = init_self_port_container(self_net, total_ports, num_qp_types, qp_usage_types, to_use_srq_by_type, num_qps_per_type);
+	int bitmask_arr_size = ceil((float) total_ports / 64.0f);
+
+	uint64_t * active_port_bitmasks = (uint64_t *) malloc(bitmask_arr_size * sizeof(uint64_t));
+	// initially set 0 active ports
+	for (int i = 0; i < bitmask_arr_size; i++){
+		active_port_bitmasks[i] = 0;
+	}
+
+
+	Self_Port * ports = init_self_port_container(self_net, total_ports, active_port_bitmasks, num_qp_types, qp_usage_types, to_use_srq_by_type, num_qps_per_type);
 	if (ports == NULL){
 		fprintf(stderr, "Error: failed to initialize ports from init_self_node\n");
 		return NULL;
 	}
 
 	self_node -> ports = ports;
+	
+	// this array was set within init_self_port_container
+	self_node -> active_port_bitmasks = active_port_bitmasks;
 
 	return self_node;
 }
@@ -638,10 +664,10 @@ Self_Net * init_self_net(int num_qp_types, QueuePairUsageType * qp_usage_types, 
 
 Self_Net * default_worker_config_init_self_net(char * ip_addr) {
 
-	int num_qp_types = 2;
-	QueuePairUsageType qp_usage_types[2] = {CONTROL_QP, DATA_QP};
-	bool to_use_srq_by_type[2] = {true, false};
-	int num_qps_per_type[2] = {1, 2};
+	int num_qp_types = 3;
+	QueuePairUsageType qp_usage_types[3] = {CONTROL_QP, DATA_QP, MASTER_QP};
+	bool to_use_srq_by_type[3] = {true, false, true};
+	int num_qps_per_type[3] = {1, 1, 1};
 
 	// returns NULL upon error
 	return init_self_net(num_qp_types, qp_usage_types, to_use_srq_by_type, num_qps_per_type, ip_addr);
