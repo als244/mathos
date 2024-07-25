@@ -10,18 +10,8 @@
 
 
 #define GRH_SIZE_BYTES 40
-
 #define PATH_MTU IBV_MTU_4096
 
-// contains
-
-// Understand sgid_index better if there are multiple devices...?
-// Is SGID_INDEX always 0, or need to call ibv_find_gid_index()..?
-typedef struct net_endpoint {
-	struct ibv_ah * ah; 
-	uint32_t remote_qp_num;
-	uint32_t remote_qkey;
-} Net_Endpoint;
 
 typedef struct net_port {
 	// Unique Identifier provided by vendor

@@ -4,6 +4,7 @@
 #include "common.h"
 #include "config.h"
 #include "table.h"
+#include "self_net.h"
 
 typedef struct master {
 	char * ip_addr;
@@ -22,6 +23,8 @@ typedef struct master {
 	// maintins table of all node_id => ip_mappings
 	// Upon join, a node is inserted. Upon leave, a node is removed
 	Table * node_configs;
+	// Intialized self_net in order to communicate over RDMA with workers
+	Self_Net * self_net;
 } Master;
 
 

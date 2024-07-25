@@ -1,18 +1,32 @@
-#include "join_net.h"
+#include "self_net.h"
 
 int main(int argc, char * argv[]){
 
-	if (argc != 3){
-		fprintf(stderr, "Error: Usage ./testJoinNet <self_ip_addr> <master_ip_addr>\n");
+	
+	Self_Net * self_net = default_worker_config_init_self_net(NULL);
+	if (self_net == NULL){
+		fprintf(stderr, "Error: could not initialize self net\n");
 		return -1;
 	}
 
-	char * self_ip_addr = argv[1];
-	char * master_ip_addr = argv[2];
+	printf("Success! Total Ports: %d, Total QPs: %d\n", self_net -> self_node -> total_ports, self_net -> self_node -> total_qps);
+
+	/*
+	if ((argc != 2) && (argc != 3)){
+		fprintf(stderr, "Error: Usage ./testJoinNet <master_ip_addr> <self_ip_addr>\n");
+		return -1;
+	}
+	
+	char * master_ip_addr = argv[1];
+	
+	char * self_ip_addr = NULL;
+	if (argc == 3){
+		self_ip_addr = argv[2];
+	}	
 
 	printf("\n\nAttempting to join_net...\n");
 
-	Join_Response * join_response = join_net(self_ip_addr, master_ip_addr);
+	Join_Response * join_response = join_net(master_ip_addr, self_ip_addr);
 	if (join_response == NULL){
 		fprintf(stderr, "Error: could not join net, exiting\n");
 		return -1;
@@ -36,4 +50,5 @@ int main(int argc, char * argv[]){
 			join_response_h.node_cnt);
 
 	return 0;
+	*/
 }

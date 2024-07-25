@@ -3,7 +3,7 @@
 // returns file descriptor of client_sockfd to read/write with
 // in case of error, returns -1
 // passing in master_port_num in case we want to open more ports to serve different content...
-int connect_to_master(char * self_ip_addr, char * master_ip_addr, unsigned short master_port) {
+int connect_to_master(char * master_ip_addr, char * self_ip_addr, unsigned short master_port) {
 
 	int ret;
 
@@ -15,7 +15,7 @@ int connect_to_master(char * self_ip_addr, char * master_ip_addr, unsigned short
 	}
 
 	// 2.) Bind to the appropriate local network interface  (if self_ip_addr != master_ip_addr)
-	if (strcmp(self_ip_addr, master_ip_addr) != 0){
+	if ((self_ip_addr != NULL) && strcmp(self_ip_addr, master_ip_addr) != 0){
 		struct sockaddr_in local_addr;
 		local_addr.sin_family = AF_INET;
 		// local binding on any port works
@@ -150,7 +150,7 @@ int process_join_net_response(int sockfd, bool * ret_is_join_successful, Join_Re
 	return 0;
 }
 
-Join_Response * join_net(char * self_ip_addr, char * master_ip_addr) {
+Join_Response * join_net(char * master_ip_addr, char * self_ip_addr) {
 
 	int ret;
 
@@ -165,7 +165,7 @@ Join_Response * join_net(char * self_ip_addr, char * master_ip_addr) {
 	// loop until successfully join network
 	while (!is_join_successful){
 
-		client_sockfd = connect_to_master(self_ip_addr, master_ip_addr, JOIN_NET_PORT);
+		client_sockfd = connect_to_master(master_ip_addr, self_ip_addr, JOIN_NET_PORT);
 		if (client_sockfd == -1){
 			fprintf(stderr, "Couldn't connect to master. Timeout and retrying...\n");
 		}

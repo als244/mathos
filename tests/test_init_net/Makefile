@@ -1,34 +1,24 @@
 CC = gcc
 CFLAGS = -g -std=c99 -Wall -pedantic 
 
-all: testMaster testJoinNet
+all: testMaster testSelfNet
 
-## executables
+## master process
+testMaster: main_master.c master.o table.o self_net.o
+	${CC} ${CFLAGS} $^ -o $@ -lm -libverbs
 
-
-## MASTER PROGRAM
-testMaster: main_master.c master.o table.o
-	${CC} ${CFLAGS} $^ -o $@ -lm -pthread
-
-master.o: master.c
-	${CC} ${CFLAGS} -c $^
+## worker process
+testSelfNet: main_worker.c self_net.o
+	${CC} ${CFLAGS} $^ -o $@ -libverbs
 
 
-## WORKER PROGRAM
-
-testJoinNet: main_worker.c join_net.o
-	${CC} ${CFLAGS} $^ -o $@ -pthread
-
-
-join_net.o: join_net.c
-	${CC} ${CFLAGS} -c $^
-
-
-## BOTH
-
+## both
 table.o: table.c
+	${CC} ${CFLAGS} -c $^
+
+self_net.o: self_net.c
 	${CC} ${CFLAGS} -c $^
 
 
 clean:
-	rm -f *.o testMaster testJoinNet
+	rm -f *.o testMaster testSelfNet

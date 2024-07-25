@@ -84,6 +84,13 @@ Master * init_master(char * ip_addr, uint32_t max_nodes, uint32_t min_init_nodes
 
 	master -> node_configs = node_configs;
 
+
+	Self_Net * self_net = default_master_config_init_self_net(ip_addr);
+	if (self_net == NULL) {
+		fprintf(stderr, "Error: could not initialize master's self_net\n");
+		return NULL;
+	}
+
 	return master;
 }
 

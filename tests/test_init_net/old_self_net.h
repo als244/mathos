@@ -5,42 +5,26 @@
 
 #define GID_NUM_BYTES 16
 
-typedef struct self_port Self_Port;
-
-
-// Understand sgid_index better if there are multiple devices...?
-// Is SGID_INDEX always 0, or need to call ibv_find_gid_index()..?
-typedef struct net_endpoint {
-	struct ibv_ah * ah; 
-	uint32_t remote_qp_num;
-	uint32_t remote_qkey;
-} Net_Endpoint;
-
 typedef enum queue_pair_usage_type {
 	CONTROL_QP,
-	DATA_QP,
-	MASTER_QP
+	DATA_QP
 } QueuePairUsageType;
 
+typedef enum completion_queue_usage_type {
+	CONTROL_CQ,
+	DATA_CQ
+} CompletionQueueUsageType;
+
 typedef struct qp {
-	// back-reference the port this QP was created on
-	// can look up port details easily this way
-	// if we have a pool of struct QPs can figure things out
-	Self_Port * qp_port;
 	// this is the first-level index into qp_collection -> [send_cqs|recv_cqs] arrays
 	// keeping this here for bookkeeping/debuggability
 	QueuePairUsageType qp_usage_type;
 	// only used within self_net => null for others
 	// SRQ might be null depending on qp_usage_type
 	struct ibv_qp * ibv_qp;
+	// used as part of world_net to send messages
 	// found with ibv_query_qp()
-	// For CONTORL_QP and MASTER_QP: 
-	//	- Send these values (along with port_num, gid, & lid)
-	// 		during rdma_init phase of initialization (send over TCP connection)
-	// FOR DATA_QP:
-	//	- After acquiring exclusive access to this QP for an inbound transfer, 
-	//		send these values 
-	//		(along with log_port_ind, which is a logical index to a port so that sender can determine correct AH)
+	uint32_t port_num;
 	uint32_t qkey;
 	uint32_t qp_num;
 } QP;
@@ -71,7 +55,7 @@ typedef struct qp {
 
 typedef struct qp_collection {
 	// keeping track of device_id for debugging (a bit redundant)
-	int ib_device_id;
+	int device_id;
 	int num_qp_types;
 	QueuePairUsageType * qp_usage_types;
 	bool * to_use_srq_by_type;
@@ -84,9 +68,9 @@ typedef struct qp_collection {
 
 
 typedef struct cq {
-	// The CQ Usage Type is assoicated with a corresponding QP Usage Type
-	// Meaning this CQ is used on QPs of a given type
-	QueuePairUsageType cq_usage_type;
+	// this is the index into cq_collection -> [send_cqs|recv_cqs] arrays
+	// keeping this here for bookkeeping/debuggability
+	CompletionQueueUsageType cq_usage_type;
 	struct ibv_cq_ex * ibv_cq;
 } CQ;
 
@@ -96,71 +80,57 @@ typedef struct cq {
 // (i.e. all Send Queues of type 0 within all physical ports of device 0 will share)
 typedef struct cq_collection {
 	// keeping track of device_id for debugging (a bit redundant)
-	int ib_device_id;
+	int device_id;
+	// for now, the same as num_qp_types
+	int num_cq_types;
+	CompletionQueueUsageType * cq_usage_types;
 	CQ ** send_cqs;
 	CQ ** recv_cqs;
 } CQ_Collection;
 
 
-struct self_port {
+typedef struct self_port {
 	// the device that this port is associated with
 	// refers to index within network ibv_dev_ctxs
-	int ib_device_id;
-	// the port_num indicies start at 1
-	// ib_port_num for a specific device
+	int device_id;
 	uint8_t port_num;
-	// index within the self_node ports array
-	// this is the value sent during data transfer initiation
-	// the other side will have a copy of the same array and will use 
-	// this logical_port_ind to look up the appropriate Address Handle 
-	uint32_t logical_port_ind;
-	// populated with ibv_query_gid()
-	// NEEDED FOR configuration of world_net 
-	// to create Address Handle's to remote ports
-	// index 0 containrs the port GID
-	// It is 16 bytes, where the high order 8 bytes refer to subnet and lower 8 bytes refer to vendor suplied GUID
-	union ibv_gid gid;
-	// The below 4 fields are found using ibv_query_port()
-	// a field within port_attr,
+	// populated with ibv_query_port()
+	struct ibv_port_attr port_attr;
+	// a field within port_attr, 
 	// but needed for configuring world_net
 	// so just storing as extra field for clarity
-	// Subnet Manager (in InfiniBand) assigns lid
 	uint16_t lid;
-	// Indicates if port is active or down
-	// Still intitialize QPs on down state, but make sure to not send these out as destination control QPs
-	// or use them to receive inbound data transfers
-	enum ibv_port_state state;
-	// a field within port_attr
-	enum ibv_mtu active_mtu;
-	// a field within port_attr,
-	// but keeping here for convenience
-	// use port_attr active_speed_ex, but if active_speed_ex is 0, then use port_attr uint8_t active_speed
-	uint32_t active_speed;
+	
+	// MIGHT NEED THESE FOR WORLD_NET_CONFIGURATION
+	// But subnet manager might already take care of them...?
+	
+	// populated with ibv_query_gid()
+	// NEEDED FOr configuration of world_net 
+	// to create Address Handle's to remote ports
+	// index 0 containrs the port GID, which is a constant value, provided by the vendor
+	union ibv_gid gid;
 	// populated iwth ibv_query_pkey()
-	// only needed if doing fancy partitioning for QoS or security
 	uint16_t pkey;
-	// the cpu_set assoicated with the port's device
-	// found by reading the local_cpus file from sysfs
-	// this file has comma seperate uint32_t's representing cpu bitmasks
-	cpu_set_t * local_cpus;
+	
 	// used to break up set of qps into types
 	QP_Collection * qp_collection;
-};
+	// only used within world_net
+	// needed when sending to any QP part of this port's collection
+	struct ibv_ah * ibv_ah;
+} Self_Port;
 
 typedef struct self_node {
-	int total_ports;
-	int total_qps;
-	// all devices' ports are packed together for easy lookup / transmission
-	Self_Port * ports;
-	// NOTE: the two fields below are populated during Join Net
-	//			- Only relevant for worker_nodes (not master)
-	uint32_t node_id;
-	// destination of master QP
-	// used to send messages to master
-	Net_Endpoint master_dest;
+	int node_id;
+	int num_ib_devices;
+	int * num_ports_per_dev;
+	// first level: number of devices
+	// second level: number of ports for that device
+	// third level: pointer to port
+	Self_Port *** ports;
 } Self_Node;
 
 typedef struct self_net {
+	int node_id;
 	int num_ib_devices;
 	// result of call from ibv_get_device_list()
 	struct ibv_device ** ib_devices;
@@ -177,26 +147,25 @@ typedef struct self_net {
 	// Create SRQs for each device that might be used
 	// for QPs within a port depending on QP usage type
 	struct ibv_srq ** dev_srqs;
+	// Keep some accounting numbers around (possibly for debugging)
+	int total_ports;
+	int total_qps_per_port;
+	int total_qps_node;
 	// where all the QPs are stored
 	Self_Node * self_node;
-	// If ip_addr is non-null will use this ip_address to connect to master port
-	// Otherwise, use system default
-	// Whichever ip address is used to connect to master server will 
-	// be the ip address used for this node's rdma_init tcp server
-	// inet_
+	// used for tcp connection at initialization
 	// network_byte order
 	uint32_t s_addr;
 } Self_Net;
 
 
 // allocates structures and populates self_net
-Self_Net * init_self_net(int num_qp_types, QueuePairUsageType * qp_usage_types, bool * to_use_srq_by_type, int * num_qps_per_type, char * ip_addr_str);
+Self_Net * init_self_net(int self_id, int num_qp_types, QueuePairUsageType * qp_usage_types, bool * to_use_srq_by_type, int * num_qps_per_type, 
+						int num_cq_types, CompletionQueueUsageType * cq_usage_types, char * ip_addr_str);
 
 
 // populating default values arguments to init_self_net
-Self_Net * default_worker_config_init_self_net(char * ip_addr);
-
-Self_Net * default_master_config_init_self_net(char * ip_addr);
+Self_Net * default_config_init_self_net(int self_id, char * ip_addr);
 
 
 #endif
