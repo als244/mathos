@@ -5,6 +5,7 @@
 #include "config.h"
 #include "table.h"
 #include "self_net.h"
+#include "net_world.h"
 #include "tcp_rdma_init.h"
 
 typedef struct master {
@@ -25,7 +26,7 @@ typedef struct master {
 	// Upon join, a node is inserted. Upon leave, a node is removed
 	Table * node_configs;
 	// Intialized self_net in order to communicate over RDMA with workers
-	Self_Net * self_net;
+	Net_World * net_world;
 } Master;
 
 

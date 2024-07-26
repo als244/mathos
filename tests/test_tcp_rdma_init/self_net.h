@@ -2,37 +2,23 @@
 #define SELF_NET_H
 
 #include "common.h"
+#include "config.h"
 
 #define GID_NUM_BYTES 16
 
 typedef struct self_port Self_Port;
 
-
-// Understand sgid_index better if there are multiple devices...?
-// Is SGID_INDEX always 0, or need to call ibv_find_gid_index()..?
-typedef struct net_endpoint {
-	struct ibv_ah * ah; 
-	uint32_t remote_qp_num;
-	uint32_t remote_qkey;
-} Net_Endpoint;
-
-typedef enum queue_pair_usage_type {
-	CONTROL_QP,
-	DATA_QP,
-	MASTER_QP,
-	ALERT_MULTICAST_QP
-} QueuePairUsageType;
-
-typedef struct qp {
+typedef struct self_endpoint {
+	// This will be send to the other side so they can refer to this endpoint easily
+	// It is the index within self_node -> endpoints
+	uint32_t node_endpoint_ind;
 	// back-reference the port this QP was created on
 	// can look up port details easily this way
 	// if we have a pool of struct QPs can figure things out
 	Self_Port * qp_port;
-	// this is the first-level index into qp_collection -> [send_cqs|recv_cqs] arrays
-	// keeping this here for bookkeeping/debuggability
-	QueuePairUsageType qp_usage_type;
+	EndpointType endpoint_type;
 	// only used within self_net => null for others
-	// SRQ might be null depending on qp_usage_type
+	// SRQ might be null depending on endpoint_type
 	struct ibv_qp * ibv_qp;
 	// found with ibv_query_qp()
 	// For CONTORL_QP and MASTER_QP: 
@@ -44,7 +30,7 @@ typedef struct qp {
 	//		(along with log_port_ind, which is a logical index to a port so that sender can determine correct AH)
 	uint32_t qkey;
 	uint32_t qp_num;
-} QP;
+} Self_Endpoint;
 
 // Idea is to keep a Small set of total QPs (~ 1 per CPU-core)
 // and then have remote ports load balanced across these
@@ -70,24 +56,10 @@ typedef struct qp {
 // with a specific object fingerprint)
 
 
-typedef struct qp_collection {
-	// keeping track of device_id for debugging (a bit redundant)
-	int ib_device_id;
-	int num_qp_types;
-	QueuePairUsageType * qp_usage_types;
-	bool * to_use_srq_by_type;
-	int * num_qps_per_type;
-	// first level: by type
-	// second level: number qp within type
-	// third level: pointer to QP
-	QP *** queue_pairs;
-} QP_Collection;
-
-
 typedef struct cq {
 	// The CQ Usage Type is assoicated with a corresponding QP Usage Type
 	// Meaning this CQ is used on QPs of a given type
-	QueuePairUsageType cq_usage_type;
+	EndpointType endpoint_type;
 	struct ibv_cq_ex * ibv_cq;
 } CQ;
 
@@ -104,17 +76,17 @@ typedef struct cq_collection {
 
 
 struct self_port {
+	// index within the self_node ports array
+	// this is the value sent during data transfer initiation
+	// the other side will have a copy of the same array and will use 
+	// this node_port_ind to look up the appropriate Address Handle 
+	uint32_t node_port_ind;
 	// the device that this port is associated with
 	// refers to index within network ibv_dev_ctxs
 	int ib_device_id;
 	// the port_num indicies start at 1
 	// ib_port_num for a specific device
 	uint8_t port_num;
-	// index within the self_node ports array
-	// this is the value sent during data transfer initiation
-	// the other side will have a copy of the same array and will use 
-	// this logical_port_ind to look up the appropriate Address Handle 
-	uint32_t logical_port_ind;
 	// populated with ibv_query_gid()
 	// NEEDED FOR configuration of world_net 
 	// to create Address Handle's to remote ports
@@ -147,29 +119,15 @@ struct self_port {
 	// found by reading the local_cpus file from sysfs
 	// this file has comma seperate uint32_t's representing cpu bitmasks
 	cpu_set_t * local_cpus;
-	// used to break up set of qps into types
-	QP_Collection * qp_collection;
 };
 
 typedef struct self_node {
-	int total_ports;
-	int total_qps;
+	uint32_t num_ports;
+	uint32_t num_endpoints;
 	// all devices' ports are packed together for easy lookup / transmission
 	Self_Port * ports;
-	// Maintaining bit masks to indicate if port active
-	// This will be sent to others upon rdma_init and upon any local async port_up/port_down
-	// Detect local change through ibv_get_async_event upon specific device context 
-	//		- (would see IBV_EVENT_PORT_ACTIVE or IBV_EVENT_PORT_ERR)
-	// size of array will be ceil(total_ports / 64)
-	uint64_t * active_port_bitmasks;
-	// NOTE: the two fields below are populated during Join Net
-	//			- Only relevant for worker_nodes (not master)
-	uint32_t node_id;
-	// destination of master QP
-	// used to send messages to master
-	// array of size total_ports
-	// Keeping an endpoint per-port in case a link goes down
-	Net_Endpoint * master_dests;
+	// all of the nodes' endpoints (QPs) are packed together
+	Self_Endpoint * endpoints;
 } Self_Node;
 
 typedef struct self_net {
@@ -195,14 +153,12 @@ typedef struct self_net {
 	// Otherwise, use system default
 	// Whichever ip address is used to connect to master server will 
 	// be the ip address used for this node's rdma_init tcp server
-	// inet_
-	// network_byte order
-	uint32_t s_addr;
+	char * ip_addr;
 } Self_Net;
 
 
 // allocates structures and populates self_net
-Self_Net * init_self_net(int num_qp_types, QueuePairUsageType * qp_usage_types, bool * to_use_srq_by_type, int * num_qps_per_type, char * ip_addr_str);
+Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, bool * to_use_srq_by_type, int * num_qps_per_type, char * ip_addr_str);
 
 
 // populating default values arguments to init_self_net

@@ -54,7 +54,8 @@ Master * init_master(char * ip_addr, uint32_t max_nodes, uint32_t min_init_nodes
 		return NULL;
 	}
 
-	master -> id_to_assign = 0;
+	// NOTE: start assigning at 1 because master id is given 0
+	master -> id_to_assign = 1;
 
 	// Ensure that there is room in the table before processing a new join_net request
 	ret = sem_init(&(master -> avail_node_cnt_sem), 0, max_nodes);
@@ -91,7 +92,14 @@ Master * init_master(char * ip_addr, uint32_t max_nodes, uint32_t min_init_nodes
 		return NULL;
 	}
 
-	master -> self_net = self_net;
+	// MASTER_NODE_ID defined within config.h
+	Net_World * net_world = init_net_world(self_net, MASTER_NODE_ID, max_nodes, min_init_nodes, ip_addr);
+	if (net_world == NULL){
+		fprintf(stderr, "Error: could not initialize master's net_world\n");
+		return NULL;
+	}
+
+	master -> net_world = net_world;
 
 	return master;
 }
@@ -117,6 +125,10 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 	// Retrieve the socket that will be used for sending the previously joined node configs
 	// This was the sockfd returned from accept()
 	int sockfd = worker_connection -> sockfd;
+
+	// in case the connecting node didn't set its ip,
+	// let it know what it was so it can start its rdma_init server
+	uint32_t s_addr = worker_connection -> remote_sockaddr.sin_addr.s_addr;
 
 	
 	// 1.) Determine ID to assign node
@@ -153,8 +165,9 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 	// a.) Specify the header
 	join_response.header.node_id = id_to_assign;
 	join_response.header.max_nodes = master -> max_nodes;
+	join_response.header.cur_node_cnt = node_cnt;
 	join_response.header.min_init_nodes = master -> min_init_nodes;
-	join_response.header.node_cnt = node_cnt;
+	join_response.header.s_addr = s_addr;
 	
 	// b.) Create dynamically sized array containing packed Node_Configs
 
@@ -181,12 +194,12 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 	printf("\
 			Node ID: %u\n \
 			Max Nodes: %u\n \
-			Min Init Nodes: %u\n \
-			Node Count: %u\n\n", 
+			Current Node Count: %u\n \
+			Min Init Nodes: %u\n\n",
 			join_response.header.node_id, 
 			join_response.header.max_nodes, 
 			join_response.header.min_init_nodes, 
-			join_response.header.node_cnt);
+			join_response.header.cur_node_cnt);
 
 	byte_cnt = send(sockfd, &join_response.header, sizeof(Join_Response_H), 0);
 	if (byte_cnt != sizeof(Join_Response_H)){
