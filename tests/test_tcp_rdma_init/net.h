@@ -13,9 +13,15 @@
 // need an endpoint for every source port
 // => ah is created per context
 typedef struct net_endpoint {
-	struct ibv_ah * ah;
+	EndpointType endpoint_type;
 	uint32_t remote_qp_num;
 	uint32_t remote_qkey;
+	// this is is the index within net_node -> ports
+	// in order to obtain the correct struct ibv_ah * (needed for sending UD)
+	// then based on the sender's device choose an ah within this ports address_handles
+	// (i.e. to send to this endpoint from self_device_id = j, then do:
+	//	net_node -> ports[remote_node_port_ind] -> address_handles[j]
+	uint32_t remote_node_port_ind;
 } Net_Endpoint;
 
 typedef struct net_port {
@@ -24,11 +30,11 @@ typedef struct net_port {
 	// used to create ah
 	// also provided in GRH upon receiving a control message (sgid)
 	union ibv_gid gid;
-	// port num corresponding to a specific gid
-	uint8_t port_num;
 	// Determined by Subnet Manager (switch)
 	// FOR NOW, NOT USING
 	uint16_t lid;
+	// port num corresponding to a specific gid
+	uint8_t port_num;
 	// Need to know if port is active
 	enum ibv_port_state state;
 	// other port specs that the other side might care about
@@ -45,9 +51,6 @@ typedef struct net_port {
 typedef struct net_node {
 	// Assigned by master join_net server
 	uint32_t node_id;
-	// keeping the ip address here in case disruption in RDMA 
-	// network-byte order (s_addr)
-	uint32_t s_addr;
 	// Note that on mellnox cards each port is counted as a device
 	uint32_t num_ports;
 	// Note that on mellanox cards there is typically 1 port per dev, because each dev is actually a port
@@ -94,8 +97,14 @@ Net_World * init_net_world(Self_Net * self_net, uint32_t node_id, uint32_t max_n
 
 void destroy_net_world(Net_World * net_world);
 
-// this is called during the processing of a tcp_rdma_init connection
-int net_add_node(Net_World * net_world, Rdma_Init_Info * rdma_init_info);
+// this is called during the processing of a tcp_rdma_init connection (tcp_rdma_init.c)
+// it allocates memory for a node, and populates ports and enpoints based on the received rdma_init_info
+// for each port creates address handle for all of the self_ib_devices so that we can send to this remote port from any of our ports easily
+Net_Node * net_add_node(Net_World * net_world, Rdma_Init_Info * remote_rdma_init_info);
+
+
+// Destroys all address handles, frees all memory associated with node, and removes from net_world -> nodes table
+void destroy_remote_node(Net_World * net_world, Net_Node * node);
 
 
 // Used for Data Transmission
