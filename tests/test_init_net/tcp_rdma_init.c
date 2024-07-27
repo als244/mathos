@@ -254,7 +254,7 @@ void * run_tcp_rdma_init_server(void * _net_world) {
 	// 1.) create server TCP socket
 	int serv_sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (serv_sockfd == -1){
-		fprintf(stderr, "Error: could not create server socket\n");
+		fprintf(stderr, "[RDMA_Init TCP Server] Error: could not create server socket\n");
 		return NULL;
 	}
 
@@ -266,7 +266,7 @@ void * run_tcp_rdma_init_server(void * _net_world) {
 	// INET_ATON return 0 on error!
 	ret = inet_aton(ip_addr, &serv_addr.sin_addr);
 	if (ret == 0){
-		fprintf(stderr, "Error: master join server ip address: %s -- invalid\n", ip_addr);
+		fprintf(stderr, "[RDMA_Init TCP Server] Error: master join server ip address: %s -- invalid\n", ip_addr);
 		return NULL;
 	}
 	// defined within config.h
@@ -285,14 +285,14 @@ void * run_tcp_rdma_init_server(void * _net_world) {
 	// 3.) Bind server to port
 	ret = bind(serv_sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
 	if (ret != 0){
-		fprintf(stderr, "Error: could not bind server socket to address: %s, port: %u\n", ip_addr, rdma_init_server_port);
+		fprintf(stderr, "[RDMA_Init TCP Server] Error: could not bind server socket to address: %s, port: %u\n", ip_addr, rdma_init_server_port);
 		return NULL;
 	}
 
 	// 4.) Start Listening
 	ret = listen(serv_sockfd, max_nodes);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not start listening on server socket\n");
+		fprintf(stderr, "[RDMA_Init TCP Server] Error: could not start listening on server socket\n");
 		return NULL;
 	}
 
@@ -315,7 +315,7 @@ void * run_tcp_rdma_init_server(void * _net_world) {
 		// 1.) accept new connection (blocking)
 		connected_sockfd = accept(serv_sockfd, (struct sockaddr *) &remote_sockaddr, &remote_len);
 		if (connected_sockfd < 0){
-			fprintf(stderr, "Error: could not process accept within master join server\n");
+			fprintf(stderr, "[RDMA_Init TCP Server] Error: could not process accept within master join server\n");
 			// fatal error
 			return NULL;
 		}
@@ -327,16 +327,16 @@ void * run_tcp_rdma_init_server(void * _net_world) {
 		// This function will handle closing socket
 		ret = process_rdma_init_connection(connected_sockfd, net_world, &is_rdma_init_successful, &node_id_added);
 		if (ret != 0){
-			fprintf(stderr, "Error: could not process connection from remote addr: %s\nA fatal error occured on server end, exiting\n", inet_ntoa(remote_sockaddr.sin_addr));
+			fprintf(stderr, "[RDMA_Init TCP Server] Error: could not process connection from remote addr: %s\nA fatal error occured on server end, exiting\n", inet_ntoa(remote_sockaddr.sin_addr));
 			return NULL;
 		}
 
 		// FOR NOW: Print out the result of processing request
 		if (is_rdma_init_successful){
-			printf("RDMA Initialization Successful! Node ID: %u (ip addr: %s) added to table", node_id_added, inet_ntoa(remote_sockaddr.sin_addr));
+			printf("[RDMA_Init TCP Server] RDMA Initialization Successful! Node ID: %u (ip addr: %s) added to table\n", node_id_added, inet_ntoa(remote_sockaddr.sin_addr));
 		}
 		else {
-			printf("Error: Unsuccessful RDMA Initialization from ip addr: %s\nNot fatal error, likely a connection error, continuing...\n\n", inet_ntoa(remote_sockaddr.sin_addr));
+			printf("[RDMA_Init TCP Server] Error: Unsuccessful RDMA Initialization from ip addr: %s\nNot fatal error, likely a connection error, continuing...\n\n", inet_ntoa(remote_sockaddr.sin_addr));
 		}
 
 	}
