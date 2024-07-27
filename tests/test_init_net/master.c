@@ -199,7 +199,7 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 
 	// 4.) Send the join response header
 
-	printf("\n[Master Server] Sending join reponse:\n\tNode ID: %u\n\tMax Nodes: %u\n\tCurrent Node Count: %u\n\tMin Init Nodes: %u\n\n",
+	printf("\n[Master Server] Sending join response:\n\tNode ID: %u\n\tMax Nodes: %u\n\tCurrent Node Count: %u\n\tMin Init Nodes: %u\n\n",
 			join_response.header.node_id, 
 			join_response.header.max_nodes, 
 			join_response.header.min_init_nodes, 
