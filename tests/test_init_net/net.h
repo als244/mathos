@@ -76,8 +76,9 @@ typedef struct net_world {
 	uint32_t self_node_id;
 	uint32_t max_nodes;
 	uint32_t min_init_nodes;
-	// during initialization, after every successfully node addition, check the table count
-	// if the table count == min_init_nodes + 1 (the plus 1 is for master)
+	// This semaphore is only needed for workers:
+	// During initialization, after every successfully node addition, check the table count
+	// if the table count == min_init_nodes (-1 for self, but +1 for master)
 	// then post to the semaphore
 	sem_t is_init_ready; 
 	// This corresponds to the ip address that the worker connected to master with

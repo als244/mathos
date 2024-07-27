@@ -168,13 +168,13 @@ int process_rdma_init_connection(int sockfd, Net_World * net_world, bool * ret_i
 	free(remote_rdma_init_info);
 
 
-	// 7.) check the table count and see if it equals min_init_nodes + 1
+	// 7.) check the table count and see if it equals min_init_nodes
 	//		- if so, then post to the semaphore to let main init function return
 
 	uint32_t min_init_nodes = net_world -> min_init_nodes;
 
 	uint32_t connected_nodes_cnt = (uint32_t) get_count(net_world -> nodes);
-	if (connected_nodes_cnt == min_init_nodes + 1){
+	if (connected_nodes_cnt == min_init_nodes){
 		sem_post(&(net_world -> is_init_ready));
 	}
 

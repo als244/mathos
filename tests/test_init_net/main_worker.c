@@ -21,5 +21,7 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
+	printf("Successfully initialized network!\n");
+
 	return 0;
 }
