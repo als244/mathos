@@ -50,6 +50,8 @@ Net_World * init_net(char * master_ip_addr, char * self_ip_addr) {
 			fprintf(stderr, "Error: fatal failure connecting to rdma init server with ip addr: %s\n", rdma_init_server_ip_addr);
 			return NULL;
 		}
+		printf("[Node %u] RDMA Initialization Successful! To Node ID: %u (ip addr: %s). Added to net_world table.\n", 
+					net_world -> self_node_id, cur_rdma_init_server.node_id, rdma_init_server_ip_addr);
 	}
 
 

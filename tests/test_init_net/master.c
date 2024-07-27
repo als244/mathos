@@ -38,7 +38,7 @@ Master * init_master(char * ip_addr, uint32_t max_nodes, uint32_t min_init_nodes
 
 	Master * master = (Master *) malloc(sizeof(Master));
 	if (master == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate master server\n");
+		fprintf(stderr, "[Master] Error: malloc failed to allocate master server\n");
 		return NULL;
 	}
 
@@ -50,7 +50,7 @@ Master * init_master(char * ip_addr, uint32_t max_nodes, uint32_t min_init_nodes
 	//	=> if becomes issue for larger net, or init is annoying slow, should think harder about init design
 	ret = pthread_mutex_init(&(master -> id_to_assign_lock), NULL);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not initialize id_to_assign_lock\n");
+		fprintf(stderr, "[Master] Error: could not initialize id_to_assign_lock\n");
 		return NULL;
 	}
 
@@ -60,7 +60,7 @@ Master * init_master(char * ip_addr, uint32_t max_nodes, uint32_t min_init_nodes
 	// Ensure that there is room in the table before processing a new join_net request
 	ret = sem_init(&(master -> avail_node_cnt_sem), 0, max_nodes);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not initialize avail_node_cnt_sem\n");
+		fprintf(stderr, "[Master] Error: could not initialize avail_node_cnt_sem\n");
 		return NULL;
 	}
 
@@ -79,7 +79,7 @@ Master * init_master(char * ip_addr, uint32_t max_nodes, uint32_t min_init_nodes
 	Item_Cmp item_cmp_node_config = &node_config_cmp;
 	Table * node_configs = init_table(min_nodes, max_nodes, load_factor, shrink_factor, hash_func_node_config, item_cmp_node_config);
 	if (node_configs == NULL){
-		fprintf(stderr, "Error: could not initialize master node_config table\n");
+		fprintf(stderr, "[Master] Error: could not initialize master node_config table\n");
 		return NULL;
 	}
 
@@ -88,14 +88,14 @@ Master * init_master(char * ip_addr, uint32_t max_nodes, uint32_t min_init_nodes
 
 	Self_Net * self_net = default_master_config_init_self_net(ip_addr);
 	if (self_net == NULL) {
-		fprintf(stderr, "Error: could not initialize master's self_net\n");
+		fprintf(stderr, "[Master] Error: could not initialize master's self_net\n");
 		return NULL;
 	}
 
 	// MASTER_NODE_ID defined within config.h
 	Net_World * net_world = init_net_world(self_net, MASTER_NODE_ID, max_nodes, min_init_nodes, ip_addr);
 	if (net_world == NULL){
-		fprintf(stderr, "Error: could not initialize master's net_world\n");
+		fprintf(stderr, "[Master] Error: could not initialize master's net_world\n");
 		return NULL;
 	}
 
@@ -105,7 +105,7 @@ Master * init_master(char * ip_addr, uint32_t max_nodes, uint32_t min_init_nodes
 	// this thread will never return
 	ret = pthread_create(&(master -> tcp_rdma_init_server_thread), NULL, run_tcp_rdma_init_server, (void *) net_world);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not start rdma_init tcp server\n");
+		fprintf(stderr, "[Master] Error: could not start rdma_init tcp server\n");
 		return NULL;
 	}
 	
@@ -160,7 +160,7 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 	uint32_t node_cnt;
 	ret = (uint32_t) get_all_items_table(master -> node_configs, to_start_rand, to_sort, (uint64_t *) &node_cnt, (void *) &all_node_config);
 	if (ret != 0){
-		fprintf(stderr, "Error: failure in get_all_items_table()\n");
+		fprintf(stderr, "[Master Server] Error: failure in get_all_items_table()\n");
 		pthread_mutex_unlock(&(master -> id_to_assign_lock));
 		close(sockfd);
 		*ret_is_join_successful = false;
@@ -182,7 +182,7 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 	if (node_cnt > 0){
 		join_response.node_config_arr = (Node_Config *) malloc(node_cnt * sizeof(Node_Config));
 		if (join_response.node_config_arr == NULL){
-			fprintf(stderr, "Error: malloc failed to allocate node_config array\n");
+			fprintf(stderr, "[Master Server] Error: malloc failed to allocate node_config array\n");
 			pthread_mutex_unlock(&(master -> id_to_assign_lock));
 			close(sockfd);
 			*ret_is_join_successful = false;
@@ -199,11 +199,7 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 
 	// 4.) Send the join response header
 
-	printf("\
-			Node ID: %u\n \
-			Max Nodes: %u\n \
-			Current Node Count: %u\n \
-			Min Init Nodes: %u\n\n",
+	printf("\n[Master Server] Sending join reponse:\n\tNode ID: %u\n\tMax Nodes: %u\n\tCurrent Node Count: %u\n\tMin Init Nodes: %u\n\n",
 			join_response.header.node_id, 
 			join_response.header.max_nodes, 
 			join_response.header.min_init_nodes, 
@@ -211,7 +207,7 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 
 	byte_cnt = send(sockfd, &join_response.header, sizeof(Join_Response_H), 0);
 	if (byte_cnt != sizeof(Join_Response_H)){
-		fprintf(stderr, "Error: Bad sending of join response header. Only sent %zd bytes out of %zu\n", byte_cnt, sizeof(Join_Response_H));
+		fprintf(stderr, "[Master Server] Error: Bad sending of join response header. Only sent %zd bytes out of %zu\n", byte_cnt, sizeof(Join_Response_H));
 		pthread_mutex_unlock(&(master -> id_to_assign_lock));
 		close(sockfd);
 		free(join_response.node_config_arr);
@@ -225,7 +221,7 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 		// benefit of
 		byte_cnt = send(sockfd, join_response.node_config_arr, node_cnt * sizeof(Node_Config), 0);
 		if (byte_cnt != node_cnt * sizeof(Node_Config)){
-			fprintf(stderr, "Error: Bad sending of join response's node_config_array. Only sent %zd bytes out of %zu\n", byte_cnt, node_cnt * sizeof(Node_Config));
+			fprintf(stderr, "[Master Server] Error: Bad sending of join response's node_config_array. Only sent %zd bytes out of %zu\n", byte_cnt, node_cnt * sizeof(Node_Config));
 			pthread_mutex_unlock(&(master -> id_to_assign_lock));
 			close(sockfd);
 			free(join_response.node_config_arr);
@@ -243,7 +239,7 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 	bool ack;
 	byte_cnt = recv(sockfd, &ack, sizeof(bool), MSG_WAITALL);
 	if (byte_cnt != sizeof(bool)){
-		fprintf(stderr, "Error: Didn't receive confirmation that worker was successful. Errno String: %s", strerror(errno));
+		fprintf(stderr, "[Master Server] Error: Didn't receive confirmation that worker was successful. Errno String: %s", strerror(errno));
 		pthread_mutex_unlock(&(master -> id_to_assign_lock));
 		close(sockfd);
 		*ret_is_join_successful = false;
@@ -257,7 +253,7 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 	
 	Node_Config * node_config = (Node_Config *) malloc(sizeof(Node_Config));
 	if (node_config == NULL){
-		fprintf(stderr, "Error: malloc failed allocating node_config\n");
+		fprintf(stderr, "[Master Server] Error: malloc failed allocating node_config\n");
 		pthread_mutex_unlock(&(master -> id_to_assign_lock));
 		close(sockfd);
 		*ret_is_join_successful = false;
@@ -278,7 +274,7 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 	ret = insert_item_table(master -> node_configs, node_config);
 	// IF FAILURE, THEN THE CURRENT CONNECTED WORKER WILL NOT RECEIVE RDMA_INIT CONNECTION REQUESTS FROM FUTURE JOINERS
 	if (ret != 0){
-		fprintf(stderr, "Error: failed to insert node with id: %u\n", id_to_assign);
+		fprintf(stderr, "[Master Server] Error: failed to insert node with id: %u\n", id_to_assign);
 		pthread_mutex_unlock(&(master -> id_to_assign_lock));
 		free(node_config);
 		close(sockfd);
@@ -292,7 +288,7 @@ int process_join_net_request(Worker_Connection * worker_connection, bool * ret_i
 	ack = true;
 	byte_cnt = send(sockfd, &ack, sizeof(bool), 0);
 	if (byte_cnt != sizeof(bool)){
-		fprintf(stderr, "Error: Couldn't send the ack indicating success of addition to node_config table. Errno String: %s", strerror(errno));
+		fprintf(stderr, "[Master Server] Error: Couldn't send the ack indicating success of addition to node_config table. Errno String: %s", strerror(errno));
 		close(sockfd);
 		*ret_is_join_successful = false;
 		return 0;
@@ -340,7 +336,7 @@ void * run_join_net_server(void * _master) {
 	// 1.) create server TCP socket
 	int serv_sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (serv_sockfd == -1){
-		fprintf(stderr, "Error: could not create server socket\n");
+		fprintf(stderr, "[Master Server] Error: could not create server socket\n");
 		return NULL;
 	}
 
@@ -352,7 +348,7 @@ void * run_join_net_server(void * _master) {
 	// INET_ATON return 0 on error!
 	ret = inet_aton(ip_addr, &serv_addr.sin_addr);
 	if (ret == 0){
-		fprintf(stderr, "Error: master join server ip address: %s -- invalid\n", ip_addr);
+		fprintf(stderr, "[Master Server] Error: master join server ip address: %s -- invalid\n", ip_addr);
 		return NULL;
 	}
 	// defined within config.h
@@ -361,14 +357,14 @@ void * run_join_net_server(void * _master) {
 	// 3.) Bind server to port
 	ret = bind(serv_sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
 	if (ret != 0){
-		fprintf(stderr, "Error: could not bind server socket to address: %s, port: %u\n", ip_addr, JOIN_NET_PORT);
+		fprintf(stderr, "[Master Server] Error: could not bind server socket to address: %s, port: %u\n", ip_addr, JOIN_NET_PORT);
 		return NULL;
 	}
 
 	// 4.) Start Listening
 	ret = listen(serv_sockfd, max_nodes);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not start listening on server socket\n");
+		fprintf(stderr, "[Master Server] Error: could not start listening on server socket\n");
 		return NULL;
 	}
 
@@ -397,21 +393,21 @@ void * run_join_net_server(void * _master) {
 
 		sem_getvalue(&(master -> avail_node_cnt_sem), &sem_val);
 		if (sem_val <= 0){
-			printf("Network is full (%u nodes)\nWaiting for a node to leave before allowing more connections...\n\n", master -> max_nodes);
+			printf("[Master Server] Network is full (%u nodes)\nWaiting for a node to leave before allowing more connections...\n\n", master -> max_nodes);
 		}
 
 		// Is blocking until there is an "available node" (means max_nodes - node_cnt)
 		// for master to accept new joiner
 		sem_wait(&(master -> avail_node_cnt_sem));
 
-		printf("Waiting for clients to connect...\n\n");
+		printf("[Master Server] Waiting for clients to connect...\n\n");
 
 		// now we decremented avail_node_count and reserved a spot for a new jointer
 
 		// 1.) accept new connection (blocking)
 		connected_sockfd = accept(serv_sockfd, (struct sockaddr *) &remote_sockaddr, &remote_len);
 		if (connected_sockfd < 0){
-			fprintf(stderr, "Error: could not process accept within master join server\n");
+			fprintf(stderr, "[Master Server] Error: could not process accept within master join server\n");
 			return NULL;
 		}
 
@@ -426,16 +422,16 @@ void * run_join_net_server(void * _master) {
 		// This function will handle closing socket
 		ret = process_join_net_request(&worker_connection, &is_join_successful, &id_assigned);
 		if (ret != 0){
-			fprintf(stderr, "Error: could not process connection from remote addr: %s\nA fatal error occured on server end, exiting\n", inet_ntoa(remote_sockaddr.sin_addr));
+			fprintf(stderr, "[Master Server] Error: could not process connection from remote addr: %s\nA fatal error occured on server end, exiting\n", inet_ntoa(remote_sockaddr.sin_addr));
 			return NULL;
 		}
 
 		// FOR NOW: Print out the result of processing request
 		if (is_join_successful){
-			printf("Successful join! Worker IP Address: %s, got assigned to id: %u\n\n", inet_ntoa(remote_sockaddr.sin_addr), id_assigned);
+			printf("[Master Server] Successful join! Worker IP Address: %s, got assigned to id: %u\n\n", inet_ntoa(remote_sockaddr.sin_addr), id_assigned);
 		}
 		else {
-			printf("Error: Unsuccessful join from Worker IP Address: %s\nNot fatal error, likely a connection error, continuing...\n\n", inet_ntoa(remote_sockaddr.sin_addr));
+			printf("[Master Server] Error: Unsuccessful join from Worker IP Address: %s\nNot fatal error, likely a connection error, continuing...\n\n", inet_ntoa(remote_sockaddr.sin_addr));
 			// we optimistically decremeneted the semaphore, but there was an error so we should post back
 			sem_post(&(master -> avail_node_cnt_sem));
 		}
@@ -459,7 +455,7 @@ int run_master(Master * master) {
 
 	pthread_t join_net_server_thread;
 
-	printf("Starting Master Server!\n\n");
+	printf("[Master] Starting Master Server!\n\n");
 
 	ret = pthread_create(&join_net_server_thread, NULL, run_join_net_server, (void *) master);
 	if (ret != 0){

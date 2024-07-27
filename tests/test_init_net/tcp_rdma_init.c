@@ -327,16 +327,18 @@ void * run_tcp_rdma_init_server(void * _net_world) {
 		// This function will handle closing socket
 		ret = process_rdma_init_connection(connected_sockfd, net_world, &is_rdma_init_successful, &node_id_added);
 		if (ret != 0){
-			fprintf(stderr, "[RDMA_Init TCP Server] Error: could not process connection from remote addr: %s\nA fatal error occured on server end, exiting\n", inet_ntoa(remote_sockaddr.sin_addr));
+			fprintf(stderr, "Error: could not process connection from remote addr: %s\nA fatal error occured on server end, exiting\n", inet_ntoa(remote_sockaddr.sin_addr));
 			return NULL;
 		}
 
 		// FOR NOW: Print out the result of processing request
 		if (is_rdma_init_successful){
-			printf("[RDMA_Init TCP Server] RDMA Initialization Successful! Node ID: %u (ip addr: %s) added to table\n", node_id_added, inet_ntoa(remote_sockaddr.sin_addr));
+			printf("[Node %u -- RDMA Init Server] RDMA Initialization Successful! To Node ID: %u (ip addr: %s). Added to net_world table.\n", 
+				net_world -> self_node_id, node_id_added, inet_ntoa(remote_sockaddr.sin_addr));
 		}
 		else {
-			printf("[RDMA_Init TCP Server] Error: Unsuccessful RDMA Initialization from ip addr: %s\nNot fatal error, likely a connection error, continuing...\n\n", inet_ntoa(remote_sockaddr.sin_addr));
+			printf("[Node %u -- RDMA Init Server]  Error: Unsuccessful RDMA Initialization from ip addr: %s\nNot fatal error, likely a connection error, continuing...\n\n", 
+				net_world -> self_node_id, inet_ntoa(remote_sockaddr.sin_addr));
 		}
 
 	}
