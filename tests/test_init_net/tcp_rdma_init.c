@@ -1,91 +1,225 @@
 #include "tcp_rdma_init.h"
 
-// Internal Structures
 
-typedef struct server_thread_data {
-	Net_World * net_world;
-	uint32_t max_accepts;
-	uint32_t num_accepts_processed;
-} Server_Thread_Data;
+// USED FOR BOTH SERVER + CLIENTS!
+// Returns -1 on fatal error, otherwise 0
+// If there was a connection error then ret_is_rdma_init_successful is set to false
+// Upon success, the remote node id is set
+int process_rdma_init_connection(int sockfd, Net_World * net_world, bool * ret_is_rdma_init_successful, uint32_t * ret_node_id_added) {
 
-typedef struct client_thread_data {
-	Net_World * net_world;
-	uint32_t num_connects;
-	// list of 
-	uint32_t * server_addr_in;
-	uint32_t num_connects_processed;
-} Client_Thread_Data;
-
-// MIGHT WANT TO CONVERT THREADS TO LIBEVENT FOR BETTER SCALABILITY (if initialization time is a concern)
-//	- Ref: https://github.com/jasonish/libevent-examples/blob/master/echo-server/libevent_echosrv1.c
-
-typedef struct connection_data {
-	Net_World * net_world;
-	// FOr server: remote_addr is the client_addr returned as part of accept()
-	// For client: remote_addr is the server_addr (found using net_world -> node_to_ip table)
-	struct sockaddr_in remote_sockaddr;
-	// For server: sockfd = returned socket from accpet()
-	// For client: sockfd = client_fd used as part of connect()
-	int sockfd;
-
-} Connection_Data;
-
-// Called for each thread
-// SAME FUNCTION IS CALLED BY BOTH SERVER ACCEPTING AND CLIENT CONNECTING!
-int process_tcp_connection_for_rdma_init(Connection_Data * connection_data) {
-	
-	int ret;
 	ssize_t byte_cnt;
 
-	Net_World * net_world = connection_data -> net_world;
-	Self_Net * self_net = net_world -> self_net;
-
-	// Keeping design simple.
-
-	// First send of all of own self_net rdma_init info, 
-	// The read the other send in same order
-
-	// Socket to write/read from!
-	int sockfd = connection_data -> sockfd;
+	Rdma_Init_Info * self_rdma_init_info = net_world -> self_rdma_init_info;
 
 
-	// 1.) Send node id (populated upon connection processing with master's join_net server)
+	Rdma_Init_Info remote_rdma_init_info;
+
+	// 1.) send / recieve header
+
+	byte_cnt = send(sockfd, &(self_rdma_init_info -> header), sizeof(Rdma_Init_Info_H), 0);
+	if (byte_cnt != sizeof(Rdma_Init_Info_H)){
+		fprintf(stderr, "Error: Bad sending of rdma init info header. Only sent %zd bytes out of %zu\n", byte_cnt, sizeof(Rdma_Init_Info_H));
+		close(sockfd);
+		*ret_is_rdma_init_successful = false;
+		return 0;
+	}
+
+	byte_cnt = recv(sockfd, &(remote_rdma_init_info.header), sizeof(Rdma_Init_Info_H), MSG_WAITALL);
+	if (byte_cnt != sizeof(Rdma_Init_Info_H)){
+		fprintf(stderr, "Error: Bad receiving of rdma init info header. Only received %zd bytes out of %zu\n", byte_cnt, sizeof(Rdma_Init_Info_H));
+		close(sockfd);
+		*ret_is_rdma_init_successful = false;
+		return 0;
+	}
 
 	
+	// 2.) Allocate memory based on the header
 
-	// the other side's ip address
-	struct sockaddr_in remote_sockaddr = connection_data -> remote_sockaddr;
-	uint32_t remote_s_addr = (uint32_t) (remote_sockaddr.sin_addr.s_addr);
+	uint32_t remote_num_ports = remote_rdma_init_info.header.num_ports;
+	uint32_t remote_num_endpoints = remote_rdma_init_info.header.num_endpoints;
+
+	remote_rdma_init_info.remote_ports_init = (Remote_Port_Init *) malloc(remote_num_ports * sizeof(Remote_Port_Init));
+	if (remote_rdma_init_info.remote_ports_init == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate remote_ports_init array\n");
+		close(sockfd);
+		*ret_is_rdma_init_successful = false;
+		return -1;
+	}
+
+	remote_rdma_init_info.remote_endpoints = (Remote_Endpoint *) malloc(remote_num_endpoints * sizeof(Remote_Endpoint));
+	if (remote_rdma_init_info.remote_endpoints == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate remote_ports_init array\n");
+		close(sockfd);
+		free(remote_rdma_init_info.remote_ports_init);
+		*ret_is_rdma_init_successful = false;
+		return -1;
+	}
 	
+	
+	// 3.) send / receive ports array
+
+	uint64_t sending_ports_size = self_rdma_init_info -> header.num_ports * sizeof(Remote_Port_Init);
+	byte_cnt = send(sockfd, &(self_rdma_init_info -> remote_ports_init), sending_ports_size, 0);
+	if (byte_cnt != sending_ports_size){
+		fprintf(stderr, "Error: Bad sending of rdma init info ports. Only sent %zd bytes out of %zu\n", byte_cnt, sending_ports_size);
+		close(sockfd);
+		free(remote_rdma_init_info.remote_ports_init);
+		free(remote_rdma_init_info.remote_endpoints);
+		*ret_is_rdma_init_successful = false;
+		return 0;
+	}
+
+
+	uint64_t recv_ports_size = remote_num_ports * sizeof(Remote_Port_Init);
+	byte_cnt = recv(sockfd, &(remote_rdma_init_info.remote_ports_init), recv_ports_size, MSG_WAITALL);
+	if (byte_cnt != recv_ports_size){
+		fprintf(stderr, "Error: Bad receiving of rdma init info ports. Only received %zd bytes out of %zu\n", byte_cnt, recv_ports_size);
+		close(sockfd);
+		free(remote_rdma_init_info.remote_ports_init);
+		free(remote_rdma_init_info.remote_endpoints);
+		*ret_is_rdma_init_successful = false;
+		return 0;
+	}
+
+	// 3.) send / receive endpoints array
+
+	uint64_t sending_endpoints_size = self_rdma_init_info -> header.num_endpoints * sizeof(Remote_Endpoint);
+	byte_cnt = send(sockfd, &(self_rdma_init_info -> remote_endpoints), sending_endpoints_size, 0);
+	if (byte_cnt != sending_ports_size){
+		fprintf(stderr, "Error: Bad sending of rdma init info endpoints. Only sent %zd bytes out of %zu\n", byte_cnt, sending_endpoints_size);
+		close(sockfd);
+		free(remote_rdma_init_info.remote_ports_init);
+		free(remote_rdma_init_info.remote_endpoints);
+		*ret_is_rdma_init_successful = false;
+		return 0;
+	}
+
+
+	uint64_t recv_endpoints_size = remote_num_ports * sizeof(Remote_Endpoint);
+	byte_cnt = recv(sockfd, &(remote_rdma_init_info.remote_endpoints), recv_endpoints_size, MSG_WAITALL);
+	if (byte_cnt != recv_endpoints_size){
+		fprintf(stderr, "Error: Bad receiving of rdma init info endpoints. Only received %zd bytes out of %zu\n", byte_cnt, recv_endpoints_size);
+		close(sockfd);
+		free(remote_rdma_init_info.remote_ports_init);
+		free(remote_rdma_init_info.remote_endpoints);
+		*ret_is_rdma_init_successful = false;
+		return 0;
+	}
+
+
+	// 4.) Create node based on other's rdma_init_info
+
+	Net_Node * node = net_add_node(net_world, &remote_rdma_init_info);
+	if (node == NULL){
+		fprintf(stderr, "Error: net_add_node failed\n");
+		close(sockfd);
+		free(remote_rdma_init_info.remote_ports_init);
+		free(remote_rdma_init_info.remote_endpoints);
+		*ret_is_rdma_init_successful = false;
+		// fatal error if couldn't add
+		return -1;
+	}
+
+	// 5.) send / receive confirmation
+
+	bool ack = true;
+	byte_cnt = send(sockfd, &ack, sizeof(bool), 0);
+	if (byte_cnt != sizeof(bool)){
+		fprintf(stderr, "Error: Couldn't send the ack indicating success. Errno String: %s", strerror(errno));
+		close(sockfd);
+		free(remote_rdma_init_info.remote_ports_init);
+		free(remote_rdma_init_info.remote_endpoints);
+		destroy_remote_node(net_world, node);
+		*ret_is_rdma_init_successful = false;
+		return 0;
+	}
+
+	byte_cnt = recv(sockfd, &ack, sizeof(bool), MSG_WAITALL);
+	if (byte_cnt != sizeof(bool)){
+		fprintf(stderr, "Error: Didn't receive confirmation that the node was successfully added on other end. Errno String: %s", strerror(errno));
+		close(sockfd);
+		free(remote_rdma_init_info.remote_ports_init);
+		free(remote_rdma_init_info.remote_endpoints);
+		destroy_remote_node(net_world, node);
+		*ret_is_rdma_init_successful = false;
+		return 0;
+	}
+
+	// 6.) check the table count and see if it equals min_init_nodes + 1
+	//		- if so, then post to the semaphore to let main init function return
+
+	uint32_t min_init_nodes = net_world -> min_init_nodes;
+
+	uint32_t connected_nodes_cnt = (uint32_t) get_count(net_world -> nodes);
+	if (connected_nodes_cnt == min_init_nodes + 1){
+		sem_post(&(net_world -> is_init_ready));
+	}
+
+
+	// 7.) Report success
+
+	*ret_is_rdma_init_successful = true;
+	*ret_node_id_added = node -> node_id;
 
 	return 0;
 }
 
 
-// NOTE: This function should be run in a seperate thread than main program.
 
-// When exchanging rdma init info between node i and node j, if i < j => i is the server, j is the client
-// max_accepts should be set >= known number of connecteding nodes (i.e. the number of nodes with id's greater than server node id)
-// If max_accepts is set equal to known number upon intializaition (based on config file) the thread will terminate.
+// After successful join request, the node will a receive an array of all Node_Config
+// with ip addresses that it should connect to. It will call this function for each of these
+int connect_to_rdma_init_server(Net_World * net_world, char * rdma_init_server_ip_addr){
 
-// However, max_accepts can be set larger to account for new joiners of system, even while system is runnning (meaning, acutally processing/computing requests)
-// BUT, other functionality is necessary to account for new joiners (rebalancing exchange metadata).
-// Assumption is that new joiners will have node id > this node id, meaning that in order to accept new joiner to system this tcp server needs to be running 
-void * run_tcp_server_for_rdma_init(void * _server_thread_data){
 
 	int ret;
 
-	// Cast the argument (passed in by pthread_create)
-	Server_Thread_Data * server_thread_data = (Server_Thread_Data *) _server_thread_data;
-	// Obtain "true" arguments
-	Net_World * net_world = server_thread_data -> net_world;
-	uint32_t max_accepts = server_thread_data -> max_accepts;
-	uint32_t num_accepts_processed = server_thread_data -> num_accepts_processed;
+	// 1.) Loop until successfully shared and retrieved rdma info with server
 
+	int client_sockfd;
+	bool is_rdma_init_successful = false;
+	uint32_t node_id_added;
+
+	// loop until successfully join network
+	// probably want to have a terminating case so it doesn't hang if the server leaves network
+	// also, should ideally have threads to connect to multiple other nodes in parallel
+	while (!is_rdma_init_successful){
+
+		client_sockfd = connect_to_server(rdma_init_server_ip_addr, NULL, RDMA_INIT_PORT);
+		if (client_sockfd == -1){
+			fprintf(stderr, "Couldn't connect to master. Timeout and retrying...\n");
+			// timeout before trying again
+			// defined within config.h => default is 1 sec
+			usleep(RDMA_INIT_TIMEOUT_MICROS);
+			continue;
+		}
+
+		// Note: this function will handle closing the socket
+		ret = process_rdma_init_connection(client_sockfd, net_world, &is_rdma_init_successful, &node_id_added);
+		if (ret == -1){
+			fprintf(stderr, "Error: fatal problem within processing rdma init connection\n");
+			return -1;
+		}		
+	}
+
+	return 0;
+}
+
+
+// Started in a thread at the end of processing join_request
+// Note; This function never terminates!
+void * run_tcp_rdma_init_server(void * _net_world) {
+
+	int ret;
+
+	// cast the argument passed in by pthread_create
+	Net_World * net_world = (Net_World *) _net_world;
+
+	char * ip_addr = net_world -> self_rdma_init_server_ip_addr;
+	uint32_t max_nodes = net_world -> max_nodes;
 
 	// 1.) create server TCP socket
 	int serv_sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (serv_sockfd != 0){
+	if (serv_sockfd == -1){
 		fprintf(stderr, "Error: could not create server socket\n");
 		return NULL;
 	}
@@ -94,83 +228,73 @@ void * run_tcp_server_for_rdma_init(void * _server_thread_data){
 	struct sockaddr_in serv_addr;
 	serv_addr.sin_family = AF_INET;
 
-	// normally would use inet_aton (or inet_addr) here with a char * ipv4 dots
-	// however, we intialized the net_world struct with the converted network-ordered uint32 value already
-	uint32_t self_network_ip_addr = net_world -> self_net -> ip_addr;
-	serv_addr.sin_addr.s_addr = self_network_ip_addr;
-	// Using the same port on all nodes for initial connection establishment to trade rdma info
-	// defined within join_net.h
-	serv_addr.sin_port = htons(INTERNAL_JOIN_NET_PORT);
+	// set IP address of server
+	// INET_ATON return 0 on error!
+	ret = inet_aton(ip_addr, &serv_addr.sin_addr);
+	if (ret == 0){
+		fprintf(stderr, "Error: master join server ip address: %s -- invalid\n", ip_addr);
+		return NULL;
+	}
+	// defined within config.h
+	serv_addr.sin_port = htons(RDMA_INIT_PORT);
 
 	// 3.) Bind server to port
 	ret = bind(serv_sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
 	if (ret != 0){
-		fprintf(stderr, "Error: could not bind server socket to address: %s, port: %u\n", inet_ntoa(serv_addr.sin_addr), INTERNAL_JOIN_NET_PORT);
+		fprintf(stderr, "Error: could not bind server socket to address: %s, port: %u\n", ip_addr, JOIN_NET_PORT);
 		return NULL;
 	}
 
 	// 4.) Start Listening
-	ret = listen(serv_sockfd, max_accepts);
+	ret = listen(serv_sockfd, max_nodes);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not start listening on server socket\n");
 		return NULL;
 	}
 
-	// 5.) Process accepts
-	
-	// Setup connection data to have the net_world field populated
-	// remote_addr and sockfd are dependent upon call to accept() so will be modified then
-	Connection_Data * connection_data = (Connection_Data *) malloc(sizeof(Connection_Data));
-	if (connection_data == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate connection data\n");
-		return NULL;
-	}
-	connection_data -> net_world = net_world;
 
+	// 5.) Handle requests
 
-	int accept_sockfd;
+	int connected_sockfd;
 	// client_addr will be read based upon accept() call 
 	// use this to obtain ip_addr and can look up
 	// node_id based on net_world -> ip_to_node table (created based upon config file)
 	struct sockaddr_in remote_sockaddr;
 	socklen_t remote_len = sizeof(remote_sockaddr);
 
-	while(num_accepts_processed < max_accepts){
+	bool is_rdma_init_successful;
+	uint32_t node_id_added;
+
+	// run continuously
+	while(1){
 
 		// 1.) accept new connection (blocking)
-
-		accept_sockfd = accept(serv_sockfd, (struct sockaddr *) &remote_sockaddr, &remote_len);
-		if (accept_sockfd < 0){
-			fprintf(stderr, "Error: could not process accept within tcp inti server\n");
+		connected_sockfd = accept(serv_sockfd, (struct sockaddr *) &remote_sockaddr, &remote_len);
+		if (connected_sockfd < 0){
+			fprintf(stderr, "Error: could not process accept within master join server\n");
+			// fatal error
 			return NULL;
 		}
 
-		// 2.) Modify the connection data fields that depend on accpet
-		connection_data -> sockfd = accept_sockfd;
-		connection_data -> remote_sockaddr = remote_sockaddr;
-
-		// 3.) Actually do data transimission and send/receive RDMA initialization data
+		// 2.) Actually do data transimission and send/receive RDMA initialization data
 
 		// If initializing a very large cluster, this part should be handled in seperate thread
 		// with a thread pool!
-		ret = process_tcp_connection_for_rdma_init(connection_data);
+		// This function will handle closing socket
+		ret = process_rdma_init_connection(connected_sockfd, net_world, &is_rdma_init_successful, &node_id_added);
 		if (ret != 0){
-			fprintf(stderr, "Error: could not process connection from remote addr: %s\n", inet_ntoa(remote_sockaddr.sin_addr));
+			fprintf(stderr, "Error: could not process connection from remote addr: %s\nA fatal error occured on server end, exiting\n", inet_ntoa(remote_sockaddr.sin_addr));
 			return NULL;
 		}
 
-		// 4.) Update number of accepts processed 
-		// and indicate to the thread that called pthread_thread create
-		num_accepts_processed++;
-		server_thread_data -> num_accepts_processed = num_accepts_processed;
+		// FOR NOW: Print out the result of processing request
+		if (is_rdma_init_successful){
+			printf("RDMA Initialization Successful! Node ID: %u (ip addr: %s) added to table", node_id_added, inet_ntoa(remote_sockaddr.sin_addr));
+		}
+		else {
+			printf("Error: Unsuccessful RDMA Initialization from ip addr: %s\nNot fatal error, likely a connection error, continuing...\n\n", inet_ntoa(remote_sockaddr.sin_addr));
+		}
+
 	}
 
-	return NULL;
 }
-
-
-
-
-
-
-

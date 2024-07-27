@@ -30,14 +30,9 @@
 // for libibverbs 
 #include <infiniband/verbs.h>
 
-// for cpuset macros
-#include <sched.h>
-
 #define FINGERPRINT_NUM_BYTES 32
 #define FINGERPRINT_TYPE SHA256_HASH
 
-// performance optimizations for branch predictions
-//	- mostly using unlikely for error checking
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 

@@ -3,6 +3,11 @@
 
 #include "common.h"
 #include "config.h"
+#include "self_net.h"
+#include "rdma_init_info.h"
+#include "net.h"
+#include "tcp_connection.h"
+#include "tcp_rdma_init.h"
 
 
 // CONNECT TO MASTER's JOIN NET SERVER
@@ -27,6 +32,6 @@
 
 
 // Called within step 2 of init_net()
-Join_Response * join_net(char * self_ip_addr, char * master_ip_addr);
+int join_net(Self_Net * self_net, char * master_ip_addr, Join_Response ** ret_join_response, Net_World ** ret_net_world);
 
 #endif

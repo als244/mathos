@@ -1,26 +1,67 @@
 #include "init_net.h"
 
 
-Net_World * init_net(char * self_ip_addr, char * master_ip_addr) {
+Net_World * init_net(char * master_ip_addr, char * self_ip_addr) {
 
-	// 1. init self_net with default qp configs
-	//		- doing this first to catch for errors before involving master
+	int ret;
 
-	// 2. call join_net to communicate with master and receive node_id and other nodes to connect to
+	// 1.) create self_net, which 
 
-	// 3. set node_id in self_net
+	// self_ip_addr is optional
 
-	// 4. start this node's RDMA_INIT TCP server
-	//		- Decide if we want to move this into step 2.) to prevent races / timeouts
-	//			- Also if move into step 2, could be an earlier sign of failure
-	//			- Downside is causes a bigger bottleneck at master
-	//		- Enables future joiners to connect to this node and trade rdma_init info
+	Self_Net * self_net = default_worker_config_init_self_net(self_ip_addr);
+	if (self_net == NULL){
+		fprintf(stderr, "Error: self_net initialization failed\n");
+		return NULL;
+	}
+
+	// 2.) Request to join the network
+	//		- upon success, this function will returned:
+	//			- an initialized net_world populated with master's rdma info
+	//			- a response from the master with all the other nodes' ips we should connect to
+	//			- will start this node's rdma_init server in the background
 
 
-	// 5. make / process rdma_init connection will all nodes within join_response -> node_config_arr (returned at step 2)
-	//		- TODO: decide how to error handle on bad connections here..?
-	//				- probably loop with:
-	//					i.) ping master to check this worker node's status (it may have left network or died)
-	//					ii.) retry connection
+	Join_Response * join_response;
+	Net_World * net_world;
+	
 
+	ret = join_net(self_net, master_ip_addr, &join_response, &net_world);
+	if (ret != 0){
+		fprintf(stderr, "Error: join_net initialization failed\n");
+		return NULL;
+	}
+
+	// 3.) now connect to all of the nodes in join response (defined in config.h)
+	int num_other_nodes_to_connect_to = join_response -> header.cur_node_cnt;
+
+	Node_Config * other_nodes_to_connect_to = join_response -> node_config_arr;
+
+	Node_Config cur_rdma_init_server;
+
+	struct in_addr rdma_init_server_in_addr;
+	char * rdma_init_server_ip_addr;
+	for (int i = 0; i < num_other_nodes_to_connect_to; i++){
+		cur_rdma_init_server = other_nodes_to_connect_to[i];
+		rdma_init_server_in_addr.s_addr = cur_rdma_init_server.s_addr;
+		rdma_init_server_ip_addr = inet_ntoa(rdma_init_server_in_addr);
+		ret = connect_to_rdma_init_server(net_world, rdma_init_server_ip_addr);
+		if (ret != 0){
+			fprintf(stderr, "Error: fatal failure connecting to rdma init server with ip addr: %s\n", rdma_init_server_ip_addr);
+			return NULL;
+		}
+	}
+
+
+
+	// 3b.) done with join_response so can free (was allocated within processing join_net)
+	free(join_response);
+
+
+	// 4.) wait until min_init_nodes (besides master) have been added to the net_world -> nodes table
+	sem_wait(&(net_world -> is_init_ready));
+
+
+	// 5.) return net_world
+	return net_world;
 }
