@@ -45,7 +45,7 @@ Net_World * init_net(char * master_ip_addr, char * self_ip_addr) {
 		cur_rdma_init_server = other_nodes_to_connect_to[i];
 		rdma_init_server_in_addr.s_addr = cur_rdma_init_server.s_addr;
 		rdma_init_server_ip_addr = inet_ntoa(rdma_init_server_in_addr);
-		ret = connect_to_rdma_init_server(net_world, rdma_init_server_ip_addr);
+		ret = connect_to_rdma_init_server(net_world, rdma_init_server_ip_addr, false);
 		if (ret != 0){
 			fprintf(stderr, "Error: fatal failure connecting to rdma init server with ip addr: %s\n", rdma_init_server_ip_addr);
 			return NULL;

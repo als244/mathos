@@ -12,7 +12,13 @@ int process_rdma_init_connection(int sockfd, Net_World * net_world, bool * ret_i
 	Rdma_Init_Info * self_rdma_init_info = net_world -> self_rdma_init_info;
 
 
-	Rdma_Init_Info remote_rdma_init_info;
+	Rdma_Init_Info * remote_rdma_init_info = malloc(sizeof(Rdma_Init_Info));
+	if (remote_rdma_init_info == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate remtoe rdma_init info\n");
+		close(sockfd);
+		*ret_is_rdma_init_successful = false;
+		return -1;
+	}
 
 	// 1.) send / recieve header
 
@@ -20,14 +26,16 @@ int process_rdma_init_connection(int sockfd, Net_World * net_world, bool * ret_i
 	if (byte_cnt != sizeof(Rdma_Init_Info_H)){
 		fprintf(stderr, "Error: Bad sending of rdma init info header. Only sent %zd bytes out of %zu\n", byte_cnt, sizeof(Rdma_Init_Info_H));
 		close(sockfd);
+		free(remote_rdma_init_info);
 		*ret_is_rdma_init_successful = false;
 		return 0;
 	}
 
-	byte_cnt = recv(sockfd, &(remote_rdma_init_info.header), sizeof(Rdma_Init_Info_H), MSG_WAITALL);
+	byte_cnt = recv(sockfd, &(remote_rdma_init_info -> header), sizeof(Rdma_Init_Info_H), MSG_WAITALL);
 	if (byte_cnt != sizeof(Rdma_Init_Info_H)){
 		fprintf(stderr, "Error: Bad receiving of rdma init info header. Only received %zd bytes out of %zu\n", byte_cnt, sizeof(Rdma_Init_Info_H));
 		close(sockfd);
+		free(remote_rdma_init_info);
 		*ret_is_rdma_init_successful = false;
 		return 0;
 	}
@@ -35,22 +43,24 @@ int process_rdma_init_connection(int sockfd, Net_World * net_world, bool * ret_i
 	
 	// 2.) Allocate memory based on the header
 
-	uint32_t remote_num_ports = remote_rdma_init_info.header.num_ports;
-	uint32_t remote_num_endpoints = remote_rdma_init_info.header.num_endpoints;
+	uint32_t remote_num_ports = remote_rdma_init_info -> header.num_ports;
+	uint32_t remote_num_endpoints = remote_rdma_init_info -> header.num_endpoints;
 
-	remote_rdma_init_info.remote_ports_init = (Remote_Port_Init *) malloc(remote_num_ports * sizeof(Remote_Port_Init));
-	if (remote_rdma_init_info.remote_ports_init == NULL){
+	remote_rdma_init_info -> remote_ports_init = (Remote_Port_Init *) malloc(remote_num_ports * sizeof(Remote_Port_Init));
+	if (remote_rdma_init_info -> remote_ports_init == NULL){
 		fprintf(stderr, "Error: malloc failed to allocate remote_ports_init array\n");
 		close(sockfd);
+		free(remote_rdma_init_info);
 		*ret_is_rdma_init_successful = false;
 		return -1;
 	}
 
-	remote_rdma_init_info.remote_endpoints = (Remote_Endpoint *) malloc(remote_num_endpoints * sizeof(Remote_Endpoint));
-	if (remote_rdma_init_info.remote_endpoints == NULL){
+	remote_rdma_init_info -> remote_endpoints = (Remote_Endpoint *) malloc(remote_num_endpoints * sizeof(Remote_Endpoint));
+	if (remote_rdma_init_info -> remote_endpoints == NULL){
 		fprintf(stderr, "Error: malloc failed to allocate remote_ports_init array\n");
 		close(sockfd);
-		free(remote_rdma_init_info.remote_ports_init);
+		free(remote_rdma_init_info -> remote_ports_init);
+		free(remote_rdma_init_info);
 		*ret_is_rdma_init_successful = false;
 		return -1;
 	}
@@ -59,24 +69,26 @@ int process_rdma_init_connection(int sockfd, Net_World * net_world, bool * ret_i
 	// 3.) send / receive ports array
 
 	uint64_t sending_ports_size = self_rdma_init_info -> header.num_ports * sizeof(Remote_Port_Init);
-	byte_cnt = send(sockfd, &(self_rdma_init_info -> remote_ports_init), sending_ports_size, 0);
+	byte_cnt = send(sockfd, self_rdma_init_info -> remote_ports_init, sending_ports_size, 0);
 	if (byte_cnt != sending_ports_size){
 		fprintf(stderr, "Error: Bad sending of rdma init info ports. Only sent %zd bytes out of %zu\n", byte_cnt, sending_ports_size);
 		close(sockfd);
-		free(remote_rdma_init_info.remote_ports_init);
-		free(remote_rdma_init_info.remote_endpoints);
+		free(remote_rdma_init_info -> remote_ports_init);
+		free(remote_rdma_init_info -> remote_endpoints);
+		free(remote_rdma_init_info);
 		*ret_is_rdma_init_successful = false;
 		return 0;
 	}
 
 
 	uint64_t recv_ports_size = remote_num_ports * sizeof(Remote_Port_Init);
-	byte_cnt = recv(sockfd, &(remote_rdma_init_info.remote_ports_init), recv_ports_size, MSG_WAITALL);
+	byte_cnt = recv(sockfd, remote_rdma_init_info -> remote_ports_init, recv_ports_size, MSG_WAITALL);
 	if (byte_cnt != recv_ports_size){
 		fprintf(stderr, "Error: Bad receiving of rdma init info ports. Only received %zd bytes out of %zu\n", byte_cnt, recv_ports_size);
 		close(sockfd);
-		free(remote_rdma_init_info.remote_ports_init);
-		free(remote_rdma_init_info.remote_endpoints);
+		free(remote_rdma_init_info -> remote_ports_init);
+		free(remote_rdma_init_info -> remote_endpoints);
+		free(remote_rdma_init_info);
 		*ret_is_rdma_init_successful = false;
 		return 0;
 	}
@@ -84,24 +96,26 @@ int process_rdma_init_connection(int sockfd, Net_World * net_world, bool * ret_i
 	// 3.) send / receive endpoints array
 
 	uint64_t sending_endpoints_size = self_rdma_init_info -> header.num_endpoints * sizeof(Remote_Endpoint);
-	byte_cnt = send(sockfd, &(self_rdma_init_info -> remote_endpoints), sending_endpoints_size, 0);
-	if (byte_cnt != sending_ports_size){
+	byte_cnt = send(sockfd, self_rdma_init_info -> remote_endpoints, sending_endpoints_size, 0);
+	if (byte_cnt != sending_endpoints_size){
 		fprintf(stderr, "Error: Bad sending of rdma init info endpoints. Only sent %zd bytes out of %zu\n", byte_cnt, sending_endpoints_size);
 		close(sockfd);
-		free(remote_rdma_init_info.remote_ports_init);
-		free(remote_rdma_init_info.remote_endpoints);
+		free(remote_rdma_init_info -> remote_ports_init);
+		free(remote_rdma_init_info -> remote_endpoints);
+		free(remote_rdma_init_info);
 		*ret_is_rdma_init_successful = false;
 		return 0;
 	}
 
 
 	uint64_t recv_endpoints_size = remote_num_ports * sizeof(Remote_Endpoint);
-	byte_cnt = recv(sockfd, &(remote_rdma_init_info.remote_endpoints), recv_endpoints_size, MSG_WAITALL);
+	byte_cnt = recv(sockfd, remote_rdma_init_info -> remote_endpoints, recv_endpoints_size, MSG_WAITALL);
 	if (byte_cnt != recv_endpoints_size){
 		fprintf(stderr, "Error: Bad receiving of rdma init info endpoints. Only received %zd bytes out of %zu\n", byte_cnt, recv_endpoints_size);
 		close(sockfd);
-		free(remote_rdma_init_info.remote_ports_init);
-		free(remote_rdma_init_info.remote_endpoints);
+		free(remote_rdma_init_info -> remote_ports_init);
+		free(remote_rdma_init_info -> remote_endpoints);
+		free(remote_rdma_init_info);
 		*ret_is_rdma_init_successful = false;
 		return 0;
 	}
@@ -109,12 +123,13 @@ int process_rdma_init_connection(int sockfd, Net_World * net_world, bool * ret_i
 
 	// 4.) Create node based on other's rdma_init_info
 
-	Net_Node * node = net_add_node(net_world, &remote_rdma_init_info);
+	Net_Node * node = net_add_node(net_world, remote_rdma_init_info);
 	if (node == NULL){
 		fprintf(stderr, "Error: net_add_node failed\n");
 		close(sockfd);
-		free(remote_rdma_init_info.remote_ports_init);
-		free(remote_rdma_init_info.remote_endpoints);
+		free(remote_rdma_init_info -> remote_ports_init);
+		free(remote_rdma_init_info -> remote_endpoints);
+		free(remote_rdma_init_info);
 		*ret_is_rdma_init_successful = false;
 		// fatal error if couldn't add
 		return -1;
@@ -127,8 +142,9 @@ int process_rdma_init_connection(int sockfd, Net_World * net_world, bool * ret_i
 	if (byte_cnt != sizeof(bool)){
 		fprintf(stderr, "Error: Couldn't send the ack indicating success. Errno String: %s", strerror(errno));
 		close(sockfd);
-		free(remote_rdma_init_info.remote_ports_init);
-		free(remote_rdma_init_info.remote_endpoints);
+		free(remote_rdma_init_info -> remote_ports_init);
+		free(remote_rdma_init_info -> remote_endpoints);
+		free(remote_rdma_init_info);
 		destroy_remote_node(net_world, node);
 		*ret_is_rdma_init_successful = false;
 		return 0;
@@ -138,14 +154,21 @@ int process_rdma_init_connection(int sockfd, Net_World * net_world, bool * ret_i
 	if (byte_cnt != sizeof(bool)){
 		fprintf(stderr, "Error: Didn't receive confirmation that the node was successfully added on other end. Errno String: %s", strerror(errno));
 		close(sockfd);
-		free(remote_rdma_init_info.remote_ports_init);
-		free(remote_rdma_init_info.remote_endpoints);
+		free(remote_rdma_init_info -> remote_ports_init);
+		free(remote_rdma_init_info -> remote_endpoints);
+		free(remote_rdma_init_info);
 		destroy_remote_node(net_world, node);
 		*ret_is_rdma_init_successful = false;
 		return 0;
 	}
 
-	// 6.) check the table count and see if it equals min_init_nodes + 1
+	// 6.) free the rdma init info we allocated now that node has all the info
+	free(remote_rdma_init_info -> remote_ports_init);
+	free(remote_rdma_init_info -> remote_endpoints);
+	free(remote_rdma_init_info);
+
+
+	// 7.) check the table count and see if it equals min_init_nodes + 1
 	//		- if so, then post to the semaphore to let main init function return
 
 	uint32_t min_init_nodes = net_world -> min_init_nodes;
@@ -156,7 +179,7 @@ int process_rdma_init_connection(int sockfd, Net_World * net_world, bool * ret_i
 	}
 
 
-	// 7.) Report success
+	// 8.) Report success
 
 	*ret_is_rdma_init_successful = true;
 	*ret_node_id_added = node -> node_id;
@@ -168,7 +191,7 @@ int process_rdma_init_connection(int sockfd, Net_World * net_world, bool * ret_i
 
 // After successful join request, the node will a receive an array of all Node_Config
 // with ip addresses that it should connect to. It will call this function for each of these
-int connect_to_rdma_init_server(Net_World * net_world, char * rdma_init_server_ip_addr){
+int connect_to_rdma_init_server(Net_World * net_world, char * rdma_init_server_ip_addr, bool to_master){
 
 
 	int ret;
@@ -179,12 +202,23 @@ int connect_to_rdma_init_server(Net_World * net_world, char * rdma_init_server_i
 	bool is_rdma_init_successful = false;
 	uint32_t node_id_added;
 
+	unsigned short rdma_init_server_port;
+	if (to_master){
+		rdma_init_server_port = MASTER_RDMA_INIT_PORT;
+	}
+	else{
+		rdma_init_server_port = WORKER_RDMA_INIT_PORT;
+	}
+
+
 	// loop until successfully join network
 	// probably want to have a terminating case so it doesn't hang if the server leaves network
 	// also, should ideally have threads to connect to multiple other nodes in parallel
 	while (!is_rdma_init_successful){
 
-		client_sockfd = connect_to_server(rdma_init_server_ip_addr, NULL, RDMA_INIT_PORT);
+
+
+		client_sockfd = connect_to_server(rdma_init_server_ip_addr, NULL, rdma_init_server_port);
 		if (client_sockfd == -1){
 			fprintf(stderr, "Couldn't connect to master. Timeout and retrying...\n");
 			// timeout before trying again
@@ -236,12 +270,22 @@ void * run_tcp_rdma_init_server(void * _net_world) {
 		return NULL;
 	}
 	// defined within config.h
-	serv_addr.sin_port = htons(RDMA_INIT_PORT);
+
+	unsigned short rdma_init_server_port;
+
+	if (net_world -> self_node_id == MASTER_NODE_ID){
+		rdma_init_server_port = MASTER_RDMA_INIT_PORT;
+	}
+	else{
+		rdma_init_server_port = WORKER_RDMA_INIT_PORT;
+	}
+
+	serv_addr.sin_port = htons(rdma_init_server_port);
 
 	// 3.) Bind server to port
 	ret = bind(serv_sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
 	if (ret != 0){
-		fprintf(stderr, "Error: could not bind server socket to address: %s, port: %u\n", ip_addr, JOIN_NET_PORT);
+		fprintf(stderr, "Error: could not bind server socket to address: %s, port: %u\n", ip_addr, rdma_init_server_port);
 		return NULL;
 	}
 

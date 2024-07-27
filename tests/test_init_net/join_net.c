@@ -136,7 +136,7 @@ int process_join_net(char * master_ip_addr, Self_Net * self_net, int sockfd, boo
 
 	// this will loop infinitely until connection...
 	// only returns upon fatal error on this end
-	ret = connect_to_rdma_init_server(net_world, master_ip_addr);
+	ret = connect_to_rdma_init_server(net_world, master_ip_addr, true);
 	if (ret != 0){
 		fprintf(stderr, "Error: fatal error occured when trying to connect to master's rdma_init server\n");
 		close(sockfd);
