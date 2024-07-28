@@ -430,7 +430,7 @@ void destroy_remote_node(Net_World * net_world, Net_Node * node){
 
 // This function has little overhead involved with sending because it doesn't have to acquire lock from active_ctrl_dest deques or deal
 // with extra overhead of determining address handle
-int default_post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, uint32_t remote_node_id) {
+int post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message, uint32_t remote_node_id) {
 
 	int ret;
 
@@ -473,12 +473,15 @@ int default_post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_mes
 
 // THIS ALLOWS US TO THE CHANGE THE SENDING/RECEVIEVING CONTROL ENDPOINTS TO ENABLE SOME POLICY
 
+// Incurs extra overhead of acquiring lock active_ctrl_endpoint deques (for both self/dest) and looking up address handle
+//	- thus using the default post_send_ctrl_net function above, until there is a reason not to
+
 // Within this function there is a policy to choose the sending / receiving endpoints 
 //	- based on active ctrl endpoint deques within self_node and net_node
 //	- currently policy is to do round-robin for each (i.e. take at front and replace at back)
 //		- for load balancing reasons
 //	- however probably want to take cpu affinity into account...
-int policy_post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, uint32_t remote_node_id) {
+int policy_post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message, uint32_t remote_node_id) {
 
 	int ret;
 

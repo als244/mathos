@@ -37,4 +37,7 @@
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
 
+typedef int (*Item_Cmp)(void * item, void * other_item);
+
+
 #endif

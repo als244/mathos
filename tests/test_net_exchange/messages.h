@@ -46,7 +46,7 @@ typedef enum enpoint_type {
 } EndpointType;
 
 
-typedef enum control_message_type {
+typedef enum ctrl_message_type {
 	DATA_REQUEST,
 	DATA_RESPONSE,
 	BID_ORDER,
@@ -70,23 +70,33 @@ typedef enum control_message_type {
 	PAUSE,
 	CLEAR,
 	SHUTDOWN
-} ControlMessageType;
+} CtrlMessageType;
 
 
 
-typedef struct control_message_h {
+typedef struct ctrl_message_h {
 	uint32_t source_node_id;
-	ControlMessageType message_type;
+	// this might be a bit redunant
+	// (encoded within the address handle when sending)
+	// however it is convenient to have when certain
+	// modules (exchange + sched) generate response
+	// messages and want a different worker thread
+	// to be responsible for sending them out
+	// Thus the worker thread can look up the 
+	// the destination directly within the message
+	// they are supposed to send out
+	uint32_t dest_node_id;
+	CtrlMessageType message_type;
 	// maximum message size is path_mtu <= 4096 
 	// not sure if this field is needed...?
 	//uint16_t message_len;
-} Control_Message_H;
+} Ctrl_Message_H;
 
-typedef struct control_message {
-	Control_Message_H header;
+typedef struct ctrl_message {
+	Ctrl_Message_H header;
 	// to be interpreted based upon header -> message_type
-	char contents[CONTROL_MESSAGE_CONTENTS_MAX_SIZE_BYTES];
-} Control_Message;
+	uint8_t contents[CONTROL_MESSAGE_CONTENTS_MAX_SIZE_BYTES];
+} Ctrl_Message;
 
 
 

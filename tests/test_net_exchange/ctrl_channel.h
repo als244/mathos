@@ -66,11 +66,11 @@ Ctrl_Channel * init_ctrl_channel(CtrlChannelType channel_type, uint32_t max_item
 // should be NULL for posting receives
 
 int post_recv_ctrl_channel(Ctrl_Channel * channel);
-int post_send_ctrl_channel(Ctrl_Channel * channel, Control_Message * ctrl_message, struct ibv_ah * ah, uint32_t remote_qp_num, uint32_t remote_qkey);
+int post_send_ctrl_channel(Ctrl_Channel * channel, Ctrl_Message * ctrl_message, struct ibv_ah * ah, uint32_t remote_qp_num, uint32_t remote_qkey);
 
 // populates a control message template passed in
 // only returns error if cannot replace an item on a receive channel
-int extract_ctrl_channel(Ctrl_Channel * channel, Control_Message * ret_ctrl_message);
+int extract_ctrl_channel(Ctrl_Channel * channel, Ctrl_Message * ret_ctrl_message);
 
 // used within completion queue handles to know where to extract new completions
 void decode_ctrl_wr_id(uint64_t wr_id, CtrlChannelType * ret_channel_type, uint8_t * ret_ib_device_id, uint32_t * ret_endpoint_id);

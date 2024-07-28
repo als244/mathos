@@ -44,4 +44,15 @@ int take_and_replace_deque(Deque * deque, DequeEnd take_end, DequeEnd replace_en
 int peek_item_at_index_deque(Deque * deque, DequeEnd start_end, uint64_t index, void ** ret_item);
 
 
+// returns the number of items that were removed
+
+// can use max_remove and search_start_end to accelerate removal
+//	(i.e. if caller knows there is maximum of 1 copy of item in deque, and wants to remove it
+//			they can set max_remove = 1 to break when it is removed. If they have prior of 
+//			if the item would be at beginning or end then they can choose where to start searching)
+
+// to_free indicates if the item should be freed upon removal
+uint64_t remove_if_eq(Deque * deque, void * item, Item_Cmp item_cmp, uint64_t max_remove, DequeEnd search_start_end, bool to_free);
+
+
 #endif

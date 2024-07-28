@@ -39,8 +39,8 @@ void * run_ctrl_handler(void * _cq_thread_data){
 	Ctrl_Channel * ctrl_channel;
 		
 	// these will get populated upon extracting an item from channel
-	Control_Message ctrl_message;
-	Control_Message_H ctrl_message_header;
+	Ctrl_Message ctrl_message;
+	Ctrl_Message_H ctrl_message_header;
 
 	// For now doing an infnite loop unless error....
 	// Burns a lot of cpu....

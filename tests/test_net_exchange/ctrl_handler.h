@@ -10,14 +10,9 @@
 // Just before returning from intialization, init_set spawns 
 // handler threads for all the CQs (whose threads have been allocated within self_net)
 
-typedef struct ctrl_handler {
-	struct ibv_cq_ex * cq;
-	Net_World * net_world;
-} Ctrl_Handler;
-
 
 // Called from within cq_handler.c => run_cq_thread
-void * run_ctrl_handler(void * _ctrl_handler);
+void * run_ctrl_handler(void * _cq_thread_data);
 
 
 #endif

@@ -85,7 +85,7 @@ Ctrl_Channel * init_ctrl_channel(CtrlChannelType channel_type, uint32_t max_item
 
 	// 1b.) Get Item Size bytes => all control messages have the same size.
 	//		- However we need to add room for Global Routing Header if this is a receive/shared receive channel (40 bytes)
-	uint32_t item_size_bytes = sizeof(Control_Message);
+	uint32_t item_size_bytes = sizeof(Ctrl_Message);
 	if ((channel_type == RECV_CTRL_CHANNEL) || (channel_type == SHARED_RECV_CTRL_CHANNEL)){
 		item_size_bytes += sizeof(struct ibv_grh);
 	}
@@ -170,7 +170,7 @@ int post_recv_ctrl_channel(Ctrl_Channel * channel) {
 }
 
 // The pd that created AH should match channel -> pd
-int post_send_ctrl_channel(Ctrl_Channel * channel, Control_Message * ctrl_message, struct ibv_ah * ah, uint32_t remote_qp_num, uint32_t remote_qkey) {
+int post_send_ctrl_channel(Ctrl_Channel * channel, Ctrl_Message * ctrl_message, struct ibv_ah * ah, uint32_t remote_qp_num, uint32_t remote_qkey) {
 
 	int ret;
 
@@ -216,7 +216,7 @@ int post_send_ctrl_channel(Ctrl_Channel * channel, Control_Message * ctrl_messag
 // 	- When we extract something we sent no need to replace, because sends have content
 
 // ASSUME ret_control_message has memory allocated somehow!!
-int extract_ctrl_channel(Ctrl_Channel * channel, Control_Message * ret_ctrl_message) {
+int extract_ctrl_channel(Ctrl_Channel * channel, Ctrl_Message * ret_ctrl_message) {
 
 	// Error Check if we want
 
@@ -236,12 +236,12 @@ int extract_ctrl_channel(Ctrl_Channel * channel, Control_Message * ret_ctrl_mess
 
 	// when we put a message in control channel there is no extra space
 	if ((channel -> channel_type == SEND_CTRL_CHANNEL)){
-		memcpy((void *) ret_ctrl_message, fifo_item, sizeof(Control_Message));
+		memcpy((void *) ret_ctrl_message, fifo_item, sizeof(Ctrl_Message));
 	}
 	// when we get a receive message the first 40 bytes are GRH, so can skip passed this
 	// and cast to control message
 	if ((channel -> channel_type == RECV_CTRL_CHANNEL) || (channel -> channel_type == SHARED_RECV_CTRL_CHANNEL)){
-		memcpy((void *) ret_ctrl_message, (void *) ((uint64_t) fifo_item + sizeof(struct ibv_grh)), sizeof(Control_Message));
+		memcpy((void *) ret_ctrl_message, (void *) ((uint64_t) fifo_item + sizeof(struct ibv_grh)), sizeof(Ctrl_Message));
 	}
 	
 	if ((channel -> channel_type == RECV_CTRL_CHANNEL) || (channel -> channel_type == SHARED_RECV_CTRL_CHANNEL)){
