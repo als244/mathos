@@ -61,10 +61,12 @@ void * run_ctrl_handler(void * _cq_thread_data){
 		// other fields as well...
 		if (seen_new_completition){
 			/* DO SOMETHING WITH wr_id! */
-			printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
+			
+			// This message is kinda ugly. Can be helpful with errors
+			// printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
 
 			if (status != IBV_WC_SUCCESS){
-				fprintf(stderr, "Error: work request id %lu had error\n", wr_id);
+				fprintf(stderr, "Error: work request id %lu had error. Status: %d\n", wr_id, status);
 				// DO ERROR HANDLING HERE!
 			}
 
