@@ -156,9 +156,9 @@ int block_for_wr_comp(struct ibv_cq_ex * cq, uint64_t target_wr_id){
 		   
 
 		if (seen_new_completition){
-			printf("Saw completion of wr_id = %ld\n\tStatus: %d\n", wr_id, status);
+			printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
 			if (status != IBV_WC_SUCCESS){
-				fprintf(stderr, "Error: work request id %ld had error\n", wr_id);
+				fprintf(stderr, "Error: work request id %lu had error\n", wr_id);
 			}
 
 			// THESE OUTPUTS SEEM WRONG??
@@ -237,10 +237,10 @@ int poll_cq(struct ibv_cq_ex * cq, uint64_t duration_ns) {
 		// other fields as well...
 		if (seen_new_completition){
 			/* DO SOMETHING WITH wr_id! */
-			printf("Saw completion of wr_id = %ld\n\tStatus: %d\n", wr_id, status);
+			printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
 
 			if (status != IBV_WC_SUCCESS){
-				fprintf(stderr, "Error: work request id %ld had error\n", wr_id);
+				fprintf(stderr, "Error: work request id %lu had error\n", wr_id);
 				// DO ERROR HANDLING HERE!
 			}
 		}
