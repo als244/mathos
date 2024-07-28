@@ -108,7 +108,7 @@ int process_rdma_init_connection(int sockfd, Net_World * net_world, bool * ret_i
 	}
 
 
-	uint64_t recv_endpoints_size = remote_num_ports * sizeof(Remote_Endpoint);
+	uint64_t recv_endpoints_size = remote_num_endpoints * sizeof(Remote_Endpoint);
 	byte_cnt = recv(sockfd, remote_rdma_init_info -> remote_endpoints, recv_endpoints_size, MSG_WAITALL);
 	if (byte_cnt != recv_endpoints_size){
 		fprintf(stderr, "Error: Bad receiving of rdma init info endpoints. Only received %zd bytes out of %zu\n", byte_cnt, recv_endpoints_size);
