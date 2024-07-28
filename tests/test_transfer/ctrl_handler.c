@@ -35,8 +35,9 @@ void * run_ctrl_handler(void * _cq_thread_data){
 	uint64_t wr_id;
 
 	Ctrl_Channel * ctrl_channel;
-	Control_Message * ctrl_message;
-
+		
+	// these will get populated upon extracting an item from channel
+	Control_Message ctrl_message;
 	Control_Message_H ctrl_message_header;
 
 	// For now doing an infnite loop unless error....
@@ -71,7 +72,7 @@ void * run_ctrl_handler(void * _cq_thread_data){
 
 			// Defined within self_net.c
 			ctrl_channel = get_ctrl_channel(self_net, wr_id);
-			if (ctrl_channel == NULL){
+			if (unlikely(ctrl_channel == NULL)){
 				fprintf(stderr, "Error: control completion handler failed. Couldn't get channel. For wr_id = %lu\n", wr_id);
 				return NULL;
 			}
@@ -80,8 +81,8 @@ void * run_ctrl_handler(void * _cq_thread_data){
 			//		- if this was a shared receive / receive channel then this function will automatically replenish
 
 			// Defined within ctrl_channel.
-			ctrl_message = extract_ctrl_channel(ctrl_channel);
-			if (ctrl_message == NULL){
+			ret = extract_ctrl_channel(ctrl_channel, &ctrl_message);
+			if (unlikely(ret != 0)){
 				fprintf(stderr, "Error: control completion handler failed. Couldn't extract channel item. For wr_id = %lu\n", wr_id);
 				return NULL;
 			}
@@ -93,11 +94,11 @@ void * run_ctrl_handler(void * _cq_thread_data){
 
 			if ((ctrl_channel -> channel_type == SHARED_RECV_CTRL_CHANNEL) || (ctrl_channel -> channel_type == RECV_CTRL_CHANNEL)){
 
-				ctrl_message_header = ctrl_message -> header;
+				ctrl_message_header = ctrl_message.header;
 
 				// For now just printing
 				printf("\n\nReceived control message!\n\tSource Node ID: %u\n\tMessage Type: %d\n\t\tContents: %s\n\n", 
-							ctrl_message_header.source_node_id, ctrl_message_header.message_type, ctrl_message -> contents);
+							ctrl_message_header.source_node_id, ctrl_message_header.message_type, ctrl_message.contents);
 
 
 				// REALLY SHOULD HAVE A FORMAT LIKE THIS HERE....
@@ -111,18 +112,7 @@ void * run_ctrl_handler(void * _cq_thread_data){
 
 				}
 				*/
-			}
-
-			// 4.) we can free the message now
-			//		- this was copied from (a copy) of the ctrl_channel fifo buffer
-			//			- the intermediate copy (returned from consume_fifo()) was freed within extract()
-			//			- purpose of the copies is to help with weird race conditions for very small buffers
-			//		- the original contents are still there, just freeing the copy
-			//		- those original contents will get overwritten when the producer/consumer buffer loops around
-
-			free(ctrl_message);
-
-			
+			}			
 		}
 
 		// Check for next completed work request...

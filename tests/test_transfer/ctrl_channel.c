@@ -214,11 +214,12 @@ int post_send_ctrl_channel(Ctrl_Channel * channel, Control_Message * ctrl_messag
 // Completition Queue Handler's will be calling consume_channel
 //	- they will choose the correct channel based upon channel ID!
 
-// Returns newly allocated memory!
 
 // When this is called upon RECV or SHARED_RECV channels, we just consumed an item so we want to replace!
-// When we extract something we sent no need to replace, because sends have content
-Control_Message * extract_ctrl_channel(Ctrl_Channel * channel) {
+// 	- When we extract something we sent no need to replace, because sends have content
+
+// ASSUME ret_control_message has memory allocated somehow!!
+int extract_ctrl_channel(Ctrl_Channel * channel, Control_Message * ret_ctrl_message) {
 
 	// Error Check if we want
 
@@ -231,25 +232,27 @@ Control_Message * extract_ctrl_channel(Ctrl_Channel * channel) {
 
 	// returns a copy of the item in fifo buffer => should free it when done!
 	void * fifo_item = consume_fifo(channel -> fifo);
-
-	
-	Control_Message * ctrl_message = (Control_Message *) malloc(sizeof(Control_Message));
+	if (unlikely(fifo_item == NULL)){
+		fprintf(stderr, "Error: within extract_ctrl_channel, consume_fifo returned null\n");
+		return -1;
+	}
 
 	// when we put a message in control channel there is no extra space
 	if ((channel -> channel_type == SEND_CTRL_CHANNEL)){
-		memcpy((void *) ctrl_message, fifo_item, sizeof(Control_Message));
+		memcpy((void *) ret_ctrl_message, fifo_item, sizeof(Control_Message));
 	}
 	// when we get a receive message the first 40 bytes are GRH, so can skip passed this
 	// and cast to control message
 	if ((channel -> channel_type == RECV_CTRL_CHANNEL) || (channel -> channel_type == SHARED_RECV_CTRL_CHANNEL)){
-		memcpy((void *) ctrl_message, fifo_item + sizeof(struct ibv_grh), sizeof(Control_Message));
+		memcpy((void *) ret_ctrl_message, fifo_item + sizeof(struct ibv_grh), sizeof(Control_Message));
 	}
 	
 	if ((channel -> channel_type == RECV_CTRL_CHANNEL) || (channel -> channel_type == SHARED_RECV_CTRL_CHANNEL)){
 		// after extracting a control item (must have been in receive queue), replace it
 		int ret = post_recv_ctrl_channel(channel);
-		if (ret != 0){
+		if (unlikely(ret != 0)){
 			fprintf(stderr, "Error: failure posting a receive after trying to replace an extracted item\n");
+			return -1;
 		}
 	}
 
@@ -259,5 +262,5 @@ Control_Message * extract_ctrl_channel(Ctrl_Channel * channel) {
 
 	// NOTE: ensure to free the message returned from extract!
 
-	return ctrl_message;
+	return 0;
 }
