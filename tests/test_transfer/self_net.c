@@ -459,7 +459,12 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 	}
 
 	self_net -> num_endpoint_types = num_endpoint_types;
-	self_net -> endpoint_types = endpoint_types;
+	self_net -> endpoint_types = malloc(num_endpoint_types * sizeof(EndpointType));
+	if (self_net -> endpoint_types == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate array to hold endpoint types\n");
+		return NULL;
+	}
+	memcpy(self_net -> endpoint_types, endpoint_types, num_endpoint_types * sizeof(EndpointType));
 
 	// 1.) Get list of RDMA-devices attached to this node
 	//		- Note: typically seperate physical ports on Mellanox cards 
@@ -624,8 +629,36 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 
 	self_net -> cq_threads = cq_threads;	
 
+
+	// 8.) TODO: Get cpu_set's from querying each ib_devices sysfs path
+
+	// Spawning with a specific cpu_set_t occurs when calling run_cq_thread from init_net -> cq_handler.c
+	// the cpu_set assoicated with the device
+	// found by reading the local_cpus file from sysfs
+	// this file has comma seperate uint32_t's representing cpu bitmasks
+	// the completition queue handler threads (assoicated with each device)
+	// should have these bitmasks set when the thread is spawned
+	// using pthread_setaffinity_np()
+
 	
-	// 6.) Create Self_Node for self which contains information about ports and Queue Pairs
+
+	cpu_set_t ** ib_dev_cpu_affinities = (cpu_set_t **) malloc(num_devices * sizeof(cpu_set_t *));
+	if (ib_dev_cpu_affinities == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate ib_dev_cpu_affinities array\n");
+		return NULL;
+	}
+
+	// FOR NOW: setting to null and not using
+	for (int i = 0; i < num_devices; i++){
+		// should be querying sysfs file
+		// filepath can be found from struct ibv_device -> ibdev_path
+		// then add extension of local_cpus
+		ib_dev_cpu_affinities[i] = NULL;
+	}
+	
+	self_net -> ib_dev_cpu_affinities = ib_dev_cpu_affinities;
+
+	// 9.) Create Self_Node for self which contains information about ports and Queue Pairs
 	Self_Node * self_node = init_self_node(self_net, num_endpoint_types, endpoint_types, to_use_srq_by_type, num_qps_per_type);
 	if (self_node == NULL){
 		fprintf(stderr, "Error: could not initialize self node\n");

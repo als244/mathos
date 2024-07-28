@@ -85,7 +85,7 @@ typedef struct control_message_h {
 typedef struct control_message {
 	Control_Message_H header;
 	// to be interpreted based upon header -> message_type
-	uint8_t contents[CONTROL_MESSAGE_CONTENTS_MAX_SIZE_BYTES];
+	char contents[CONTROL_MESSAGE_CONTENTS_MAX_SIZE_BYTES];
 } Control_Message;
 
 

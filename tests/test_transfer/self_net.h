@@ -132,13 +132,6 @@ typedef struct self_net {
 	// for QPs within a port depending on QP usage type
 	struct ibv_srq ** dev_srqs;
 	Ctrl_Channel ** dev_shared_recv_ctrl_channels;
-	// the cpu_set assoicated with the device
-	// found by reading the local_cpus file from sysfs
-	// this file has comma seperate uint32_t's representing cpu bitmasks
-	// the completition queue handler threads (assoicated with each device)
-	// should have these bitmasks set when the thread is spawned
-	// using pthread_setaffinity_np() 
-	cpu_set_t * local_cpus;
 	// outer index is device_id
 	// inner index is endpoint type
 	struct ibv_cq_ex *** cq_collection;
@@ -146,6 +139,13 @@ typedef struct self_net {
 	// inner index is endpoint type
 	// pthread_create is not called until the end of init_net
 	pthread_t ** cq_threads;
+	// the cpu_set assoicated with the device
+	// found by reading the local_cpus file from sysfs
+	// this file has comma seperate uint32_t's representing cpu bitmasks
+	// the completition queue handler threads (assoicated with each device)
+	// should have these bitmasks set when the thread is spawned
+	// using pthread_setaffinity_np() 
+	cpu_set_t ** ib_dev_cpu_affinities;
 	// where all the QPs are stored
 	Self_Node * self_node;
 	// If ip_addr is non-null will use this ip_address to connect to master port

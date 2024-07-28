@@ -103,9 +103,21 @@ Master * init_master(char * ip_addr, uint32_t max_nodes, uint32_t min_init_nodes
 
 	// start master's rdma_init server here
 	// this thread will never return
+
+	// SHOULD HAVE SIGNAL HANDLING INSTEAD OF THIS
+	// currently not checking if this thread terminates
+	//	- should be fatal to master if this terminates and need to know!
+	// ok for now i guess...
 	ret = pthread_create(&(master -> tcp_rdma_init_server_thread), NULL, run_tcp_rdma_init_server, (void *) net_world);
 	if (ret != 0){
 		fprintf(stderr, "[Master] Error: could not start rdma_init tcp server\n");
+		return NULL;
+	}
+
+	// also create all cq threads here
+	ret = activate_cq_threads(net_world);
+	if (ret != 0){
+		fprintf(stderr, "[Master] Error; failure to activate_cq_threads\n");
 		return NULL;
 	}
 	
@@ -466,6 +478,9 @@ int run_master(Master * master) {
 		fprintf(stderr, "Error: pthread_create failed to start join server\n");
 		return -1;
 	}
+
+
+	// SHOULD HAVE SIGNAL HANDLING INSTEAD OF THIS
 
 	// Should Be Infinitely Blocking 
 	// (unless error or shutdown message)

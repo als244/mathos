@@ -6,7 +6,7 @@
 #include "self_net.h"
 #include "join_net.h"
 #include "tcp_rdma_init.h"
-#include "ctrl_handler.h"
+#include "cq_handler.h"
 
 
 // optionally specify an ip_address to use to connect to master and use for running tcp rdma_init server
