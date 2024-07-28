@@ -29,27 +29,27 @@ Rdma_Init_Info * build_rdma_init_info(Self_Net * self_net, uint32_t node_id) {
 	}
 
 	Self_Port * ports = self_node -> ports;
-	Self_Port cur_port;
+	Self_Port * cur_port;
 	for (uint32_t i = 0; i < num_ports; i++){
-		cur_port = ports[i];
+		cur_port = &ports[i];
 
 		// Set the data needed for other side to create address handle to this port
-		remote_ports_init[i].ah_creation_data.gid = cur_port.gid;
-		remote_ports_init[i].ah_creation_data.lid = cur_port.lid;
-		remote_ports_init[i].ah_creation_data.port_num = cur_port.port_num;
+		remote_ports_init[i].ah_creation_data.gid = cur_port -> gid;
+		remote_ports_init[i].ah_creation_data.lid = cur_port -> lid;
+		remote_ports_init[i].ah_creation_data.port_num = cur_port -> port_num;
 
 		// indicate if this port is available by sending it's state
 		// only availabe if state == IBV_PORT_ACTIVE
-		remote_ports_init[i].state = cur_port.state;
+		remote_ports_init[i].state = cur_port -> state;
 
 		// indicate the mtu in case this port's mtu differs with current one
 		// in which case use the minimum of the two
-		remote_ports_init[i].active_mtu = cur_port.active_mtu;
+		remote_ports_init[i].active_mtu = cur_port -> active_mtu;
 	
 		// indicate the bandwidth of the port so the sender can choose an approriately 
 		// BW-provisioned port of their own to send to 
 		// (i.e. don't waste high BW port as sender if this port has lower BW)
-		remote_ports_init[i].active_speed = cur_port.active_speed;
+		remote_ports_init[i].active_speed = cur_port -> active_speed;
 	}
 
 	rdma_init_info -> remote_ports_init = remote_ports_init;
@@ -63,14 +63,14 @@ Rdma_Init_Info * build_rdma_init_info(Self_Net * self_net, uint32_t node_id) {
 	}
 
 	Self_Endpoint * endpoints = self_node -> endpoints;
-	Self_Endpoint cur_endpoint;
+	Self_Endpoint * cur_endpoint;
 	for (uint32_t i = 0; i < num_endpoints; i++){
-		cur_endpoint = endpoints[i];
-		remote_endpoints[i].endpoint_type = cur_endpoint.endpoint_type;
-		remote_endpoints[i].remote_node_port_ind = cur_endpoint.qp_port -> node_port_ind;
+		cur_endpoint = &endpoints[i];
+		remote_endpoints[i].endpoint_type = cur_endpoint -> endpoint_type;
+		remote_endpoints[i].remote_node_port_ind = cur_endpoint -> qp_port -> node_port_ind;
 		printf("Adding remote endpoint with id: %u. Assigned remote_node_port_ind: %u\n", i, remote_endpoints[i].remote_node_port_ind);
-		remote_endpoints[i].remote_qp_num = cur_endpoint.qp_num;
-		remote_endpoints[i].remote_qkey = cur_endpoint.qkey;
+		remote_endpoints[i].remote_qp_num = cur_endpoint -> qp_num;
+		remote_endpoints[i].remote_qkey = cur_endpoint -> qkey;
 	}
 
 	rdma_init_info -> remote_endpoints = remote_endpoints;
