@@ -146,7 +146,7 @@ void destroy_deque(Deque * deque, bool to_free_items) {
 	return;
 }
 
-int get_count_deque(Deque * deque) {
+uint64_t get_count_deque(Deque * deque) {
 	
 	pthread_mutex_lock(&(deque -> list_lock));
 	uint64_t cnt = deque -> cnt;
@@ -243,6 +243,50 @@ int take_and_replace_deque(Deque * deque, DequeEnd take_end, DequeEnd replace_en
 	*ret_item = item;
 
 	return ret;
+}
+
+
+int peek_item_at_index_deque(Deque * deque, DequeEnd start_end, uint64_t index, void ** ret_item){
+
+	void * item;
+
+	pthread_mutex_lock(&(deque -> list_lock));
+
+	// Error checking if we want it
+
+	if (unlikely(index >= deque -> cnt)) {
+		fprintf(stderr, "Error: cannot peek at item at index %u, when deque count is %u\n", index, deque -> cnt);
+		return -1;
+	}
+
+	Deque_Item * cur_item;
+
+	if (start_end == FRONT_DEQUE){
+		cur_item = deque -> head;
+	}
+	else{
+		cur_item = deque -> tail;
+	}
+
+	uint64_t cnt = 0;
+	while (cnt < index){
+
+		if (start_end == FRONT_DEQUE){
+			cur_item = cur_item -> next;
+		}
+		else{
+			cur_item = cur_item -> prev;
+		}
+		cnt++;
+	}
+
+	item = cur_item -> item;
+
+	pthread_mutex_unlock(&(deque -> list_lock));
+
+	*ret_item = item;
+
+	return 0;
 }
 
 
