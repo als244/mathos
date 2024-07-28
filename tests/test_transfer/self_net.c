@@ -327,7 +327,7 @@ int init_self_endpoint(Self_Net * self_net, Self_Port * port, int ib_device_id, 
 }
 
 
-Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self_Port * ports, uint32_t num_endpoints, int num_endpoint_types, EndpointType * endpoint_types, bool * to_use_srq_by_type, int * num_qps_per_type){
+Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self_Port * ports, uint32_t num_endpoints, int num_endpoint_types, EndpointType * endpoint_types, bool * to_use_srq_by_type, int * num_qps_per_type, Deque * active_ctrl_endpoints){
 
 	int ret;
 
@@ -375,6 +375,15 @@ Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self
 					return NULL;
 				}
 
+				// If this is a control endpoint and it's current state is active, then add it to the active control endpoint list
+				if ((endpoints[cur_node_endpoint_ind].endpoint_type == CONTROL_ENDPOINT) && (cur_port -> state == IBV_PORT_ACTIVE)){
+					ret = insert_deque(active_ctrl_endpoints, BACK_DEQUE, &endpoints[cur_node_endpoint_ind]);
+					if (ret != 0){
+						fprintf(stderr, "Error: couldnt insert self endpoint into the active_ctrl_endpoints deque\n");
+						return NULL;
+					}
+				}	
+
 				// successfully created endpoint so increment the index within packed array
 				cur_node_endpoint_ind++;
 			}
@@ -413,9 +422,12 @@ Self_Node * init_self_node(Self_Net * self_net, int num_endpoint_types, Endpoint
 		return NULL;
 	}
 
-	
+	// 2.) Initialize a deque to maintain active control endpoints which will be used for sending control messages
+	//		- probably have a round robin policy for which endpoint to send from
 
-	// 2.) Create endpoints
+	Deque * active_ctrl_endpoints = init_deque();
+
+	// 3.) Create endpoints
 	
 	uint32_t total_qps_per_port = 0;
 	for (int i = 0; i < num_endpoint_types; i++){
@@ -424,7 +436,7 @@ Self_Node * init_self_node(Self_Net * self_net, int num_endpoint_types, Endpoint
 
 	uint32_t num_endpoints = num_ports * total_qps_per_port;
 
-	Self_Endpoint * endpoints = init_all_endpoints(self_net, num_ports, ports, num_endpoints, num_endpoint_types, endpoint_types, to_use_srq_by_type, num_qps_per_type);
+	Self_Endpoint * endpoints = init_all_endpoints(self_net, num_ports, ports, num_endpoints, num_endpoint_types, endpoint_types, to_use_srq_by_type, num_qps_per_type, active_ctrl_endpoints);
 	if (endpoints == NULL){
 		fprintf(stderr, "Error: faile to initialize endpoints from init_self_node\n");
 		return NULL;
@@ -437,6 +449,8 @@ Self_Node * init_self_node(Self_Net * self_net, int num_endpoint_types, Endpoint
 	self_node -> ports = ports;
 	self_node -> num_endpoints = num_ports * total_qps_per_port;
 	self_node -> endpoints = endpoints;
+	// this has been modified within init_all_endpoints
+	self_node -> active_ctrl_endpoints = active_ctrl_endpoints;
 
 	return self_node;
 }

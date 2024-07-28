@@ -4,6 +4,7 @@
 #include "common.h"
 #include "config.h"
 #include "table.h"
+#include "deque.h"
 #include "self_net.h"
 #include "ctrl_channel.h"
 #include "rdma_init_info.h"
@@ -69,6 +70,8 @@ typedef struct net_node {
 	// For Data-Endpoints:
 	//	- the receiver will tell the sender which endpoint ind
 	Net_Endpoint * endpoints;
+	// to maintin a list of all available endpoints to send control messsages to
+	Deque * active_ctrl_endpoints;
 } Net_Node;
 
 
@@ -131,8 +134,13 @@ typedef struct send_dest {
 } Send_Dest;
 
 
-// Used for Data Transmission
-int post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, uint32_t send_self_endpoint_ind, uint32_t remote_node_id, uint32_t remote_node_endpoint_ind);
+// Used for Control Message Data Transmission
+// Within this function there is a policy to choose the sending / receiving endpoints 
+//	- based on active ctrl endpoint deques within self_node and net_node
+//	- currently policy is to do round-robin for each (i.e. take at front and replace at back)
+//		- for load balancing reasons
+//	- however probably want to take cpu affinity into account...
+int post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, uint32_t remote_node_id);
 
 // Receives are handled within the Completion Queue Handlers (polling the per-ib device CQs dedicated to control messages)
 

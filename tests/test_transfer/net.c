@@ -251,8 +251,11 @@ Net_Node * net_add_node(Net_World * net_world, Rdma_Init_Info * remote_rdma_init
 
 	node -> ports = remote_ports;
 
+	// 3.) Create a deque to maintain all active control endpoints we can send to
 
-	// 3.) Allocate memory for the endpoints
+	Deque * active_ctrl_endpoints = init_deque();
+
+	// 4.) Allocate memory for the endpoints
 
 	Net_Endpoint * remote_endpoints = (Net_Endpoint *) malloc(node -> num_endpoints * sizeof(Net_Endpoint));
 	if (remote_endpoints == NULL){
@@ -269,6 +272,8 @@ Net_Node * net_add_node(Net_World * net_world, Rdma_Init_Info * remote_rdma_init
 
 
 	Remote_Endpoint * cur_remote_endpoint_info;
+
+
 	for (uint32_t i = 0; i < node -> num_endpoints; i++){
 		cur_remote_endpoint_info = &remote_endpoints_info[i];
 
@@ -292,6 +297,25 @@ Net_Node * net_add_node(Net_World * net_world, Rdma_Init_Info * remote_rdma_init
 
 		printf("\n[Node %u] Added remote endpoint from node: %u. Endpoint info:\n\tEndpoint Type: %d\n\tQP Num: %u\n\tQKey: %u\n\tRemote Node Port Ind: %u\n\tRemote Node Endpoint Ind: %u\n\n\n", 
 				net_world -> self_node_id, node -> node_id, remote_endpoints[i].endpoint_type, remote_endpoints[i].remote_qp_num, remote_endpoints[i].remote_qkey, remote_endpoints[i].remote_node_port_ind, i);
+
+		// if this is a contorl endpoint and it's corresponding port is active add it to the active_ctrl_endpoints deque
+		if ((remote_endpoints[i].endpoint_type == CONTROL_ENDPOINT) && 
+				(remote_ports[remote_endpoints[i].remote_node_port_ind].state == IBV_PORT_ACTIVE)){
+			ret = insert_deque(active_ctrl_endpoints, BACK_DEQUE, &(remote_endpoints[i]));
+			
+			// only happens during OOM
+			if (unlikely(ret != 0)){
+				fprintf(stderr, "Error: could not insert remote endpoint to the active_ctrl_endpoints deque\n");
+				for (uint32_t k = 0; k < node -> num_ports; k++){
+					destory_address_handles(node -> ports, k, num_self_ib_devices);
+				}
+				free(node -> ports);
+				free(node -> endpoints);
+				free(node);
+				destroy_deque(active_ctrl_endpoints, false);
+				return NULL;
+			}
+		}
 	}
 
 	node -> endpoints = remote_endpoints;
@@ -352,7 +376,9 @@ void destroy_remote_node(Net_World * net_world, Net_Node * node){
 }
 
 
-int post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, uint32_t send_self_endpoint_ind, uint32_t remote_node_id, uint32_t remote_node_endpoint_ind) {
+int post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, uint32_t remote_node_id) {
+
+	int ret;
 
 	// 1.) Lookup node in table
 	Net_Node target_node;
@@ -364,8 +390,42 @@ int post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, ui
 		return -1;
 	}
 
+	// 2.) Decide what endpoints to use
 
-	// 2.) Get endpoint information
+	//	Determine the sending and receiving endpoints
+	//	- deciding to make this round robin to evenly balance the links
+	//		- note, taking from front, but replacing at back
+	//	- HOWEVER, probably want to account for CPU locality wihtin this policy
+
+
+	// 2a.) Choose self sending endpoint
+
+	Self_Endpoint * send_ctrl_endpoint; 
+	Deque * self_active_ctrl_endpoints = net_world -> self_net -> self_node -> active_ctrl_endpoints;
+
+	ret = take_and_replace_deque(self_active_ctrl_endpoints, FRONT_DEQUE, BACK_DEQUE, (void **) &send_ctrl_endpoint);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not post send ctrl net because no active sending control endpoints\n");
+		return -1;
+	}
+
+	uint32_t send_self_endpoint_ind = send_ctrl_endpoint -> node_endpoint_ind;
+
+	// 2b.) Decide remote endpoint
+
+	Net_Endpoint * remote_ctrl_endpoint;
+	Deque * remote_active_ctrl_endpoints = remote_node -> active_ctrl_endpoints;
+
+	ret = take_and_replace_deque(remote_active_ctrl_endpoints, FRONT_DEQUE, BACK_DEQUE, (void **) &remote_ctrl_endpoint);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not post send ctrl net because no active remote control endpoints at destination node: %u\n", remote_node_id);
+		return -1;
+	}
+
+	uint32_t remote_node_endpoint_ind = remote_ctrl_endpoint -> remote_node_endpoint_ind;
+
+	// 3.) Get endpoint information
+
 	if (remote_node_endpoint_ind >= remote_node -> num_endpoints){
 		fprintf(stderr, "Error: post_send_net failed because remote_node_endpoint_ind of %u, is greater than total remote endpoints of: %u\n", 
 			remote_node_endpoint_ind, remote_node -> num_endpoints);
@@ -403,7 +463,7 @@ int post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, ui
 	struct ibv_ah * dest_ah = address_handles[ib_device_id];
 
 	// 5.) Actually post send
-	int ret = post_send_ctrl_channel(send_ctrl_channel, ctrl_message, dest_ah, remote_qp_num, remote_qkey);
+	ret = post_send_ctrl_channel(send_ctrl_channel, ctrl_message, dest_ah, remote_qp_num, remote_qkey);
 	if (ret != 0){
 		fprintf(stderr, "Error: failure to post to control channel within post_send_ctrl_net\n");
 		return -1;

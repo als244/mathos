@@ -4,6 +4,7 @@
 #include "common.h"
 #include "config.h"
 #include "ctrl_channel.h"
+#include "deque.h"
 
 #define GID_NUM_BYTES 16
 
@@ -112,6 +113,8 @@ typedef struct self_node {
 	Self_Port * ports;
 	// all of the nodes' endpoints (QPs) are packed together
 	Self_Endpoint * endpoints;
+	// to maintin a list of all available endpoints to send control messsages from 
+	Deque * active_ctrl_endpoints;
 } Self_Node;
 
 typedef struct self_net {

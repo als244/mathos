@@ -7,7 +7,7 @@ all: testMaster testWorker
 
 
 ## MASTER PROGRAM
-testMaster: main_master.c table.o fifo.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o master.o utils.o cq_handler.o ctrl_handler.o
+testMaster: main_master.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o master.o utils.o cq_handler.o ctrl_handler.o
 	${CC} ${CFLAGS} $^ -o $@ -lm -pthread -libverbs
 
 master.o: master.c
@@ -16,7 +16,7 @@ master.o: master.c
 
 ## WORKER PROGRAM
 
-testWorker: main_worker.c table.o fifo.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o
+testWorker: main_worker.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o
 	${CC} ${CFLAGS} $^ -o $@ -lm -pthread -libverbs 
 
 join_net.o: join_net.c
@@ -32,6 +32,9 @@ table.o: table.c
 	${CC} ${CFLAGS} -c $^
 
 fifo.o: fifo.c
+	${CC} ${CFLAGS} -c $^
+
+deque.o: deque.c
 	${CC} ${CFLAGS} -c $^
 
 verbs_ops.o: verbs_ops.c

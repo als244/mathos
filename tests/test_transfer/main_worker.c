@@ -42,7 +42,7 @@ int main(int argc, char * argv[]){
 	}
 
 	printf("\n\n[Node %u] Posting a control message. Sending to node id: %d...\n\n", net_world -> self_node_id, dest_node_id);
-	ret = post_send_ctrl_net(net_world, &ctrl_message, 0, dest_node_id, 0);
+	ret = post_send_ctrl_net(net_world, &ctrl_message, dest_node_id);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not post control message. From id: %u going to node id: %u\n", net_world -> self_node_id, dest_node_id);
 		return -1;
