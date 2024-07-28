@@ -248,56 +248,27 @@ void * run_tcp_rdma_init_server(void * _net_world) {
 	// cast the argument passed in by pthread_create
 	Net_World * net_world = (Net_World *) _net_world;
 
-	char * ip_addr = net_world -> self_rdma_init_server_ip_addr;
+	char * rdma_init_serv_ip_addr = net_world -> self_rdma_init_server_ip_addr;
 	uint32_t max_nodes = net_world -> max_nodes;
 
-	// 1.) create server TCP socket
-	int serv_sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (serv_sockfd == -1){
-		fprintf(stderr, "[RDMA_Init TCP Server] Error: could not create server socket\n");
-		return NULL;
-	}
+	// 1.) Start server listening
 
-	// 2.) Init server info
-	struct sockaddr_in serv_addr;
-	serv_addr.sin_family = AF_INET;
-
-	// set IP address of server
-	// INET_ATON return 0 on error!
-	ret = inet_aton(ip_addr, &serv_addr.sin_addr);
-	if (ret == 0){
-		fprintf(stderr, "[RDMA_Init TCP Server] Error: master join server ip address: %s -- invalid\n", ip_addr);
-		return NULL;
-	}
-	// defined within config.h
-
-	unsigned short rdma_init_server_port;
-
+	unsigned short server_port;
 	if (net_world -> self_node_id == MASTER_NODE_ID){
-		rdma_init_server_port = MASTER_RDMA_INIT_PORT;
+		server_port = MASTER_RDMA_INIT_PORT;
 	}
 	else{
-		rdma_init_server_port = WORKER_RDMA_INIT_PORT;
+		server_port = WORKER_RDMA_INIT_PORT;
 	}
 
-	serv_addr.sin_port = htons(rdma_init_server_port);
-
-	// 3.) Bind server to port
-	ret = bind(serv_sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
-	if (ret != 0){
-		fprintf(stderr, "[RDMA_Init TCP Server] Error: could not bind server socket to address: %s, port: %u\n", ip_addr, rdma_init_server_port);
-		return NULL;
-	}
-
-	// 4.) Start Listening
-	ret = listen(serv_sockfd, max_nodes);
-	if (ret != 0){
-		fprintf(stderr, "[RDMA_Init TCP Server] Error: could not start listening on server socket\n");
+	int serv_sockfd = start_server_listen(rdma_init_serv_ip_addr, server_port, max_nodes);
+	if (serv_sockfd < 0){
+		fprintf(stderr, "Error: unable to start tcp rdma init server on ip addr: %s and port: %u\n", rdma_init_serv_ip_addr, server_port);
 		return NULL;
 	}
 
 
-	// 5.) Handle requests
+	// 2.) Handle requests
 
 	int connected_sockfd;
 	// client_addr will be read based upon accept() call 

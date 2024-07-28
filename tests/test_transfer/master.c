@@ -343,48 +343,26 @@ void * run_join_net_server(void * _master) {
 
 	int ret;
 
+
+
 	// cast the argument passed in by pthread_create
 	Master * master = (Master *) _master;
+
+
+	// 1.) Start server
 
 	char * ip_addr = master -> ip_addr;
 	uint32_t max_nodes = master -> max_nodes;
 
-	// 1.) create server TCP socket
-	int serv_sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (serv_sockfd == -1){
-		fprintf(stderr, "[Master Server] Error: could not create server socket\n");
+	// defined wihtin tcp_connection.c
+	int serv_sockfd = start_server_listen(ip_addr, JOIN_NET_PORT, max_nodes);
+	if (serv_sockfd < 0){
+		fprintf(stderr, "Error: failed to start join net server in master\n");
 		return NULL;
 	}
 
-	// 2.) Init server info
-	struct sockaddr_in serv_addr;
-	serv_addr.sin_family = AF_INET;
 
-	// set IP address of server
-	// INET_ATON return 0 on error!
-	ret = inet_aton(ip_addr, &serv_addr.sin_addr);
-	if (ret == 0){
-		fprintf(stderr, "[Master Server] Error: master join server ip address: %s -- invalid\n", ip_addr);
-		return NULL;
-	}
-	// defined within config.h
-	serv_addr.sin_port = htons(JOIN_NET_PORT);
-
-	// 3.) Bind server to port
-	ret = bind(serv_sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
-	if (ret != 0){
-		fprintf(stderr, "[Master Server] Error: could not bind server socket to address: %s, port: %u\n", ip_addr, JOIN_NET_PORT);
-		return NULL;
-	}
-
-	// 4.) Start Listening
-	ret = listen(serv_sockfd, max_nodes);
-	if (ret != 0){
-		fprintf(stderr, "[Master Server] Error: could not start listening on server socket\n");
-		return NULL;
-	}
-
-	// 5.) Process accepts
+	// 2.) Process accepts
 	// SHOULD REALLY BE MORE EFFICIENT (multi-threaded / event driver), but fine for now...
 	
 	// remote_addr and sockfd are dependent upon call to accept() so will be modified then

@@ -1,5 +1,59 @@
 #include "tcp_connection.h"
 
+// returns serv_sockfd
+int start_server_listen(char * server_ip_addr, unsigned short server_port, int backlog) {
+
+	int ret;
+
+	// 1.) create server TCP socket
+	int serv_sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (serv_sockfd == -1){
+		fprintf(stderr, "[Master Server] Error: could not create server socket\n");
+		return -1;
+	}
+
+	// 2.) Init server info
+	struct sockaddr_in serv_addr;
+	serv_addr.sin_family = AF_INET;
+
+	// set IP address of server
+	// INET_ATON return 0 on error!
+	ret = inet_aton(server_ip_addr, &serv_addr.sin_addr);
+	if (ret == 0){
+		fprintf(stderr, "[Master Server] Error: master join server ip address: %s -- invalid\n", server_ip_addr);
+		return -1;
+	}
+	// defined within config.h
+	serv_addr.sin_port = htons(server_port);
+
+	// 3.) Set socket options to make development nicely
+	//		- when this program terminates from various reasons (could be any thread dying)
+	//			 want this addr/port to be available for binding upon restart without having to deal with TIME_WAIT in kernel
+
+	int enable_reuse;
+	ret = setsockopt(serv_sockfd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &enable_reuse, sizeof(enable_reuse));
+	if (ret != 0){
+		fprintf(stderr, "Error: unable to set socket options in join_net server\n");
+		return -1;
+	}
+
+	// 4.) Bind server to port
+	ret = bind(serv_sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+	if (ret != 0){
+		fprintf(stderr, "[Master Server] Error: could not bind server socket to address: %s, port: %u\n", server_ip_addr, server_port);
+		return -1;
+	}
+
+	// 5.) Start Listening
+	ret = listen(serv_sockfd, backlog);
+	if (ret != 0){
+		fprintf(stderr, "[Master Server] Error: could not start listening on server socket\n");
+		return -1;
+	}
+
+	return serv_sockfd;
+
+}
 
 // returns file descriptor of client_sockfd to read/write with
 // in case of error, returns -1
