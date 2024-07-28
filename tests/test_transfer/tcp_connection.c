@@ -30,7 +30,7 @@ int start_server_listen(char * server_ip_addr, unsigned short server_port, int b
 	//		- when this program terminates from various reasons (could be any thread dying)
 	//			 want this addr/port to be available for binding upon restart without having to deal with TIME_WAIT in kernel
 
-	int enable_reuse;
+	int enable_reuse = 1;
 	ret = setsockopt(serv_sockfd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &enable_reuse, sizeof(enable_reuse));
 	if (ret != 0){
 		fprintf(stderr, "Error: unable to set socket options in join_net server\n");
