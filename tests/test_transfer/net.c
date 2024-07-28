@@ -319,6 +319,7 @@ Net_Node * net_add_node(Net_World * net_world, Rdma_Init_Info * remote_rdma_init
 	}
 
 	node -> endpoints = remote_endpoints;
+	node -> active_ctrl_endpoints = active_ctrl_endpoints;
 
 	// 4.) Add this node to the table
 
