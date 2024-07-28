@@ -97,18 +97,18 @@ CQ_Collection * init_cq_collection(struct ibv_context * ibv_dev_ctx, int device_
 // called from within init_self_port_container()
 // upon port initialization Endpoint_Collection is populated based on num_endpoint_types and num_qps_per_type
 
-// if error set port.ib_device_id = -1
-Self_Port init_self_port(Self_Net * self_net, int device_id, uint8_t port_num, uint32_t node_port_ind) {
+
+int init_self_port(Self_Net * self_net, int device_id, uint8_t port_num, uint32_t node_port_ind, Self_Port * ret_port) {
 
 	int ret;
 
-	Self_Port port;
-	port.ib_device_id = device_id;
+
+	ret_port -> ib_device_id = device_id;
 	// the physical port num on specific IB device
 	// needed in order to create address handles to this destination
-	port.port_num = port_num;
+	ret_port -> port_num = port_num;
 	// index into Self_Node -> Ports
-	port.node_port_ind = node_port_ind;
+	ret_port -> node_port_ind = node_port_ind;
 
 	// opened device context associated with this port
 	struct ibv_context * dev_ctx = (self_net -> ibv_dev_ctxs)[device_id];
@@ -122,11 +122,10 @@ Self_Port init_self_port(Self_Net * self_net, int device_id, uint8_t port_num, u
 	if (ret != 0){
 		fprintf(stderr, "Error: could not not query GID for device #%d, port num #%d\n", 
 					device_id, (int) port_num);
-		port.ib_device_id = -1;
-		return port;
+		return -1;
 	}
 
-	port.gid = gid;
+	ret_port -> gid = gid;
 
 	// 2.) Initially query port to get attributes (lid, mtu, speed)
 	//		- note that over course of system runtime these attributes may change!
@@ -137,19 +136,18 @@ Self_Port init_self_port(Self_Net * self_net, int device_id, uint8_t port_num, u
 	if (ret != 0){
 		fprintf(stderr, "Error: ibv_query_port failed for device #%d, port num #%d\n", 
 							device_id, (int) port_num);
-		port.ib_device_id = -1;
-		return port;
+		return -1;
 	}
 
 	// Save the import values from port attr
-	port.state = port_attr.state;
-	port.lid = port_attr.lid;
-	port.active_mtu = port_attr.active_mtu;
-	port.active_speed = port_attr.active_speed;
+	ret_port -> state = port_attr.state;
+	ret_port -> lid = port_attr.lid;
+	ret_port -> active_mtu = port_attr.active_mtu;
+	ret_port -> active_speed = port_attr.active_speed;
 	// TODO: For multi-casting
 	//			- not sure how this works, yet...
-	port.sm_lid = port_attr.sm_lid;
-	port.sm_sl = port_attr.sm_sl;
+	ret_port -> sm_lid = port_attr.sm_lid;
+	ret_port -> sm_sl = port_attr.sm_sl;
 
 	// 3.) Deal with Partitioning
 	//		- This is for either QoS or Security
@@ -162,7 +160,7 @@ Self_Port init_self_port(Self_Net * self_net, int device_id, uint8_t port_num, u
 	//			- this file contains comma seperated uint32's representing bit-mask of local cpus
 	
 
-	return port;
+	return 0;
 
 }
 
@@ -170,6 +168,8 @@ Self_Port init_self_port(Self_Net * self_net, int device_id, uint8_t port_num, u
 // called from within init_self_node()
 // At initialization time port -> ah is left blank and populated during setup_world_net()
 Self_Port * init_all_ports(Self_Net * self_net, uint32_t num_ports, int num_endpoint_types, EndpointType * endpoint_types, bool * to_use_srq_by_type, int * num_qps_per_type) {
+
+	int ret;
 
 	// Obtain device info from Self_Net
 	int num_ib_devices = self_net -> num_ib_devices;
@@ -194,10 +194,10 @@ Self_Port * init_all_ports(Self_Net * self_net, uint32_t num_ports, int num_endp
 		device_num_ports = (uint8_t) num_ports_per_dev[device_id];
 		// in InfiniBand physical port numbers start at 1
 		for (uint8_t phys_port_num = 1; phys_port_num < device_num_ports + 1; phys_port_num++){
-			ports[cur_node_port_ind] = init_self_port(self_net, device_id, phys_port_num, cur_node_port_ind);
+			ret = init_self_port(self_net, device_id, phys_port_num, cur_node_port_ind, &(ports[cur_node_port_ind]));
 
 			// Within init_self_port, decided to report error as changing the device_id to be -1
-			if (ports[cur_node_port_ind].ib_device_id == -1){
+			if (ret != 0){
 				fprintf(stderr, "Error: failed to initialize port for device #%d, phys port num #%d\n", 
 							device_id, phys_port_num);
 				return NULL;
@@ -254,15 +254,13 @@ int bringup_qp(struct ibv_qp * qp, uint8_t port_num, uint32_t qkey, uint16_t pke
 
 
 
-Self_Endpoint init_self_endpoint(Self_Net * self_net, Self_Port * port, int ib_device_id, EndpointType endpoint_type, CQ * send_cq, CQ * recv_cq, bool to_use_srq, uint32_t node_endpoint_ind) {
+int init_self_endpoint(Self_Net * self_net, Self_Port * port, int ib_device_id, EndpointType endpoint_type, CQ * send_cq, CQ * recv_cq, bool to_use_srq, uint32_t node_endpoint_ind, Self_Endpoint * ret_endpoint) {
 
 	int ret;
 
-	Self_Endpoint endpoint;
-
-	endpoint.node_endpoint_ind = node_endpoint_ind;
-	endpoint.qp_port = port;
-	endpoint.endpoint_type = endpoint_type;
+	ret_endpoint -> node_endpoint_ind = node_endpoint_ind;
+	ret_endpoint -> qp_port = port;
+	ret_endpoint -> endpoint_type = endpoint_type;
 
 	// 1.) Obtain the IBV structs needed to create qp
 	struct ibv_context * ibv_dev_ctx = (self_net -> ibv_dev_ctxs)[ib_device_id];
@@ -313,12 +311,10 @@ Self_Endpoint init_self_endpoint(Self_Net * self_net, Self_Port * port, int ib_d
 	struct ibv_qp * ibv_qp = ibv_create_qp_ex(ibv_dev_ctx, &qp_attr);
 	if (ibv_qp == NULL){
 		fprintf(stderr, "Error: could not create qp\n");
-		// decide for error checking to set endpoint.qp_port == NULL
-		endpoint.qp_port = NULL;
-		return endpoint;
+		return -1;
 	}
 
-	endpoint.ibv_qp = ibv_qp;
+	ret_endpoint -> ibv_qp = ibv_qp;
 
 	// 2.) Now bringup qp!
 
@@ -337,21 +333,20 @@ Self_Endpoint init_self_endpoint(Self_Net * self_net, Self_Port * port, int ib_d
 	ret = bringup_qp(ibv_qp, port -> port_num, qkey, pkey_index, sq_psn);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not bringup qp\n");
-		endpoint.qp_port = NULL;
-		return endpoint;
+		return -1;
 	}
 	
 	
 	// 3.) Retrieve and set qp_num to be conveniently accessible
-	endpoint.qkey = qkey;
-	endpoint.qp_num = ibv_qp -> qp_num;
+	ret_endpoint -> qkey = qkey;
+	ret_endpoint -> qp_num = ibv_qp -> qp_num;
 
 
 	// 4.) If endpoint is a control endpoint create channels for it to send/recv on
 	//		- if suppose to be using srq then don't create recv_channel, but instead point to device's srq
 
-	endpoint.send_ctrl_channel = NULL;
-	endpoint.recv_ctrl_channel = NULL;
+	ret_endpoint -> send_ctrl_channel = NULL;
+	ret_endpoint -> recv_ctrl_channel = NULL;
 
 	if (endpoint_type == CONTROL_ENDPOINT){
 
@@ -359,10 +354,9 @@ Self_Endpoint init_self_endpoint(Self_Net * self_net, Self_Port * port, int ib_d
 		Ctrl_Channel * send_ctrl_channel = init_ctrl_channel(SEND_CTRL_CHANNEL, QP_MAX_SEND_WR, ib_device_id, ibv_pd, node_endpoint_ind, ibv_qp, NULL, false);
 		if (send_ctrl_channel == NULL){
 			fprintf(stderr, "Error: failed to intialize send control channel on node endpoint ind: %u\n", node_endpoint_ind);
-			endpoint.qp_port = NULL;
-			return endpoint;
+			return -1;
 		}
-		endpoint.send_ctrl_channel = send_ctrl_channel;
+		ret_endpoint -> send_ctrl_channel = send_ctrl_channel;
 
 		// b.) either create or point to receive channel
 		Ctrl_Channel * recv_ctrl_channel;
@@ -373,18 +367,20 @@ Self_Endpoint init_self_endpoint(Self_Net * self_net, Self_Port * port, int ib_d
 			recv_ctrl_channel = init_ctrl_channel(RECV_CTRL_CHANNEL, QP_MAX_RECV_WR, ib_device_id, ibv_pd, node_endpoint_ind, ibv_qp, NULL, true);
 			if (recv_ctrl_channel == NULL){
 				fprintf(stderr, "Error: failed to intialize receive control channel on node endpoint ind: %u\n", node_endpoint_ind);
-				endpoint.qp_port = NULL;
-				return endpoint;
+				return -1;
 			}
 		}
-		endpoint.recv_ctrl_channel = recv_ctrl_channel;
+		ret_endpoint -> recv_ctrl_channel = recv_ctrl_channel;
 	}
-	return endpoint;
+
+	// succcess
+	return 0;
 }
 
 
 Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self_Port * ports, uint32_t num_endpoints, int num_endpoint_types, EndpointType * endpoint_types, bool * to_use_srq_by_type, int * num_qps_per_type){
 
+	int ret;
 
 	// 1.) Created packed array for all endpoints
 
@@ -419,10 +415,10 @@ Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self
 			endpoint_type_num_qps = num_qps_per_type[j];
 			for (int k = 0; k < endpoint_type_num_qps; k++){
 
-				endpoints[cur_node_endpoint_ind] = init_self_endpoint(self_net, &cur_port, cur_ib_device_id, cur_endpoint_type, cur_send_cq, cur_recv_cq, to_use_srq, cur_node_endpoint_ind);
+				ret = init_self_endpoint(self_net, &cur_port, cur_ib_device_id, cur_endpoint_type, cur_send_cq, cur_recv_cq, to_use_srq, cur_node_endpoint_ind, &(endpoints[cur_node_endpoint_ind]));
 				
 				// Within init_self_endpoint, decided to report error as changing the qp_port to be NULL
-				if (endpoints[cur_node_endpoint_ind].qp_port == NULL){
+				if (ret != 0){
 					fprintf(stderr, "Error: failed to initialize endpoint for port #%u, endpoint type ind #%d, endpoint num (within type) #%d\n", i, j, k);
 					return NULL;
 				}
