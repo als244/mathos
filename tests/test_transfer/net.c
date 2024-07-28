@@ -321,7 +321,50 @@ Net_Node * net_add_node(Net_World * net_world, Rdma_Init_Info * remote_rdma_init
 	node -> endpoints = remote_endpoints;
 	node -> active_ctrl_endpoints = active_ctrl_endpoints;
 
-	// 4.) Add this node to the table
+	// 4.) Set default net_dest for control destination (if we want to avoid overhead of taking/replacing from active dest list)
+
+	Net_Endpoint * default_dest_ctrl_endpoint;
+	ret = take_and_replace_deque(active_ctrl_endpoints, FRONT_DEQUE, BACK_DEQUE, (void **) &default_dest_ctrl_endpoint);
+	// There were no destination control endpoints with active port
+	//	- indicate ah = NULL as this
+	struct ibv_ah * ah;
+	uint32_t remote_qp_num;
+	uint32_t remote_qkey;
+	if (ret != 0){
+		ah = NULL;
+		remote_qp_num = 0;
+		remote_qkey = 0;
+	}
+	else{
+
+		// need to look up the correct address handle
+		
+		// 1.) look up deafult sending channel to determine the ib device
+		Ctrl_Channel * default_send_ctrl_channel = net_world -> self_net -> self_node -> default_send_ctrl_channel;
+		// there are no sending control endpoints with an active port => we can't have a destination contorl endpoint
+		if (default_send_ctrl_channel == NULL){
+			ah = NULL;
+			remote_qp_num = 0;
+			remote_qkey = 0;
+		}
+		else{
+			int ib_device_id_default_ctrl_send = default_send_ctrl_channel -> ib_device_id;
+			uint32_t default_dest_ctrl_port_ind = default_dest_ctrl_endpoint -> remote_node_port_ind;
+			Net_Port default_dest_ctrl_port = remote_ports[default_dest_ctrl_port_ind];
+			struct ibv_ah ** default_dest_ctrl_port_address_handles = default_dest_ctrl_port.address_handles;
+			ah = default_dest_ctrl_port_address_handles[ib_device_id_default_ctrl_send];
+			remote_qp_num = default_dest_ctrl_endpoint -> remote_qp_num;
+			remote_qkey = default_dest_ctrl_endpoint -> remote_qkey;
+		}
+	}
+
+	// setting the default control destination
+	node -> default_ctrl_dest.ah = ah;
+	node -> default_ctrl_dest.remote_qp_num = remote_qp_num;
+	node -> default_ctrl_dest.remote_qkey = remote_qkey;	
+
+
+	// 5.) Add this node to the table
 
 	ret = insert_item_table(net_world -> nodes, node);
 	if (ret != 0){
@@ -376,8 +419,53 @@ void destroy_remote_node(Net_World * net_world, Net_Node * node){
 	return;
 }
 
+int default_post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, uint32_t remote_node_id) {
 
-int post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, uint32_t remote_node_id) {
+	int ret;
+
+	// 1.) Ensure that this node has a send control endpoint available
+
+	Ctrl_Channel * default_send_ctrl_channel = net_world -> self_net -> self_node -> default_send_ctrl_channel;
+	if (default_send_ctrl_channel == NULL){
+		fprintf(stderr, "Error: default_post_send_ctrl_net failed because it appears this sending node has no control endpoints available for sending on\n");
+		return -1;
+	}
+
+	// 2.) Lookup node in table
+	Net_Node target_node;
+	target_node.node_id = remote_node_id;
+
+	Net_Node * remote_node = find_item_table(net_world -> nodes, &target_node);
+	if (remote_node == NULL){
+		fprintf(stderr, "Error: default_post_send_ctrl_net failed because couldn't find remote node with id %u in net_world -> nodes table\n", remote_node_id);
+		return -1;
+	}
+
+	// 3.) Obtain default destination from node
+	Net_Dest default_ctrl_dest = remote_node -> default_ctrl_dest;
+	if (default_ctrl_dest.ah == NULL){
+		fprintf(stderr, "Error: default_post_send_ctrl_net failed because it appears the destination node %u, has no control endpoints available\n", remote_node_id);
+		return -1;
+	}
+
+	// 4.) Actually post send
+	ret = post_send_ctrl_channel(default_send_ctrl_channel, ctrl_message, default_ctrl_dest.ah, default_ctrl_dest.remote_qp_num, default_ctrl_dest.remote_qkey);
+	if (ret != 0){
+		fprintf(stderr, "Error: failure to post to control channel within default_post_send_ctrl_net\n");
+		return -1;
+	}
+
+	return 0;
+
+}
+
+
+// THIS ALLOWS US TO THE CHANGE THE SENDING/RECEVIEVING CONTROL ENDPOINTS TO ENABLE SOME POLICY
+// (load-balance with round robin, changes after a certain amount of time, etc.)
+// However, it probably means messing with the active_ctrl_endpoints deque (requiring locking)
+// and performing other overhead to obtain the correct address handle
+
+int policy_post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, uint32_t remote_node_id) {
 
 	int ret;
 
@@ -387,7 +475,7 @@ int post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, ui
 
 	Net_Node * remote_node = find_item_table(net_world -> nodes, &target_node);
 	if (remote_node == NULL){
-		fprintf(stderr, "Error: post_send_net failed because couldn't find remote node with id %u in net_world -> nodes table\n", remote_node_id);
+		fprintf(stderr, "Error: policy_post_send_ctrl_net failed because couldn't find remote node with id %u in net_world -> nodes table\n", remote_node_id);
 		return -1;
 	}
 

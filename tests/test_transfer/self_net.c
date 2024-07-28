@@ -452,6 +452,19 @@ Self_Node * init_self_node(Self_Net * self_net, int num_endpoint_types, Endpoint
 	// this has been modified within init_all_endpoints
 	self_node -> active_ctrl_endpoints = active_ctrl_endpoints;
 
+	// 4.) Set default sending contorl channel to send on 
+	//		- (if we don't want to deal with overhead taking/replacing form active_ctrl_endpoints)
+
+	Self_Endpoint * send_ctrl_endpoint; 
+	int ret = take_and_replace_deque(active_ctrl_endpoints, FRONT_DEQUE, FRONT_DEQUE, (void **) &send_ctrl_endpoint);
+	// There were no control endpoints with active port
+	if (ret != 0){
+		self_node -> default_send_ctrl_channel = NULL;
+	}
+	else{
+		self_node -> default_send_ctrl_channel = send_ctrl_endpoint -> send_ctrl_channel;
+	}
+
 	return self_node;
 }
 

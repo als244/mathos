@@ -11,6 +11,13 @@
 
 #define GRH_SIZE_BYTES 40
 
+// The information needed to send to a destination
+typedef struct net_dest {
+	uint32_t remote_qp_num;
+	uint32_t remote_qkey;
+	struct ibv_ah * ah;
+} Net_Dest;
+
 // need an endpoint for every source port
 // => ah is created per context
 typedef struct net_endpoint {
@@ -72,6 +79,9 @@ typedef struct net_node {
 	Net_Endpoint * endpoints;
 	// to maintin a list of all available endpoints to send control messsages to
 	Deque * active_ctrl_endpoints;
+	// setting the first endpoint with type control and associated to active port as default destination
+	// assumes that this node is also using default ctrl_channel for sending to this dest
+	Net_Dest default_ctrl_dest;
 } Net_Node;
 
 
@@ -135,12 +145,21 @@ typedef struct send_dest {
 
 
 // Used for Control Message Data Transmission
+
+// Upon intialization the default control / send channels are decided upon
+// 	- Note: this default configuration should probably be more sophisticated rather than the "first" because when network grows, want to balance
+
+// This function has little overhead involved with sending because it doesn't have to acquire lock from active_ctrl_dest deques or deal
+// with extra overhead of determining address handle
+int default_post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, uint32_t remote_node_id);
+
+
 // Within this function there is a policy to choose the sending / receiving endpoints 
 //	- based on active ctrl endpoint deques within self_node and net_node
 //	- currently policy is to do round-robin for each (i.e. take at front and replace at back)
 //		- for load balancing reasons
 //	- however probably want to take cpu affinity into account...
-int post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, uint32_t remote_node_id);
+int policy_post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, uint32_t remote_node_id);
 
 // Receives are handled within the Completion Queue Handlers (polling the per-ib device CQs dedicated to control messages)
 

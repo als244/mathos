@@ -115,6 +115,8 @@ typedef struct self_node {
 	Self_Endpoint * endpoints;
 	// to maintin a list of all available endpoints to send control messsages from 
 	Deque * active_ctrl_endpoints;
+	// setting the first endpoint with type control and associated to active port as default sending channel
+	Ctrl_Channel * default_send_ctrl_channel;
 } Self_Node;
 
 typedef struct self_net {
