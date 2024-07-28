@@ -204,7 +204,7 @@ void decode_wr_id(uint64_t wr_id, uint8_t * ret_channel_type, uint8_t * ret_ib_d
 	
 	// first shift channel to clear out control channel bits
 	// now shift back to clear out the endpoint bits
-	*ret_channel_type = (uint8_t) (channel_id << 2) >> (2 + 20);
+	*ret_ib_device_id = (uint8_t) (channel_id << 2) >> (2 + 20);
 	
 	// shift up to clear out, then shift back
 	*ret_endpoint_id = (channel_id << (2 + 8)) >> (2 + 10);

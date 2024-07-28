@@ -30,7 +30,7 @@ void decode_ctrl_wr_id(uint64_t wr_id, CtrlChannelType * ret_channel_type, uint8
 	
 	// first shift channel to clear out control channel bits
 	// now shift back to clear out the endpoint bits
-	*ret_channel_type = (uint8_t) (channel_id << CTRL_CHANNEL_TYPE_BITS) >> (CTRL_CHANNEL_TYPE_BITS + ENDPOINT_ID_BITS);
+	*ret_ib_device_id = (uint8_t) (channel_id << CTRL_CHANNEL_TYPE_BITS) >> (CTRL_CHANNEL_TYPE_BITS + ENDPOINT_ID_BITS);
 	
 	// shift up to clear out, then shift back
 	*ret_endpoint_id = (channel_id << (CTRL_CHANNEL_TYPE_BITS + IB_DEVICE_ID_BITS)) >> (CTRL_CHANNEL_TYPE_BITS + IB_DEVICE_ID_BITS);
