@@ -155,7 +155,6 @@ Self_Port * init_all_ports(Self_Net * self_net, uint32_t num_ports, int num_endp
 				return NULL;
 			}
 
-			printf("Assigned new port. Device ID: %d, Phys Port Num: %u. Port Ind: %u\n", device_id, phys_port_num, ports[cur_node_port_ind].node_port_ind);
 			// Creating port (& all QPs attached to it) succeeded
 
 			cur_node_port_ind += 1;
@@ -375,8 +374,6 @@ Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self
 					fprintf(stderr, "Error: failed to initialize endpoint for port #%u, endpoint type ind #%d, endpoint num (within type) #%d\n", i, j, k);
 					return NULL;
 				}
-
-				printf("Assigned new endpoint. Endpoint ID: %u, Port Ind: %u\n", cur_node_endpoint_ind, endpoints[cur_node_endpoint_ind].qp_port -> node_port_ind);
 
 				// successfully created endpoint so increment the index within packed array
 				cur_node_endpoint_ind++;

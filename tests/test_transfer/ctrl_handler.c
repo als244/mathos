@@ -19,6 +19,8 @@ void * run_ctrl_handler(void * _cq_thread_data){
 	Net_World * net_world = cq_thread_data -> net_world;
 	Self_Net * self_net = net_world -> self_net;
 
+	uint32_t self_node_id = net_world -> self_node_id;
+
 	struct ibv_poll_cq_attr poll_qp_attr = {};
 	ret = ibv_start_poll(cq, &poll_qp_attr);
 
@@ -99,8 +101,8 @@ void * run_ctrl_handler(void * _cq_thread_data){
 				ctrl_message_header = ctrl_message.header;
 
 				// For now just printing
-				printf("\n\nReceived control message!\n\tSource Node ID: %u\n\tMessage Type: %d\n\t\tContents: %s\n\n", 
-							ctrl_message_header.source_node_id, ctrl_message_header.message_type, ctrl_message.contents);
+				printf("\n\n[Node %u] Received control message!\n\tSource Node ID: %u\n\tMessage Type: %d\n\t\tContents: %s\n\n", 
+							self_node_id, ctrl_message_header.source_node_id, ctrl_message_header.message_type, ctrl_message.contents);
 
 
 				// REALLY SHOULD HAVE A FORMAT LIKE THIS HERE....

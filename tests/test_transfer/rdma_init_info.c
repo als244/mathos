@@ -20,8 +20,6 @@ Rdma_Init_Info * build_rdma_init_info(Self_Net * self_net, uint32_t node_id) {
 	rdma_init_info -> header.num_ports = num_ports;
 	rdma_init_info -> header.num_endpoints = num_endpoints;
 
-	printf("Buiding rdma info: Node Id: %u, Num Ports: %u, Num Endpoints: %u\n", node_id, num_ports, num_endpoints);
-
 	// 2.) Need to share port information for other side to create address handles and know other important attributes
 
 	Remote_Port_Init * remote_ports_init = (Remote_Port_Init *) malloc(num_ports * sizeof(Remote_Port_Init));
@@ -70,7 +68,6 @@ Rdma_Init_Info * build_rdma_init_info(Self_Net * self_net, uint32_t node_id) {
 		cur_endpoint = &(endpoints[i]);
 		remote_endpoints[i].endpoint_type = cur_endpoint -> endpoint_type;
 		remote_endpoints[i].remote_node_port_ind = cur_endpoint -> qp_port -> node_port_ind;
-		printf("Adding remote endpoint with id: %u. Assigned remote_node_port_ind: %u\n", i, remote_endpoints[i].remote_node_port_ind);
 		remote_endpoints[i].remote_qp_num = cur_endpoint -> qp_num;
 		remote_endpoints[i].remote_qkey = cur_endpoint -> qkey;
 	}
