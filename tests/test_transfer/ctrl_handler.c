@@ -111,15 +111,18 @@ void * run_ctrl_handler(void * _cq_thread_data){
 
 				}
 				*/
-
 			}
 
 			// 4.) we can free the message now
-			//		- this was copied from within the ctrl_channel fifo buffer
-			//			- the contents are still there, just freeing the copy
-			//			- those contents will get overwritten when the producer/consumer buffer loops around
+			//		- this was copied from (a copy) of the ctrl_channel fifo buffer
+			//			- the intermediate copy (returned from consume_fifo()) was freed within extract()
+			//			- purpose of the copies is to help with weird race conditions for very small buffers
+			//		- the original contents are still there, just freeing the copy
+			//		- those original contents will get overwritten when the producer/consumer buffer loops around
 
 			free(ctrl_message);
+
+			
 		}
 
 		// Check for next completed work request...

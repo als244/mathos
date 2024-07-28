@@ -232,9 +232,18 @@ Control_Message * extract_ctrl_channel(Ctrl_Channel * channel) {
 	// returns a copy of the item in fifo buffer => should free it when done!
 	void * fifo_item = consume_fifo(channel -> fifo);
 
+	
+	Control_Message * ctrl_message = (Control_Message *) malloc(sizeof(Control_Message));
+
+	// when we put a message in control channel there is no extra space
+	if ((channel -> channel_type == SEND_CTRL_CHANNEL)){
+		memcpy((void *) ctrl_message, fifo_item, sizeof(Control_Message));
+	}
 	// when we get a receive message the first 40 bytes are GRH, so can skip passed this
 	// and cast to control message
-	Control_Message * ctrl_message = (Control_Message *) ((uint64_t) fifo_item + sizeof(struct ibv_grh));
+	if ((channel -> channel_type == RECV_CTRL_CHANNEL) || (channel -> channel_type == SHARED_RECV_CTRL_CHANNEL)){
+		memcpy((void *) ctrl_message, fifo_item + sizeof(struct ibv_grh), sizeof(Control_Message));
+	}
 	
 	if ((channel -> channel_type == RECV_CTRL_CHANNEL) || (channel -> channel_type == SHARED_RECV_CTRL_CHANNEL)){
 		// after extracting a control item (must have been in receive queue), replace it
@@ -243,6 +252,12 @@ Control_Message * extract_ctrl_channel(Ctrl_Channel * channel) {
 			fprintf(stderr, "Error: failure posting a receive after trying to replace an extracted item\n");
 		}
 	}
+
+	// the consume_fifo() returned a copy of the item in the buffer,
+	// so we want to free this now that we have copied contents to a ctrl message
+	free(fifo_item);
+
+	// NOTE: ensure to free the message returned from extract!
 
 	return ctrl_message;
 }
