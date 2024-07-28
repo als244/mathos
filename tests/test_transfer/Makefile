@@ -7,7 +7,7 @@ all: testMaster testWorker
 
 
 ## MASTER PROGRAM
-testMaster: main_master.c table.o fifo.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o master.o
+testMaster: main_master.c table.o fifo.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o master.o utils.o
 	${CC} ${CFLAGS} $^ -o $@ -lm -pthread -libverbs
 
 master.o: master.c
@@ -16,7 +16,7 @@ master.o: master.c
 
 ## WORKER PROGRAM
 
-testWorker: main_worker.c table.o fifo.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o
+testWorker: main_worker.c table.o fifo.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o 
 	${CC} ${CFLAGS} $^ -o $@ -lm -pthread -libverbs 
 
 join_net.o: join_net.c
@@ -53,6 +53,9 @@ tcp_connection.o: tcp_connection.c
 	${CC} ${CFLAGS} -c $^
 
 tcp_rdma_init.o: tcp_rdma_init.c
+	${CC} ${CFLAGS} -c $^
+
+utils.o: utils.c
 	${CC} ${CFLAGS} -c $^
 
 

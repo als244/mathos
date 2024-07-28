@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "messages.h"
+#include "utils.h"
 
 #define MASTER_NODE_ID 0
 
