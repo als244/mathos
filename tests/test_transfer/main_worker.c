@@ -25,9 +25,6 @@ int main(int argc, char * argv[]){
 
 	printf("\n\nSuccessfully initialized network!\n\n\n");
 
-
-	printf("Attempting to post a control message...\n");
-
 	Control_Message ctrl_message;
 	ctrl_message.header.source_node_id = net_world -> self_node_id;
 
@@ -44,13 +41,12 @@ int main(int argc, char * argv[]){
 		strcpy(ctrl_message.contents, "World");
 	}
 
+	printf("\n\nPosting a control message. Sending to node id: %d...\n\n", dest_node_id);
 	ret = post_send_ctrl_net(net_world, &ctrl_message, 0, dest_node_id, 0);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not post control message. From id: %u going to node id: %u\n", net_world -> self_node_id, dest_node_id);
 		return -1;
 	}
-
-	printf("Letting the rdma_init server stay running in case of more joins...\n");
 
 	// Should Be Infinitely Blocking 
 	// (unless error or shutdown message)
