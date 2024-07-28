@@ -30,19 +30,18 @@ int main(int argc, char * argv[]){
 
 	Control_Message ctrl_message;
 	ctrl_message.header.source_node_id = net_world -> self_node_id;
-	ctrl_message.header.message_type = BID_ORDER;
-
-	for (int i = 0; i < CONTROL_MESSAGE_CONTENTS_MAX_SIZE_BYTES; i++){
-		ctrl_message.contents[i] = i;
-	}
 
 	uint32_t dest_node_id;
 	if (net_world -> self_node_id == 1){
 		dest_node_id = 2;
+		ctrl_message.header.message_type = BID_ORDER;
+		strcpy(ctrl_message.contents, "Hello");
 		
 	}
 	if (net_world -> self_node_id == 2){
 		dest_node_id = 1;
+		ctrl_message.header.message_type = OFFER_ORDER;
+		strcpy(ctrl_message.contents, "World");
 	}
 
 	ret = post_send_ctrl_net(net_world, &ctrl_message, 0, dest_node_id, 0);
