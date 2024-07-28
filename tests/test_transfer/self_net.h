@@ -63,25 +63,6 @@ typedef struct self_endpoint {
 // with a specific object fingerprint)
 
 
-typedef struct cq {
-	// The CQ Usage Type is assoicated with a corresponding QP Usage Type
-	// Meaning this CQ is used on QPs of a given type
-	EndpointType endpoint_type;
-	struct ibv_cq_ex * ibv_cq;
-} CQ;
-
-
-// We will have a send + receive completition queue for each qp type
-// They are shared for all QPs within a device context
-// (i.e. all Send Queues of type 0 within all physical ports of device 0 will share)
-typedef struct cq_collection {
-	// keeping track of device_id for debugging (a bit redundant)
-	int ib_device_id;
-	CQ ** send_cqs;
-	CQ ** recv_cqs;
-} CQ_Collection;
-
-
 struct self_port {
 	// index within the self_node ports array
 	// this is the value sent during data transfer initiation
@@ -122,10 +103,6 @@ struct self_port {
 	// populated iwth ibv_query_pkey()
 	// only needed if doing fancy partitioning for QoS or security
 	uint16_t pkey;
-	// the cpu_set assoicated with the port's device
-	// found by reading the local_cpus file from sysfs
-	// this file has comma seperate uint32_t's representing cpu bitmasks
-	cpu_set_t * local_cpus;
 };
 
 typedef struct self_node {
@@ -138,6 +115,8 @@ typedef struct self_node {
 } Self_Node;
 
 typedef struct self_net {
+	int num_endpoint_types;
+	EndpointType * endpoint_types;
 	int num_ib_devices;
 	// result of call from ibv_get_device_list()
 	struct ibv_device ** ib_devices;
@@ -149,12 +128,24 @@ typedef struct self_net {
 	struct ibv_pd ** dev_pds;
 	// number of physical ports per device
 	int * num_ports_per_dev;
-	// Create CQ collections for each device
-	CQ_Collection ** dev_cq_collections;
 	// Create SRQs for each device that might be used
 	// for QPs within a port depending on QP usage type
 	struct ibv_srq ** dev_srqs;
 	Ctrl_Channel ** dev_shared_recv_ctrl_channels;
+	// the cpu_set assoicated with the device
+	// found by reading the local_cpus file from sysfs
+	// this file has comma seperate uint32_t's representing cpu bitmasks
+	// the completition queue handler threads (assoicated with each device)
+	// should have these bitmasks set when the thread is spawned
+	// using pthread_setaffinity_np() 
+	cpu_set_t * local_cpus;
+	// outer index is device_id
+	// inner index is endpoint type
+	struct ibv_cq_ex *** cq_collection;
+	// outer index is device_id
+	// inner index is endpoint type
+	// pthread_create is not called until the end of init_net
+	pthread_t ** cq_threads;
 	// where all the QPs are stored
 	Self_Node * self_node;
 	// If ip_addr is non-null will use this ip_address to connect to master port
@@ -173,6 +164,12 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 Self_Net * default_worker_config_init_self_net(char * self_ip_addr);
 
 Self_Net * default_master_config_init_self_net(char * self_ip_addr);
+
+// this is called from within the control handler threads
+// it sees a work completition and needs to extract it
+// and do something with it (pass it off to other worker threads)
+// (e.g. exchange workers, sched workers, config workers, etc.)
+Ctrl_Channel * get_ctrl_channel(Self_Net * self_net, uint64_t wr_id);
 
 
 #endif

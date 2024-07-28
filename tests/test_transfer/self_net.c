@@ -16,17 +16,7 @@
 
 #define QP_MAX_INLINE_DATA 128 // SEEMS LIKE 956 is the max for qp creation error...?
 
-CQ * init_cq(struct ibv_context * ibv_dev_ctx, EndpointType endpoint_type){
-
-	CQ * cq = (CQ *) malloc(sizeof(CQ));
-	if (cq == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate cq\n");
-		return NULL;
-	}
-
-	// The CQ Usage Type is assoicated with a corresponding QP Usage Type
-	// Meaning this CQ is used on QPs of a given type
-	cq -> endpoint_type = endpoint_type;
+struct ibv_cq_ex * init_cq(struct ibv_context * ibv_dev_ctx){
 
 	// 1.) Create IBV_CQ_EX struct
 
@@ -54,49 +44,11 @@ CQ * init_cq(struct ibv_context * ibv_dev_ctx, EndpointType endpoint_type){
 		return NULL;
 	}
 
-	cq -> ibv_cq = ibv_cq;
-
-	return cq;
+	return ibv_cq;
 }
-
-CQ_Collection * init_cq_collection(struct ibv_context * ibv_dev_ctx, int device_id, int num_endpoint_types, EndpointType * endpoint_types){
-
-	CQ_Collection * cq_collection = (CQ_Collection *) malloc(sizeof(CQ_Collection));
-	if (cq_collection == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate cq collection\n");
-		return NULL;
-	}
-
-	cq_collection -> ib_device_id = device_id;
-
-	// Have One CQ for each qp type per device
-	// May want to have more...?
-	CQ ** send_cqs = (CQ **) malloc(num_endpoint_types * sizeof(CQ *));
-	CQ ** recv_cqs = (CQ **) malloc(num_endpoint_types * sizeof(CQ *));
-	if ((send_cqs == NULL) || (recv_cqs == NULL)){
-		fprintf(stderr, "Error: malloc failed to allocate cq containers\n");
-		return NULL;
-	}
-
-	for (int i = 0; i < num_endpoint_types; i++){
-		send_cqs[i] = init_cq(ibv_dev_ctx, endpoint_types[i]);
-		recv_cqs[i] = init_cq(ibv_dev_ctx, endpoint_types[i]);
-		if ((send_cqs[i] == NULL) || (recv_cqs[i] == NULL)){
-			fprintf(stderr, "Error: failed to initialize cq for device #%d\n", device_id);
-			return NULL;
-		}
-	}
-
-	cq_collection -> send_cqs = send_cqs;
-	cq_collection -> recv_cqs = recv_cqs;
-
-	return cq_collection;
-}
-
 
 // called from within init_self_port_container()
 // upon port initialization Endpoint_Collection is populated based on num_endpoint_types and num_qps_per_type
-
 
 int init_self_port(Self_Net * self_net, int device_id, uint8_t port_num, uint32_t node_port_ind, Self_Port * ret_port) {
 
@@ -255,7 +207,7 @@ int bringup_qp(struct ibv_qp * qp, uint8_t port_num, uint32_t qkey, uint16_t pke
 
 
 
-int init_self_endpoint(Self_Net * self_net, Self_Port * port, int ib_device_id, EndpointType endpoint_type, CQ * send_cq, CQ * recv_cq, bool to_use_srq, uint32_t node_endpoint_ind, Self_Endpoint * ret_endpoint) {
+int init_self_endpoint(Self_Net * self_net, Self_Port * port, int ib_device_id, EndpointType endpoint_type, struct ibv_cq_ex * send_ibv_cq, struct ibv_cq_ex * recv_ibv_cq, bool to_use_srq, uint32_t node_endpoint_ind, Self_Endpoint * ret_endpoint) {
 
 	int ret;
 
@@ -274,12 +226,7 @@ int init_self_endpoint(Self_Net * self_net, Self_Port * port, int ib_device_id, 
 		ibv_srq = (self_net -> dev_srqs)[ib_device_id];
 	}
 
-	// 2.) Obtain the struct ibv_cq_ex completion queues we previously created
-	struct ibv_cq_ex * send_ibv_cq = send_cq -> ibv_cq;
-	struct ibv_cq_ex * recv_ibv_cq = recv_cq -> ibv_cq;
-
-
-	// 3.) CREATE IBV_QP Struct: MAIN FORM OF COMMUNICATION!!!
+	// 2.) CREATE IBV_QP Struct: MAIN FORM OF COMMUNICATION!!!
 	//		- holds pointers to pretty much all other ibv_structs as fields
 
 	struct ibv_qp_init_attr_ex qp_attr;
@@ -287,6 +234,8 @@ int init_self_endpoint(Self_Net * self_net, Self_Port * port, int ib_device_id, 
 
 	qp_attr.pd = ibv_pd; // Setting Protection Domain
 	qp_attr.qp_type = IBV_QPT_UD;
+
+	// Consider not signaling sends (save latency/BW..?)
 	qp_attr.sq_sig_all = 1;       // if not set 0, all work requests submitted to SQ will always generate a Work Completion.
 	qp_attr.send_cq = ibv_cq_ex_to_cq(send_ibv_cq);         // completion queue can be shared or you can use distinct completion queues.
 	qp_attr.recv_cq = ibv_cq_ex_to_cq(recv_ibv_cq);         // completion queue can be shared or you can use distinct completion queues.
@@ -395,8 +344,8 @@ Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self
 
 	Self_Port * cur_port;
 	int cur_ib_device_id;
-	CQ_Collection * cur_cq_collection;
-	CQ * cur_send_cq, *cur_recv_cq;
+	struct ibv_cq_ex ** cur_dev_cqs;
+	struct ibv_cq_ex * cur_send_cq, *cur_recv_cq;
 
 	uint32_t cur_node_endpoint_ind = 0;
 
@@ -407,10 +356,13 @@ Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self
 	for (uint32_t i = 0; i < num_ports; i++){
 		cur_port = &(ports[i]);
 		cur_ib_device_id = cur_port -> ib_device_id;
-		cur_cq_collection = (self_net -> dev_cq_collections)[cur_ib_device_id];
+		cur_dev_cqs = (self_net -> cq_collection)[cur_ib_device_id];
 		for (int j = 0; j < num_endpoint_types; j++){
-			cur_send_cq = (cur_cq_collection -> send_cqs)[j];
-			cur_recv_cq = (cur_cq_collection -> recv_cqs)[j];
+			// using the same receive and send cq!
+			//	- may want to change
+			//	- also consider not signaling sends (save latency/BW..?)
+			cur_send_cq = cur_dev_cqs[j];
+			cur_recv_cq = cur_dev_cqs[j];
 			cur_endpoint_type = endpoint_types[j];
 			to_use_srq = to_use_srq_by_type[j];
 			endpoint_type_num_qps = num_qps_per_type[j];
@@ -506,6 +458,9 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 		return NULL;
 	}
 
+	self_net -> num_endpoint_types = num_endpoint_types;
+	self_net -> endpoint_types = endpoint_types;
+
 	// 1.) Get list of RDMA-devices attached to this node
 	//		- Note: typically seperate physical ports on Mellanox cards 
 	//			are listed as seperate devices each with 1 physical port
@@ -580,24 +535,9 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 
 	self_net -> num_ports_per_dev = num_ports_per_dev;
 
-	// 4.) Create CQ_Collections for each device
-	CQ_Collection ** dev_cq_collections = (CQ_Collection **) malloc(num_devices * sizeof(CQ_Collection *));
-	if (dev_cq_collections == NULL){
-		fprintf(stderr, "Error: malloc failed for allocating cq collection containers\n");
-		return NULL;
-	}
+	
 
-	for (int i = 0; i < num_devices; i++){
-		dev_cq_collections[i] = init_cq_collection(ibv_dev_ctxs[i], i, num_endpoint_types, endpoint_types);
-		if (dev_cq_collections[i] == NULL){
-			fprintf(stderr, "Error: could not initialize qp collection\n");
-			return NULL;
-		}
-	}
-
-	self_net -> dev_cq_collections = dev_cq_collections;
-
-	// 5.) Create SRQ for device that QPs can use depending on type
+	// 4.) Create SRQ for device that QPs can use depending on type
 	struct ibv_srq ** dev_srqs = (struct ibv_srq **) malloc(num_devices * sizeof(struct ibv_srq *));
 	if (dev_srqs == NULL){
 		fprintf(stderr, "Error: malloc failed for allocating dev srq container\n");
@@ -622,7 +562,7 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 	self_net -> dev_srqs = dev_srqs;
 
 
-	// 6.) Create Channels for each srq
+	// 5.) Create Channels for each srq
 	Ctrl_Channel ** dev_shared_recv_ctrl_channels = (Ctrl_Channel **) malloc(sizeof(Ctrl_Channel *));
 	if (dev_shared_recv_ctrl_channels == NULL){
 		fprintf(stderr, "Error: malloc failed for allocating dev_shared_recv_channels\n");
@@ -638,6 +578,51 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 	}
 
 	self_net -> dev_shared_recv_ctrl_channels = dev_shared_recv_ctrl_channels;
+
+
+	// 6.) Create Completition Queues for each device and for each endpoint type
+	struct ibv_cq_ex *** cq_collection = (struct ibv_cq_ex ***) malloc(num_devices * sizeof(struct ibv_cq_ex **));
+	if (cq_collection == NULL){
+		fprintf(stderr, "Error: malloc failed for allocating cq collection container\n");
+		return NULL;
+	}
+
+	struct ibv_context * ibv_dev_ctx;
+	for (int i = 0; i < num_devices; i++){
+		cq_collection[i] = (struct ibv_cq_ex **) malloc(num_endpoint_types * sizeof(struct ibv_cq_ex *));
+		if (cq_collection[i] == NULL){
+			fprintf(stderr, "Error: malloc failed for allocating cq array for device %d\n", i);
+			return NULL;
+		}
+		ibv_dev_ctx = (self_net -> ibv_dev_ctxs)[i];
+		for (int endpoint_type = 0; endpoint_type < num_endpoint_types; endpoint_type++){
+			cq_collection[i][endpoint_type] = init_cq(ibv_dev_ctx);
+			if (cq_collection[i][endpoint_type] == NULL){
+				fprintf(stderr, "Error: failed to create completion queue for device: %d, endpoint type: %d\n", i, endpoint_type);
+				return NULL;
+			}
+		}
+	}
+
+	self_net -> cq_collection = cq_collection;
+
+
+	// 7.) Create threads for each completition queue, but do not spawn them (this is the final stage of init_net)
+	pthread_t ** cq_threads = (pthread_t **) malloc(num_devices * sizeof(pthread_t *));
+	if (cq_threads == NULL){
+		fprintf(stderr, "Error: malloc failed for allocating cq_threads outer device array\n");
+		return NULL;
+	}
+
+	for (int i = 0; i < num_devices; i++){
+		cq_threads[i] = (pthread_t *) malloc(num_endpoint_types * sizeof(pthread_t));
+		if (cq_threads[i] == NULL){
+			fprintf(stderr, "Error: malloc failed to create cq_threads array for endpoint types on device: %d\n", i);
+			return NULL;
+		}
+	}
+
+	self_net -> cq_threads = cq_threads;	
 
 	
 	// 6.) Create Self_Node for self which contains information about ports and Queue Pairs
@@ -684,4 +669,46 @@ Self_Net * default_master_config_init_self_net(char * self_ip_addr) {
 
 	// returns NULL upon error
 	return init_self_net(num_endpoint_types, endpoint_types, to_use_srq_by_type, num_qps_per_type, self_ip_addr);
+}
+
+
+
+// this is called from within the control handler threads
+// it sees a work completition and needs to extract it
+// and do something with it (pass it off to other worker threads)
+// (e.g. exchange workers, sched workers, config workers, etc.)
+Ctrl_Channel * get_ctrl_channel(Self_Net * self_net, uint64_t wr_id){
+
+	CtrlChannelType channel_type;
+	uint8_t ib_device_id;
+	uint32_t endpoint_id;
+
+	decode_ctrl_wr_id(wr_id, &channel_type, &ib_device_id, &endpoint_id);
+
+	Self_Node * self_node = self_net -> self_node;
+
+	switch(channel_type){
+		case SHARED_RECV_CTRL_CHANNEL:
+			if (ib_device_id > self_net -> num_ib_devices){
+				fprintf(stderr, "Error: decoded wr_id = %lu to get shared recv ctrl channel on ib device id: %u, but only have %u ib devices\n", wr_id, ib_device_id, self_net -> num_ib_devices);
+				return NULL;
+			}
+			return (self_net -> dev_shared_recv_ctrl_channels)[ib_device_id];
+		case RECV_CTRL_CHANNEL:
+			if (endpoint_id > self_node -> num_endpoints){
+				fprintf(stderr, "Error: decoded wr_id = %lu to get recv ctrl channel on endpoint id: %u, but only have %u endpoints\n", wr_id, endpoint_id, self_node -> num_endpoints);
+				return NULL;
+			}
+			return (self_node -> endpoints)[endpoint_id].recv_ctrl_channel;
+		case SEND_CTRL_CHANNEL:
+			if (endpoint_id > self_node -> num_endpoints){
+				fprintf(stderr, "Error: decoded wr_id = %lu to get send ctrl channel on endpoint id: %u, but only have %u endpoints\n", wr_id, endpoint_id, self_node -> num_endpoints);
+				return NULL;
+			}
+			return (self_node -> endpoints)[endpoint_id].send_ctrl_channel;
+		default:
+			fprintf(stderr, "Error: decoded wr_id = %lu to get channel type of %d -- uknown channel\n", wr_id, channel_type);
+			return NULL;
+
+	}
 }
