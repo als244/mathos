@@ -239,6 +239,9 @@ int take_and_replace_deque(Deque * deque, DequeEnd take_end, DequeEnd replace_en
 		fprintf(stderr, "Take and replace failed because out of memory to create replacement deque_item\n");
 	}
 
+	// set return of item
+	*ret_item = item;
+
 	return ret;
 }
 
