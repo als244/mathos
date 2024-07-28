@@ -68,6 +68,7 @@ Rdma_Init_Info * build_rdma_init_info(Self_Net * self_net, uint32_t node_id) {
 		cur_endpoint = endpoints[i];
 		remote_endpoints[i].endpoint_type = cur_endpoint.endpoint_type;
 		remote_endpoints[i].remote_node_port_ind = cur_endpoint.qp_port -> node_port_ind;
+		printf("Adding remote endpoint with id: %u. Assigned remote_node_port_ind: %u\n", i, remote_endpoints[i].remote_node_port_ind);
 		remote_endpoints[i].remote_qp_num = cur_endpoint.qp_num;
 		remote_endpoints[i].remote_qkey = cur_endpoint.qkey;
 	}
