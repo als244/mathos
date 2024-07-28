@@ -35,11 +35,13 @@ Deque * init_deque();
 void destroy_deque(Deque * deque, bool to_free_items);
 
 // THESE ARE THREAD SAFE!
-int get_count_deque(Deque * deque);
+uint64_t get_count_deque(Deque * deque);
 int take_deque(Deque * deque, DequeEnd take_end, void ** ret_item);
 int insert_deque(Deque * deque, DequeEnd insert_end, void * item);
 // Obtains the lock, dequeues, and then enqueues before relesing lock
 int take_and_replace_deque(Deque * deque, DequeEnd take_end, DequeEnd replace_end, void ** ret_item);
+
+int peek_item_at_index_deque(Deque * deque, DequeEnd start_end, uint64_t index, void ** ret_item);
 
 
 #endif

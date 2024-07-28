@@ -322,9 +322,14 @@ Net_Node * net_add_node(Net_World * net_world, Rdma_Init_Info * remote_rdma_init
 	node -> active_ctrl_endpoints = active_ctrl_endpoints;
 
 	// 4.) Set default net_dest for control destination (if we want to avoid overhead of taking/replacing from active dest list)
+	//		- choosing self_node_id % number of active ctrl endpoints at dest
+	//			- this so that in a large network various nodes will have different default destinations to the same node id
 
 	Net_Endpoint * default_dest_ctrl_endpoint;
-	ret = take_and_replace_deque(active_ctrl_endpoints, FRONT_DEQUE, BACK_DEQUE, (void **) &default_dest_ctrl_endpoint);
+	uint64_t num_active_ctrl_dest = get_count_deque(active_ctrl_endpoints);
+	uint64_t default_assigned_ctrl_dest_ind = net_world -> self_node_id % num_active_ctrl_dest;
+
+	ret = peek_item_at_index_deque(active_ctrl_endpoints, FRONT_DEQUE, default_assigned_ctrl_dest_ind, (void **) &default_dest_ctrl_endpoint);
 	// There were no destination control endpoints with active port
 	//	- indicate ah = NULL as this
 	struct ibv_ah * ah;
@@ -420,8 +425,8 @@ void destroy_remote_node(Net_World * net_world, Net_Node * node){
 }
 
 // Upon intialization the default control / send channels are decided upon
-// 	- Note: this default configuration should probably be more sophisticated rather than the "first" because when network grows, want to balance
-//			- probably decide default based upon assigned node_id's
+//	- choosing self_node_id % number of active ctrl endpoints at dest
+//		- this so that in a large network various nodes will have different default destinations to the same node id
 
 // This function has little overhead involved with sending because it doesn't have to acquire lock from active_ctrl_dest deques or deal
 // with extra overhead of determining address handle
