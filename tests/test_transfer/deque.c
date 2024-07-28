@@ -255,7 +255,7 @@ int peek_item_at_index_deque(Deque * deque, DequeEnd start_end, uint64_t index, 
 	// Error checking if we want it
 
 	if (unlikely(index >= deque -> cnt)) {
-		fprintf(stderr, "Error: cannot peek at item at index %u, when deque count is %u\n", index, deque -> cnt);
+		fprintf(stderr, "Error: cannot peek at item at index %lu, when deque count is %lu\n", index, deque -> cnt);
 		return -1;
 	}
 
