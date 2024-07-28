@@ -50,21 +50,6 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	// POLLING CONTROL RECV CQ ON DEVICE 0
-
-	struct ibv_cq_ex *** cq_collection = net_world -> self_net -> cq_collection;
-
-	int device_id = 0;
-	int endpoint_type = CONTROL_ENDPOINT;
-	struct ibv_cq_ex * control_cq = cq_collection[device_id][endpoint_type];
-
-	uint64_t poll_duration_ns = 10 * 1e9;
-	ret = poll_cq(control_cq, poll_duration_ns); 
-	if (ret != 0){
-		fprintf(stderr, "Error: failure polling device 0 control cq\n");
-		return -1;
-	}
-
 	printf("Letting the rdma_init server stay running in case of more joins...\n");
 
 	// Should Be Infinitely Blocking 
