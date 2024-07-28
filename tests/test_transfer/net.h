@@ -148,6 +148,7 @@ typedef struct send_dest {
 
 // Upon intialization the default control / send channels are decided upon
 // 	- Note: this default configuration should probably be more sophisticated rather than the "first" because when network grows, want to balance
+//			- probably decide default based upon assigned node_id's
 
 // This function has little overhead involved with sending because it doesn't have to acquire lock from active_ctrl_dest deques or deal
 // with extra overhead of determining address handle

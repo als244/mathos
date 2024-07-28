@@ -419,6 +419,12 @@ void destroy_remote_node(Net_World * net_world, Net_Node * node){
 	return;
 }
 
+// Upon intialization the default control / send channels are decided upon
+// 	- Note: this default configuration should probably be more sophisticated rather than the "first" because when network grows, want to balance
+//			- probably decide default based upon assigned node_id's
+
+// This function has little overhead involved with sending because it doesn't have to acquire lock from active_ctrl_dest deques or deal
+// with extra overhead of determining address handle
 int default_post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, uint32_t remote_node_id) {
 
 	int ret;
@@ -461,10 +467,12 @@ int default_post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_mes
 
 
 // THIS ALLOWS US TO THE CHANGE THE SENDING/RECEVIEVING CONTROL ENDPOINTS TO ENABLE SOME POLICY
-// (load-balance with round robin, changes after a certain amount of time, etc.)
-// However, it probably means messing with the active_ctrl_endpoints deque (requiring locking)
-// and performing other overhead to obtain the correct address handle
 
+// Within this function there is a policy to choose the sending / receiving endpoints 
+//	- based on active ctrl endpoint deques within self_node and net_node
+//	- currently policy is to do round-robin for each (i.e. take at front and replace at back)
+//		- for load balancing reasons
+//	- however probably want to take cpu affinity into account...
 int policy_post_send_ctrl_net(Net_World * net_world, Control_Message * ctrl_message, uint32_t remote_node_id) {
 
 	int ret;
