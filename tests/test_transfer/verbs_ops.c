@@ -193,6 +193,26 @@ int block_for_wr_comp(struct ibv_cq_ex * cq, uint64_t target_wr_id){
 }
 
 
+void decode_wr_id(uint64_t wr_id, uint8_t * ret_channel_type, uint8_t * ret_ib_device_id, uint32_t * ret_endpoint_id) {
+
+	// only care about the upper 32 bits
+	uint32_t channel_id = wr_id >> 32;
+
+	// endpoint id is the lower 32 bits
+	*ret_channel_type = (uint8_t) (channel_id >> (32 - 2));
+	
+	// first shift channel to clear out control channel bits
+	// now shift back to clear out the endpoint bits
+	*ret_channel_type = (uint8_t) (channel_id << 2) >> (2 + 20);
+	
+	// shift up to clear out, then shift back
+	*ret_endpoint_id = (channel_id << (2 + 8)) >> (2 + 10);
+
+	return;
+}
+
+
+
 // Docs: "https://man7.org/linux/man-pages/man3/ibv_create_cq_ex.3.html"
 int poll_cq(struct ibv_cq_ex * cq, uint64_t duration_ns) {
 
@@ -221,6 +241,11 @@ int poll_cq(struct ibv_cq_ex * cq, uint64_t duration_ns) {
 	
 	enum ibv_wc_status status;
 	uint64_t wr_id;
+
+	uint8_t channel_type;
+	uint8_t ib_device_id;
+	uint32_t endpoint_id;
+
 	while (!is_done){
 
 		// return is 0 if a new item was cosumed, otherwise it equals ENOENT
@@ -238,6 +263,10 @@ int poll_cq(struct ibv_cq_ex * cq, uint64_t duration_ns) {
 		if (seen_new_completition){
 			/* DO SOMETHING WITH wr_id! */
 			printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
+
+			decode_wr_id(wr_id, &channel_type, &ib_device_id, &endpoint_id);
+
+			printf("Decoding of wr_id:\n\tChannel Type: %u\n\tIB Device ID: %u\n\tEndpoint Ind: %u\n\n", channel_type, ib_device_id, endpoint_id);
 
 			if (status != IBV_WC_SUCCESS){
 				fprintf(stderr, "Error: work request id %lu had error\n", wr_id);

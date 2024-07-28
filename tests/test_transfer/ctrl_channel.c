@@ -1,6 +1,9 @@
 #include "ctrl_channel.h"
 
 
+
+// COULD MAKE THESE ENCODE/DECODE MACROS IF THEY AER PERF HITS
+
 // Lower 32 bits are the channel count
 // Upper 32 bits are teh channel_id
 
@@ -8,48 +11,53 @@
 // The channel id will be used when polling completition queues to determine what channel to consume from
 uint64_t encode_ctrl_wr_id(Ctrl_Channel * channel, uint32_t buffer_insert_ind){
 
+	// lower 32 bits
 	uint64_t wr_id = buffer_insert_ind;
+
 	uint64_t channel_id = (uint64_t) channel -> channel_id;
-	wr_id |= (channel_id << 32);
+	// setting upper 32 bits
+	wr_id |= (channel_id << CHANNEL_ID_BITS);
 	return wr_id;
 }
 
+void decode_ctrl_wr_id(uint64_t wr_id, CtrlChannelType * ret_channel_type, uint8_t * ret_ib_device_id, uint32_t * ret_endpoint_id) {
 
-// | channel_type_val (2 bits) | ib_device_id (8 bits) | endpoint_ind (20 bits) |
+	// only care about the upper 32 bits
+	uint32_t channel_id = wr_id >> 32;
+
+	// endpoint id is the lower 32 bits
+	*ret_channel_type = (CtrlChannelType) (channel_id >> (CHANNEL_ID_BITS - CTRL_CHANNEL_TYPE_BITS));
+	
+	// first shift channel to clear out control channel bits
+	// now shift back to clear out the endpoint bits
+	*ret_channel_type = (uint8_t) (channel_id << CTRL_CHANNEL_TYPE_BITS) >> (CTRL_CHANNEL_TYPE_BITS + ENDPOINT_ID_BITS);
+	
+	// shift up to clear out, then shift back
+	*ret_endpoint_id = (channel_id << (CTRL_CHANNEL_TYPE_BITS + IB_DEVICE_ID_BITS)) >> (CTRL_CHANNEL_TYPE_BITS + IB_DEVICE_ID_BITS);
+
+	return;
+}
+
+
+// | channel_type_val (2 bits) | ib_device_id (8 bits) | endpoint_id (20 bits) |
 
 // reserve 2 bits for channel type (send/recv/shared_recv)
 // reserve 8 bits for ib_device_id
 // reserve 20 bits for endpoint ind:
-//	- (for shared receive channels this value will be 0)
-uint32_t encode_ctrl_channel_id(CtrlChannelType channel_type, uint8_t ib_device_id, uint32_t endpoint_ind) {
+//	- (for shared receive channels this value will be 0) => the reason for having ib_device_id has part of the encoding
+//	- want to identify the correct shared_recv_queue channel to extract from!
+uint32_t encode_ctrl_channel_id(CtrlChannelType channel_type, uint8_t ib_device_id, uint32_t endpoint_id) {
 
 	uint32_t channel_id = 0;
 
 	// 1.) encode channel type 
-
-	int channel_type_val;
-	switch (channel_type){
-		case SEND_CTRL_CHANNEL:
-			channel_type_val = 0;
-			break;
-		case RECV_CTRL_CHANNEL:
-			channel_type_val = 1;
-			break;
-		case SHARED_RECV_CTRL_CHANNEL:
-			channel_type_val = 2;
-			break;
-		default:
-			fprintf(stderr, "Error: could not encode channel id because unknown channel type\n");
-			return 0;
-	}
-
-	channel_id |= (channel_type_val << 30);
+	channel_id |= (((uint32_t) channel_type) << (CHANNEL_ID_BITS - CTRL_CHANNEL_TYPE_BITS));
 
 	// 2.) encode ib device id
-	channel_id |= (ib_device_id << 28);
+	channel_id |= ((uint32_t) ib_device_id << (CHANNEL_ID_BITS - CTRL_CHANNEL_TYPE_BITS - IB_DEVICE_ID_BITS));
 
 	// 3.) encode endpoint ind
-	channel_id |= endpoint_ind;
+	channel_id |= endpoint_id;
 
 	return channel_id;
 }
@@ -57,7 +65,7 @@ uint32_t encode_ctrl_channel_id(CtrlChannelType channel_type, uint8_t ib_device_
 
 
 Ctrl_Channel * init_ctrl_channel(CtrlChannelType channel_type, uint32_t max_items, uint8_t ib_device_id, struct ibv_pd * pd, 
-									uint32_t endpoint_ind, struct ibv_qp * qp, struct ibv_srq * srq, bool to_populate_recvs) {
+									uint32_t endpoint_id, struct ibv_qp * qp, struct ibv_srq * srq, bool to_populate_recvs) {
 
 	int ret;
 
@@ -70,11 +78,11 @@ Ctrl_Channel * init_ctrl_channel(CtrlChannelType channel_type, uint32_t max_item
 	// 1.) assign channel values
 	channel -> channel_type = channel_type;
 	channel -> ib_device_id = ib_device_id;
-	channel -> endpoint_ind = endpoint_ind;
+	channel -> endpoint_id = endpoint_id;
 	channel -> pd = pd;
 	channel -> qp = qp;
 	channel -> srq = srq;
-	channel -> channel_id = encode_ctrl_channel_id(channel_type, ib_device_id, endpoint_ind);
+	channel -> channel_id = encode_ctrl_channel_id(channel_type, ib_device_id, endpoint_id);
 
 	// 1b.) Get Item Size bytes => all control messages have the same size.
 	//		- However we need to add room for Global Routing Header if this is a receive/shared receive channel (40 bytes)
@@ -206,7 +214,8 @@ int post_send_ctrl_channel(Ctrl_Channel * channel, Control_Message * ctrl_messag
 
 // Returns newly allocated memory!
 
-// This is only called upon RECV or SHARED_RECV channels!
+// When this is called upon RECV or SHARED_RECV channels, we just consumed an item so we want to replace!
+// When we extract something we sent no need to replace, because sends have content
 Control_Message * extract_ctrl_channel(Ctrl_Channel * channel) {
 
 	// Error Check if we want
@@ -225,10 +234,12 @@ Control_Message * extract_ctrl_channel(Ctrl_Channel * channel) {
 	// and cast to control message
 	Control_Message * ctrl_message = (Control_Message *) ((uint64_t) fifo_item + sizeof(struct ibv_grh));
 	
-	// after extracting a control item (must have been in receive queue), replace it
-	int ret = post_recv_ctrl_channel(channel);
-	if (ret != 0){
-		fprintf(stderr, "Error: failure posting a receive after trying to replace an extracted item\n");
+	if ((channel -> channel_type == RECV_CTRL_CHANNEL) || (channel -> channel_type == SHARED_RECV_CTRL_CHANNEL)){
+		// after extracting a control item (must have been in receive queue), replace it
+		int ret = post_recv_ctrl_channel(channel);
+		if (ret != 0){
+			fprintf(stderr, "Error: failure posting a receive after trying to replace an extracted item\n");
+		}
 	}
 
 	return ctrl_message;
