@@ -59,6 +59,8 @@ uint32_t encode_ctrl_channel_id(CtrlChannelType channel_type, uint8_t ib_device_
 	// 3.) encode endpoint ind
 	channel_id |= endpoint_id;
 
+	printf("Channel ID: %u (Channel Type: %d, IB Device ID: %u, Endpoint ID: %u)\n", channel_id, channel_type, ib_device_id, endpoint_id);
+
 	return channel_id;
 }
 

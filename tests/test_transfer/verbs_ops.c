@@ -197,6 +197,7 @@ void decode_wr_id(uint64_t wr_id, uint8_t * ret_channel_type, uint8_t * ret_ib_d
 
 	// only care about the upper 32 bits
 	uint32_t channel_id = wr_id >> 32;
+	printf("Channel ID: %u\n", channel_id);
 
 	// endpoint id is the lower 32 bits
 	*ret_channel_type = (uint8_t) (channel_id >> (32 - 2));
