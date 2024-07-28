@@ -2,7 +2,7 @@
 
 // Simple LinkedList implementation
 
-Deque * init_deque() {
+Deque * init_deque(Item_Cmp item_cmp) {
 	
 	int ret;
 
@@ -16,6 +16,7 @@ Deque * init_deque() {
 	deque -> cnt = 0;
 	deque -> head = NULL;
 	deque -> tail = NULL;
+	deque -> item_cmp = item_cmp;
 
 	ret = pthread_mutex_init(&(deque -> list_lock), NULL);
 	if (ret != 0){
@@ -289,39 +290,29 @@ int peek_item_at_index_deque(Deque * deque, DequeEnd start_end, uint64_t index, 
 	return 0;
 }
 
-// returns the number of items that were removed
 
-// can use max_remove and search_start_end to accelerate removal
-//	(i.e. if caller knows there is maximum of 1 copy of item in deque, and wants to remove it
-//			they can set max_remove = 1 to break when it is removed. If they have prior of 
-//			if the item would be at beginning or end then they can choose where to start searching)
-
-// to_free indicates if the item should be freed upon removal
-uint64_t remove_if_eq(Deque * deque, void * item, Item_Cmp item_cmp, uint64_t max_remove, DequeEnd search_start_end, bool to_free) {
+uint64_t remove_if_eq(Deque * deque, void * item, bool to_free) {
 
 	pthread_mutex_lock(&(deque -> list_lock));
 
 	uint64_t removed_cnt = 0;
-	Deque_Item * cur_deque_item;
-	if (search_start_end == FRONT_DEQUE){
-		cur_deque_item = deque -> head;
-	}
-	else{
-		cur_deque_item = deque -> tail;
-	}
-
+	Deque_Item * cur_deque_item = deque -> head;
 	Deque_Item * prev_deque_item;
 	Deque_Item * next_deque_item;
 
 	void * cur_item;
-	while((cur_deque_item != NULL) && (removed_cnt < max_remove)){
+	// can break early if we already removed the maximum
+	while(cur_deque_item != NULL){
+
 		cur_item = cur_deque_item;
+		
+		prev_deque_item = cur_deque_item -> prev;
+		next_deque_item = cur_deque_item -> next;
+		
 		// the items are the same so remove
-		if (item_cmp(item, cur_item) == 0){
+		if ((deque -> item_cmp)(item, cur_item) == 0){
 
 			// now need to remove the current deque item
-			prev_deque_item = cur_deque_item -> prev;
-			next_deque_item = cur_deque_item -> next;
 
 			// we removed the only item in deque
 			// set head and tail to be null, free item and decrement count
@@ -329,7 +320,6 @@ uint64_t remove_if_eq(Deque * deque, void * item, Item_Cmp item_cmp, uint64_t ma
 				deque -> head = NULL;
 				deque -> tail = NULL;
 			}
-
 			// we removed head
 			else if (prev_deque_item == NULL){
 				deque -> head = next_deque_item;
@@ -353,31 +343,89 @@ uint64_t remove_if_eq(Deque * deque, void * item, Item_Cmp item_cmp, uint64_t ma
 				free(cur_item);
 			}
 			free(cur_deque_item);
+		}
 
-			// break early if we reached maximum removed count
-			if (removed_cnt == max_remove){
-				break;
-			}
+		cur_deque_item = next_deque_item;
+	}
 
-			// reset for next iteration depending on what
-			// direction we were searching
-			if (search_start_end == FRONT_DEQUE){
-				cur_deque_item = next_deque_item;
+	pthread_mutex_unlock(&(deque -> list_lock));
+
+	return removed_cnt;
+}
+
+
+
+// returns the number of items that were removed
+
+// can use max_remove and search_start_end to accelerate removal
+//	(i.e. if caller knows there is maximum of 1 copy of item in deque, and wants to remove it
+//			they can set max_remove = 1 to break when it is removed. If they have prior of 
+//			if the item would be at beginning or end then they can choose where to start searching)
+
+// to_free indicates if the item should be freed upon removal
+uint64_t remove_if_eq_accel(Deque * deque, void * item, uint64_t max_remove, DequeEnd search_start_end, bool to_free) {
+
+	pthread_mutex_lock(&(deque -> list_lock));
+
+	uint64_t removed_cnt = 0;
+	Deque_Item * cur_deque_item;
+	if (search_start_end == FRONT_DEQUE){
+		cur_deque_item = deque -> head;
+	}
+	else{
+		cur_deque_item = deque -> tail;
+	}
+
+	Deque_Item * prev_deque_item;
+	Deque_Item * next_deque_item;
+
+	void * cur_item;
+	// can break early if we already removed the maximum
+	while((cur_deque_item != NULL) && (removed_cnt < max_remove)){
+		cur_item = cur_deque_item;
+		prev_deque_item = cur_deque_item -> prev;
+		next_deque_item = cur_deque_item -> next;
+		// the items are the same so remove
+		if ((deque -> item_cmp)(item, cur_item) == 0){
+
+			// now need to remove the current deque item
+
+			// we removed the only item in deque
+			// set head and tail to be null, free item and decrement count
+			if (prev_deque_item == NULL && next_deque_item == NULL){
+				deque -> head = NULL;
+				deque -> tail = NULL;
 			}
+			// we removed head
+			else if (prev_deque_item == NULL){
+				deque -> head = next_deque_item;
+				next_deque_item -> prev = NULL;
+			}
+			// we removed tail
+			else if (next_deque_item == NULL){
+				deque -> tail = prev_deque_item;
+				prev_deque_item -> next = NULL;
+			}
+			// we removed middle element
 			else{
-				cur_deque_item = prev_deque_item;
+				prev_deque_item -> next = next_deque_item;
+				next_deque_item -> prev = prev_deque_item;
 			}
 
+			// update values now that we have removed an element
+			deque -> cnt -= 1;
+			removed_cnt += 1;
+			if (to_free){
+				free(cur_item);
+			}
+			free(cur_deque_item);
+		}
+		// going forwards means use next, backwards means prev
+		if (search_start_end == FRONT_DEQUE){
+			cur_deque_item = next_deque_item;
 		}
 		else{
-			// going forwards means use next, backwards means prev
-			if (search_start_end == FRONT_DEQUE){
-				cur_deque_item = cur_deque_item -> next;
-			}
-			else{
-				cur_deque_item = cur_deque_item -> prev;
-			}
-			
+			cur_deque_item = prev_deque_item;
 		}
 	}
 
@@ -386,4 +434,26 @@ uint64_t remove_if_eq(Deque * deque, void * item, Item_Cmp item_cmp, uint64_t ma
 	return removed_cnt;
 }
 
+
+uint64_t get_item_count(Deque * deque, void * item) {
+
+	pthread_mutex_lock(&(deque -> list_lock));
+
+	uint64_t seen_cnt = 0;
+	
+	Deque_Item * cur_deque_item = deque -> head;
+	void * cur_item;
+	while(cur_deque_item != NULL){
+		cur_item = cur_deque_item;
+		// the items are the same so remove
+		if ((deque -> item_cmp)(item, cur_item) == 0){
+			seen_cnt += 1;
+		}
+		cur_deque_item = cur_deque_item -> next;
+	}
+
+	pthread_mutex_unlock(&(deque -> list_lock));
+
+	return seen_cnt;
+}
 

@@ -16,6 +16,17 @@
 
 #define QP_MAX_INLINE_DATA 128 // SEEMS LIKE 956 is the max for qp creation error...?
 
+
+// Will only use this compare function upon seeing a port go down
+// and need to remove all items tied to that port
+// Thus will use node_port_ind as the comparison
+int self_active_ctrl_endpoint_cmp(void * self_endpoint, void * other_self_endpoint){
+	uint32_t node_port_ind = ((Self_Endpoint *) self_endpoint) -> qp_port -> node_port_ind;
+	uint32_t other_node_port_ind = ((Self_Endpoint *) other_self_endpoint) -> qp_port -> node_port_ind;
+	return node_port_ind - other_node_port_ind;
+}
+
+
 struct ibv_cq_ex * init_cq(struct ibv_context * ibv_dev_ctx){
 
 	// 1.) Create IBV_CQ_EX struct
@@ -425,7 +436,7 @@ Self_Node * init_self_node(Self_Net * self_net, int num_endpoint_types, Endpoint
 	// 2.) Initialize a deque to maintain active control endpoints which will be used for sending control messages
 	//		- probably have a round robin policy for which endpoint to send from
 
-	Deque * active_ctrl_endpoints = init_deque();
+	Deque * active_ctrl_endpoints = init_deque(&self_active_ctrl_endpoint_cmp);
 
 	// 3.) Create endpoints
 	

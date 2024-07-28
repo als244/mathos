@@ -1,6 +1,15 @@
 #include "net.h"
 
 
+// Will only use this compare function upon seeing a port go down
+// and need to remove all items tied to that port
+// Thus will use remote_node_port_ind as the comparison
+int remote_active_ctrl_endpoint_cmp(void * net_endpoint, void * other_net_endpoint){
+	uint32_t remote_node_port_ind = ((Net_Endpoint *) net_endpoint) -> remote_node_port_ind;
+	uint32_t other_remote_node_port_ind = ((Net_Endpoint *) other_net_endpoint) -> remote_node_port_ind;
+	return remote_node_port_ind - other_remote_node_port_ind;
+}
+
 // Generic Table Structure expects uint64_t values
 uint64_t net_node_hash_func(void * net_node, uint64_t table_size) {
 	uint32_t key = ((Net_Node *) net_node) -> node_id;
@@ -253,7 +262,7 @@ Net_Node * net_add_node(Net_World * net_world, Rdma_Init_Info * remote_rdma_init
 
 	// 3.) Create a deque to maintain all active control endpoints we can send to
 
-	Deque * active_ctrl_endpoints = init_deque();
+	Deque * active_ctrl_endpoints = init_deque(&remote_active_ctrl_endpoint_cmp);
 
 	// 4.) Allocate memory for the endpoints
 
