@@ -241,7 +241,7 @@ int extract_ctrl_channel(Ctrl_Channel * channel, Control_Message * ret_ctrl_mess
 	// when we get a receive message the first 40 bytes are GRH, so can skip passed this
 	// and cast to control message
 	if ((channel -> channel_type == RECV_CTRL_CHANNEL) || (channel -> channel_type == SHARED_RECV_CTRL_CHANNEL)){
-		memcpy((void *) ret_ctrl_message, fifo_item + sizeof(struct ibv_grh), sizeof(Control_Message));
+		memcpy((void *) ret_ctrl_message, (void *) ((uint64_t) fifo_item + sizeof(struct ibv_grh)), sizeof(Control_Message));
 	}
 	
 	if ((channel -> channel_type == RECV_CTRL_CHANNEL) || (channel -> channel_type == SHARED_RECV_CTRL_CHANNEL)){
