@@ -184,17 +184,17 @@ Net_Node * net_add_node(Net_World * net_world, Rdma_Init_Info * remote_rdma_init
 	// => need to choose corresponding AH within each of these arrays
 	int num_self_ib_devices = net_world -> self_net -> num_ib_devices;
 
-	Ah_Creation_Data cur_ah_creation_data;
+	Ah_Creation_Data * cur_ah_creation_data;
 	struct ibv_ah * cur_ah;
 	for (uint32_t i = 0; i < node -> num_ports; i++){
 
 		// a.) create address handles to get to this remote port
 
-		cur_ah_creation_data = remote_ports_init[i].ah_creation_data;
+		cur_ah_creation_data = &remote_ports_init[i].ah_creation_data;
 		// set the values in case we want to examine them
-		remote_ports[i].gid = cur_ah_creation_data.gid;
-		remote_ports[i].lid = cur_ah_creation_data.lid;
-		remote_ports[i].port_num = cur_ah_creation_data.port_num;
+		remote_ports[i].gid = cur_ah_creation_data -> gid;
+		remote_ports[i].lid = cur_ah_creation_data -> lid;
+		remote_ports[i].port_num = cur_ah_creation_data -> port_num;
 
 
 		// allocate container for creating all address handles to this remote port from any of our ports
@@ -268,24 +268,24 @@ Net_Node * net_add_node(Net_World * net_world, Rdma_Init_Info * remote_rdma_init
 	Remote_Endpoint * remote_endpoints_info = remote_rdma_init_info -> remote_endpoints;
 
 
-	Remote_Endpoint cur_remote_endpoint_info;
+	Remote_Endpoint * cur_remote_endpoint_info;
 	for (uint32_t i = 0; i < node -> num_endpoints; i++){
-		cur_remote_endpoint_info = remote_endpoints_info[i];
+		cur_remote_endpoint_info = &remote_endpoints_info[i];
 
 		// set the endpoint type so this node knows which endpoint to send to 
-		remote_endpoints[i].endpoint_type = cur_remote_endpoint_info.endpoint_type;
+		remote_endpoints[i].endpoint_type = cur_remote_endpoint_info -> endpoint_type;
 
 		// set the values for qp num and qkey so this node can address the right endpoint
 		// at a given remote port
-		remote_endpoints[i].remote_qp_num = cur_remote_endpoint_info.remote_qp_num;
-		remote_endpoints[i].remote_qkey = cur_remote_endpoint_info.remote_qkey; 
+		remote_endpoints[i].remote_qp_num = cur_remote_endpoint_info -> remote_qp_num;
+		remote_endpoints[i].remote_qkey = cur_remote_endpoint_info -> remote_qkey; 
 
 		// this is is the index within net_node -> ports
 		// in order to obtain the correct struct ibv_ah * (needed for sending UD)
 		// then based on the sender's device choose an ah within this ports address_handles
 		// (i.e. to send to this endpoint from self_device_id = j, then do:
 		//	net_node -> ports[remote_node_port_ind] -> address_handles[j]
-		remote_endpoints[i].remote_node_port_ind = cur_remote_endpoint_info.remote_node_port_ind;
+		remote_endpoints[i].remote_node_port_ind = cur_remote_endpoint_info -> remote_node_port_ind;
 
 		// add the index of the endpoint in case we want to move this struct around and refer back to the endpoints array
 		remote_endpoints[i].remote_node_endpoint_ind = i;

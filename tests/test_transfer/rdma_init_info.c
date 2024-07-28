@@ -31,7 +31,7 @@ Rdma_Init_Info * build_rdma_init_info(Self_Net * self_net, uint32_t node_id) {
 	Self_Port * ports = self_node -> ports;
 	Self_Port * cur_port;
 	for (uint32_t i = 0; i < num_ports; i++){
-		cur_port = &ports[i];
+		cur_port = &(ports[i]);
 
 		// Set the data needed for other side to create address handle to this port
 		remote_ports_init[i].ah_creation_data.gid = cur_port -> gid;
@@ -65,7 +65,7 @@ Rdma_Init_Info * build_rdma_init_info(Self_Net * self_net, uint32_t node_id) {
 	Self_Endpoint * endpoints = self_node -> endpoints;
 	Self_Endpoint * cur_endpoint;
 	for (uint32_t i = 0; i < num_endpoints; i++){
-		cur_endpoint = &endpoints[i];
+		cur_endpoint = &(endpoints[i]);
 		remote_endpoints[i].endpoint_type = cur_endpoint -> endpoint_type;
 		remote_endpoints[i].remote_node_port_ind = cur_endpoint -> qp_port -> node_port_ind;
 		printf("Adding remote endpoint with id: %u. Assigned remote_node_port_ind: %u\n", i, remote_endpoints[i].remote_node_port_ind);

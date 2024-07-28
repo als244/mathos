@@ -393,7 +393,7 @@ Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self
 
 	// 2.) For each port create a set of endpoints
 
-	Self_Port cur_port;
+	Self_Port * cur_port;
 	int cur_ib_device_id;
 	CQ_Collection * cur_cq_collection;
 	CQ * cur_send_cq, *cur_recv_cq;
@@ -405,8 +405,8 @@ Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self
 	EndpointType cur_endpoint_type;
 
 	for (uint32_t i = 0; i < num_ports; i++){
-		cur_port = ports[i];
-		cur_ib_device_id = cur_port.ib_device_id;
+		cur_port = &(ports[i]);
+		cur_ib_device_id = cur_port -> ib_device_id;
 		cur_cq_collection = (self_net -> dev_cq_collections)[cur_ib_device_id];
 		for (int j = 0; j < num_endpoint_types; j++){
 			cur_send_cq = (cur_cq_collection -> send_cqs)[j];
@@ -416,7 +416,7 @@ Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self
 			endpoint_type_num_qps = num_qps_per_type[j];
 			for (int k = 0; k < endpoint_type_num_qps; k++){
 
-				ret = init_self_endpoint(self_net, &cur_port, cur_ib_device_id, cur_endpoint_type, cur_send_cq, cur_recv_cq, to_use_srq, cur_node_endpoint_ind, &(endpoints[cur_node_endpoint_ind]));
+				ret = init_self_endpoint(self_net, cur_port, cur_ib_device_id, cur_endpoint_type, cur_send_cq, cur_recv_cq, to_use_srq, cur_node_endpoint_ind, &(endpoints[cur_node_endpoint_ind]));
 				
 				// Within init_self_endpoint, decided to report error as changing the qp_port to be NULL
 				if (ret != 0){
