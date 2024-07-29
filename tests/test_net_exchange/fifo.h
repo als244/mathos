@@ -13,7 +13,7 @@ typedef struct fifo {
 	uint64_t consume_ind;
 	// a bit redudant but a nice field to have
 	uint64_t item_cnt;
-	sem_t mutex_sem;
+	//sem_t mutex_sem;
 	// initialized to max_items
 	sem_t empty_slots_sem;
 	// intialized to 0

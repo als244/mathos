@@ -53,8 +53,6 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	fflush(stdout);
-
 	// Should Be Infinitely Blocking 
 	// (unless error or shutdown message)
 	ret = pthread_join(net_world -> tcp_rdma_init_server_thread, NULL);
