@@ -5,6 +5,9 @@
 #include "messages.h"
 #include "utils.h"
 
+
+// NOTE: THE "MASTER" PROCESS AND ALL WORKERS NEED TO AGREE ON THIS CONFIG!
+
 #define MASTER_NODE_ID 0
 
 // used within:
@@ -27,9 +30,43 @@
 #define RDMA_INIT_TIMEOUT_MICROS 100000
 
 
-// NOTE: THE "MASTER" PROCESS AND ALL WORKERS NEED TO AGREE ON THIS CONFIG!
+// SELF_NET CONFIGURATION
 
 
+// BID TODO: fix this configuration of queue sizes to be more flexible!!!
+
+#define NUM_CQ_ENTRIES 1U << 12
+
+#define SRQ_MAX_WR 1U << 10
+#define SRQ_MAX_SGE 2
+
+#define QP_MAX_SEND_WR 1U << 6
+#define QP_MAX_SEND_SGE 2
+
+#define QP_MAX_RECV_WR 1U << 6
+#define QP_MAX_RECV_SGE 2
+
+#define QP_MAX_INLINE_DATA 128 // SEEMS LIKE 956 is the max for qp creation error...?
+
+
+// EXCHANGE CONFIGURATION
+
+#define NUM_EXCHANGE_WORKER_THREADS 10
+
+
+#define EXCHANGE_MIN_BID_TABLE_ITEMS 1UL << 10
+#define EXCHANGE_MAX_BID_TABLE_ITEMS 1UL << 20
+
+#define EXCHANGE_MIN_OFFER_TABLE_ITEMS 1UL << 10
+#define EXCHANGE_MAX_OFFER_TABLE_ITEMS 1UL << 30
+
+#define EXCHANGE_MIN_FUTURE_TABLE_ITEMS 1UL << 10
+#define EXCHANGE_MAX_FUTURE_TABLE_ITEMS 1UL << 20
+
+
+// the load factor and shrink factor only matter if min_size != max_size
+#define EXCHANGE_TABLES_LOAD_FACTOR 0.25f
+#define EXCHANGE_TABLES_SHRINK_FACTOR 0.1f
 
 
 #endif

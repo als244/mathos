@@ -16,14 +16,24 @@ master.o: master.c
 
 ## WORKER PROGRAM
 
-testWorker: main_worker.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o
-	${CC} ${CFLAGS} $^ -o $@ -lm -pthread -libverbs 
+testWorker: main_worker.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o init_sys.o
+	${CC} ${CFLAGS} $^ -o $@ -lm -pthread -libverbs -lcrypto
 
 join_net.o: join_net.c
 	${CC} ${CFLAGS} -c $^
 
 init_net.o: init_net.c
 	${CC} ${CFLAGS} -c $^
+
+fingerprint.o: fingerprint.c
+	${CC} ${CFLAGS} -c $^
+
+exchange.o: exchange.c
+	${CC} ${CFLAGS} -c $^
+
+init_sys.o: init_sys.c
+	${CC} ${CFLAGS} -c $^
+
 
 
 ## BOTH

@@ -142,6 +142,8 @@ void destroy_deque(Deque * deque, bool to_free_items) {
 		}
 	}
 
+	// unlock before destroying
+	pthread_mutex_unlock(&(deque -> list_lock));
 	pthread_mutex_destroy(&(deque -> list_lock));
 	free(deque);
 	return;
@@ -291,7 +293,7 @@ int peek_item_at_index_deque(Deque * deque, DequeEnd start_end, uint64_t index, 
 }
 
 
-uint64_t remove_if_eq(Deque * deque, void * item, bool to_free) {
+uint64_t remove_if_eq_deque(Deque * deque, void * item, bool to_free) {
 
 	pthread_mutex_lock(&(deque -> list_lock));
 
@@ -363,7 +365,7 @@ uint64_t remove_if_eq(Deque * deque, void * item, bool to_free) {
 //			if the item would be at beginning or end then they can choose where to start searching)
 
 // to_free indicates if the item should be freed upon removal
-uint64_t remove_if_eq_accel(Deque * deque, void * item, uint64_t max_remove, DequeEnd search_start_end, bool to_free) {
+uint64_t remove_if_eq_accel_deque(Deque * deque, void * item, uint64_t max_remove, DequeEnd search_start_end, bool to_free) {
 
 	pthread_mutex_lock(&(deque -> list_lock));
 
@@ -435,7 +437,7 @@ uint64_t remove_if_eq_accel(Deque * deque, void * item, uint64_t max_remove, Deq
 }
 
 
-uint64_t get_item_count(Deque * deque, void * item) {
+uint64_t get_item_count_deque(Deque * deque, void * item) {
 
 	pthread_mutex_lock(&(deque -> list_lock));
 

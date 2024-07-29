@@ -1,7 +1,6 @@
 #ifndef EXCHANGE_H
 #define EXCHANGE_H
 
-
 #include "common.h"
 #include "config.h"
 #include "table.h"
@@ -14,7 +13,6 @@ typedef enum exch_item_type {
 	FUTURE_ITEM
 } ExchangeItemType;
 
-
 typedef struct exchange_item {
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
 	// Deque of uint32_t's representing node id's
@@ -22,7 +20,13 @@ typedef struct exchange_item {
 	ExchangeItemType item_type;
 	// used for caching purposes
 	// every time this item was looked up increment the count
-	uint64_t ref_count;
+	uint64_t lookup_cnt;
+	// updated upon every time this item is looked up
+	uint64_t timestamp_lookup;
+	// updated upon every time this item is modified
+	uint64_t modify_cnt;
+	uint64_t timestamp_modify;
+	// used when updating ref_cnt or timestamps
 	pthread_mutex_t exch_item_lock;
 } Exchange_Item;
 
@@ -39,6 +43,9 @@ typedef struct exchange {
 	// this value get's populated after a successful join to the network
 	// however, this structure get's intialized for that => 
 	// it gets filled in later when value is known
+	// for now using self_id as the assinged node id
+	// but we could seperate node id and exchange ids if we wanted
+	//	- (having dedicated exchange nodes would be a good idea if custom building data-center => more cost effective)
 	uint32_t self_id;
 	// upon a new addition this value get's updated and this exchange
 	// may have to send a portion of it's exchange data to other exchanges 
@@ -47,7 +54,10 @@ typedef struct exchange {
 	// this value get's populated after a successful join to the network
 	// however, this structure get's intialized for that => 
 	// it gets filled in later when value is known
-	uint32_t global_worker_node_cnt;
+	// this is the node count for number of items in the net_world -> nodes table
+	// it equals the number of participating nodes within network
+	// 	- (this is same as table count because table count also has master, but doesn't include self)
+	uint32_t node_cnt;
 	// FOR NOW: not using for start_val/end_val...
 	// BUT coulnt have more sophisticated policy 
 	// rather than just modulus over # of global nodes
@@ -82,7 +92,7 @@ typedef struct exchange {
 // One bid/offer per fingerprint!!!
 
 
-Exchange * init_exchange(uint64_t max_bids, uint64_t max_offers, uint64_t max_futures);
+Exchange * init_exchange();
 
 
 // The generic function called by exchange workers who then call the appropriate
@@ -99,22 +109,27 @@ int do_exchange_function(Exchange * exchange, Ctrl_Message * ctrl_message, uint3
 // THE FUNCTIONS BELOW SHOULD NOT BE EXPOSED...
 
 
-// NEED TO CONSIDER THE SYNCHONIZATION / ORDERING WHEN CACHING OCCURS AND ADDR+RKEY no longer valid!
-// locks on each bid + offer, but that isn't enough
-// What about ordering from the "participant" who wants to declare an addr invalid, but there is a delay in sending this information
-// 	- Before making an address invalid the owner must first remove item from exchange such that for the entirety of object exiting on exchange it is valid
-//	- This means a round-trip from owner to exchange before doing any internal data-transfers / invalidations which may be prohibitive...
-//	- Also means bookkeeping outstanding requests because cannot remove item from exchange until there are no outstanding requests for that item
-//		- Outstanding requests needs to be atomic
+// a bid is posted after ingesting a function and not having an argument fingerprints in local inventory.
+// The fingerprint corresponding to argument(s) is posted
+int post_bid(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id, Deque ** ret_matching_offer_participants);
 
-// done after receiving a function request with a fingerprint not found in inventory
-//	- triggers a lookup of offers and if a match is found does an RDMA read to specified addr and rkey
-// 	- might want to consider not supplying a memory location yet because could be outstanding for a while and do not want to reserve destination...
-int post_bid(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id);
-// done after receiving a function request with a fingerprint not found in inventory
-//	- triggers a lookup of offers and if a match is found does RDMA writes to matching bids and removes them from exchange
-int post_offer(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id);
+// an offer is posted after computing a new result. The fingerprint corresponding to the encoded function is posted
+//	- this fingerprint should already be in the future's table and should be moved to offer table, then this will trigger match
+int post_offer(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id, Deque ** ret_matching_bid_participants);
 
+
+// this order type is used after a bid was placed and that node received a match notification
+// after the match notfiication when the node whose bid it was actually receives object
+// they will post this order
+
+// it doesn't do any triggering of new notification, but it adds this node to the offer participants
+// for fingerprint and removes this node from that exchange item's bid table
+
+// if this node was not in the bid table for corresponding fignerprint there was an error
+int post_offer_confirm_match_data(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id);
+
+
+// a future order is posted after ingesting a function. The fingerprint corresponding to encoded function is posted
 int post_future(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id);
 
 

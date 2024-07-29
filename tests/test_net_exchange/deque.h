@@ -49,15 +49,15 @@ int peek_item_at_index_deque(Deque * deque, DequeEnd start_end, uint64_t index, 
 // to_free indicates if the item should be freed upon removal
 // simpler API compared to below
 //		- removes all occurrences of item
-uint64_t remove_if_eq(Deque * deque, void * item, bool to_free);
+uint64_t remove_if_eq_deque(Deque * deque, void * item, bool to_free);
 
 // can use max_remove and search_start_end to accelerate removal
 //	(i.e. if caller knows there is maximum of 1 copy of item in deque, and wants to remove it
 //			they can set max_remove = 1 to break when it is removed. If they have prior of 
 //			if the item would be at beginning or end then they can choose where to start searching)
-uint64_t remove_if_eq_accel(Deque * deque, void * item, uint64_t max_remove, DequeEnd search_start_end, bool to_free);
+uint64_t remove_if_eq_accel_deque(Deque * deque, void * item, uint64_t max_remove, DequeEnd search_start_end, bool to_free);
 
 
-uint64_t get_item_count(Deque * deque, void * item);
+uint64_t get_item_count_deque(Deque * deque, void * item);
 
 #endif

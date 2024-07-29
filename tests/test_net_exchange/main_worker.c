@@ -1,4 +1,4 @@
-#include "init_net.h"
+#include "init_sys.h"
 
 int main(int argc, char * argv[]){
 
@@ -16,14 +16,17 @@ int main(int argc, char * argv[]){
 		self_ip_addr = argv[2];
 	}	
 
-	Net_World * net_world = init_net(master_ip_addr, self_ip_addr);
+	System * system = init_system(master_ip_addr, self_ip_addr);
 
-	if (net_world == NULL){
-		fprintf(stderr, "Error: failed to initialize net\n");
+	if (system == NULL){
+		fprintf(stderr, "Error: failed to initialize system\n");
 		return -1;
 	}
 
-	printf("\n\nSuccessfully initialized network!\n\n\n");
+	printf("\n\nSuccessfully initialized system!\n\n\n");
+
+
+	Net_World * net_world = system -> net_world;
 
 	Ctrl_Message ctrl_message;
 	ctrl_message.header.source_node_id = net_world -> self_node_id;

@@ -35,7 +35,7 @@ uint64_t exchange_hash_func(void * exchange_item, uint64_t table_size) {
 	return hash_ind;
 }
 
-Exchange * init_exchange(uint64_t max_bids, uint64_t max_offers, uint64_t max_futures) {
+Exchange * init_exchange() {
 
 	Exchange * exchange = (Exchange *) malloc(sizeof(Exchange));
 	if (exchange == NULL){
@@ -43,35 +43,24 @@ Exchange * init_exchange(uint64_t max_bids, uint64_t max_offers, uint64_t max_fu
 		return NULL;
 	}
 
-	exchange -> max_bids = max_bids;
-	exchange -> max_offers = max_offers;
-	exchange -> max_futures = max_futures;
+	exchange -> max_bids = EXCHANGE_MAX_BID_TABLE_ITEMS;
+	exchange -> max_offers = EXCHANGE_MAX_OFFER_TABLE_ITEMS;
+	exchange -> max_futures = EXCHANGE_MAX_FUTURE_TABLE_ITEMS;
+
+	// these lookups need to be quick
+	//	- lower load factor => more memory usage, but faster
+	//		- the ratio of filled items before the table grows by 1 / load_factor
+	float load_factor = EXCHANGE_TABLES_LOAD_FACTOR;
+	float shrink_factor = EXCHANGE_TABLES_SHRINK_FACTOR;
 
 
-	// DEFAULT hyperparameters for hash tables
-
-	// SHOULD HAVE BETTER CONFIGURATION HERE!
-	uint64_t min_bid_size = 1UL << 20;
-	if (min_bid_size > max_bids){
-		min_bid_size = max_bids;
-	}
-	uint64_t min_offer_size = 1UL << 20;
-	if (min_offer_size > max_offers){
-		min_offer_size = max_offers;
-	}
-	uint64_t min_future_size = 1UL << 20;
-	if (min_future_size > max_futures){
-		min_future_size = max_futures;
-	}
-	float load_factor = .5f;
-	float shrink_factor = .1f;
 	Hash_Func hash_func = &exchange_hash_func;
 	Item_Cmp item_cmp = &exchange_item_cmp;
 
 	// init bids and offers table
-	Table * bids = init_table(min_bid_size, max_bids, load_factor, shrink_factor, hash_func, item_cmp);
-	Table * offers = init_table(min_offer_size, max_offers, load_factor, shrink_factor, hash_func, item_cmp);
-	Table * futures = init_table(min_future_size, max_futures, load_factor, shrink_factor, hash_func, item_cmp);
+	Table * bids = init_table(EXCHANGE_MIN_BID_TABLE_ITEMS, EXCHANGE_MAX_BID_TABLE_ITEMS, load_factor, shrink_factor, hash_func, item_cmp);
+	Table * offers = init_table(EXCHANGE_MIN_OFFER_TABLE_ITEMS, EXCHANGE_MAX_OFFER_TABLE_ITEMS, load_factor, shrink_factor, hash_func, item_cmp);
+	Table * futures = init_table(EXCHANGE_MIN_FUTURE_TABLE_ITEMS, EXCHANGE_MAX_FUTURE_TABLE_ITEMS, load_factor, shrink_factor, hash_func, item_cmp);
 	if ((bids == NULL) || (offers == NULL) || (futures == NULL)){
 		fprintf(stderr, "Error: could not initialize exchange tables\n");
 		return NULL;
@@ -104,7 +93,7 @@ Exchange_Item * init_exchange_item(uint8_t * fingerprint, ExchangeItemType item_
 	int ret;
 
 	Exchange_Item * exchange_item = (Exchange_Item *) malloc(sizeof(Exchange_Item));
-	if (exchange_item == NULL){
+	if (unlikely(exchange_item == NULL)){
 		fprintf(stderr, "Error: malloc failed allocating exchange item\n");
 		return NULL;
 	}
@@ -112,14 +101,14 @@ Exchange_Item * init_exchange_item(uint8_t * fingerprint, ExchangeItemType item_
 	memcpy(exchange_item -> fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
 	exchange_item -> item_type = item_type;
 
-	Deque * participants = init_deque();
-	if (participants == NULL){
+	Deque * participants = init_deque(&participant_item_cmp);
+	if (unlikely(participants == NULL)){
 		fprintf(stderr, "Error: could not initialize participants queue\n");
 		return NULL;
 	}
 
 	ret = insert_deque(participants, FRONT_DEQUE, &node_id);
-	if (ret != 0){
+	if (unlikely(ret != 0)){
 		fprintf(stderr, "Error: could not insert intial participant with node id %u, to exchange item of type: %d\n", node_id, item_type);
 		return NULL;
 	}
@@ -127,14 +116,69 @@ Exchange_Item * init_exchange_item(uint8_t * fingerprint, ExchangeItemType item_
 	exchange_item -> participants = participants;
 
 	ret = pthread_mutex_init(&(exchange_item -> exch_item_lock), NULL);
-	if (ret != )
+	if (unlikely(ret != 0)){
+		fprintf(stderr, "Error: could not initialize exchange item lock\n");
+		return NULL;
+	}
 
+	struct timespec time;
+	clock_gettime(CLOCK_MONOTONIC, &time);
+
+	uint64_t timestamp = time.tv_sec * 1e9 + time.tv_nsec;
+
+	exchange_item -> lookup_cnt = 0;
+	exchange_item -> timestamp_lookup = timestamp;
+	exchange_item -> modify_cnt = 0;
+	exchange_item -> timestamp_modify = timestamp;
 
 	return exchange_item;
 }
 
 
-// used at the beginning of an offer posting to see if can immediately do RDMA writes
+// ASSUMES THE CALLING THREAD ALREADY HOLDS LOCK
+void destroy_exchange_item(Exchange_Item * exchange_item){
+
+	// 1.) destroy deque
+	Deque * participants = exchange_item -> participants;
+	destroy_deque(participants, false);
+
+	// 2.) destroy lock
+	// unlock before destroying
+	pthread_mutex_unlock(&(exchange_item -> exch_item_lock));
+	pthread_mutex_destroy(&(exchange_item -> exch_item_lock));
+
+	// 3.) free item
+	free(exchange_item);
+}
+
+void update_item_lookup(Exchange_Item * exchange_item){
+	struct timespec time;
+	clock_gettime(CLOCK_MONOTONIC, &time);
+	uint64_t timestamp = time.tv_sec * 1e9 + time.tv_nsec;
+
+	pthread_mutex_lock(&(exchange_item -> exch_item_lock));
+	exchange_item -> lookup_cnt += 1;
+	exchange_item -> timestamp_lookup = timestamp;
+	pthread_mutex_unlock(&(exchange_item -> exch_item_lock));
+
+	return;
+}
+
+void update_item_modify(Exchange_Item * exchange_item) {
+
+	struct timespec time;
+	clock_gettime(CLOCK_MONOTONIC, &time);
+	uint64_t timestamp = time.tv_sec * 1e9 + time.tv_nsec;
+
+	pthread_mutex_lock(&(exchange_item -> exch_item_lock));
+	exchange_item -> modify_cnt += 1;
+	exchange_item -> timestamp_modify = timestamp;
+	pthread_mutex_unlock(&(exchange_item -> exch_item_lock));
+
+	return;
+}
+
+
 int lookup_exch_item(Exchange * exchange, uint8_t * fingerprint, ExchangeItemType item_type, Exchange_Item ** ret_item){
 
 	Table * table;
@@ -167,6 +211,9 @@ int lookup_exch_item(Exchange * exchange, uint8_t * fingerprint, ExchangeItemTyp
 
 	if (found_item == NULL){
 		return -1;
+	}
+	else{
+		update_item_lookup(found_item);
 	}
 
 	return 0;
@@ -210,59 +257,51 @@ int remove_exch_item(Exchange * exchange, uint8_t * fingerprint, ExchangeItemTyp
 }
 
 
-
-int post_bid(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id) {
+// a bid is posted after ingesting a function and not having an argument fingerprints in local inventory.
+// The fingerprint corresponding to argument(s) is posted
+int post_bid(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id, Deque ** ret_matching_offer_participants) {
 
 	int ret;
 
-	// 1.) lookup if offer exists, then just do RDMA read (choosing "best" of participants) and return
+	// 1.) lookup if offer exists => if so, 
+	// 		then set the offer participants return value for the exchange worker to start populating match notifications
+
+	*ret_matching_offer_participants = NULL;
 	Exchange_Item * found_offer;
 	ret = lookup_exch_item(exchange, fingerprint, OFFER_ITEM, &found_offer);
 	if (found_offer){
-		Deque * offer_participants = found_offer -> participants;
-		int num_participants = offer_participants -> cnt;
-		Deque_Item * cur_item = offer_participants -> head;
-		Offer_Participant * offer_participant;
-		uint64_t offer_node_id;
-		// FOR NOW PRINTING ALL PARTICIPANTS AND POSTING SEND WR_ID with details of head of queue 
-		// BUT MIGHT WANT TO CHANGE BASED ON TOPOLOGY!
-		while (cur_item != NULL){
-			offer_participant = (Offer_Participant *) cur_item -> item;
-			offer_node_id = ((Offer_Participant *) offer_participant) -> node_id;
-			ret = handle_bid_match_notify(exchange, offer_node_id, node_id, wr_id);
-			if (ret != 0){
-				fprintf(stderr, "Error: could not handle submitting a bid match notification\n");
-				return -1;
-			}
-			cur_item = cur_item -> next;
-
-			// for now just using the head of the queue to send bid match notif once
-			break;
-		}
-		return 0;
+		*ret_matching_offer_participants = found_offer -> participants;
 	}
 	
+	// - Even if there a match found, still have post this fingerprint + node to the exchange
+	//		- there is a chance that the matching location's don't have data or somehow things get messed up
+	//	- Wait until proper confirmation that this node has received the object (posting an offer_confirm_match_data order)
+	//		before removing from bid table
+
 	// 2.) Lookup bids to see if exchange item exists
 	// 		a.) If Yes, append participant to the deque
 	//		b.) If no, create an exchange item and insert into table
-
 	Exchange_Item * found_bid;
 	ret = lookup_exch_item(exchange, fingerprint, BID_ITEM, &found_bid);
 	if (found_bid){
-		ret = enqueue(found_bid -> participants, new_participant);
-		if (ret != 0){
+		Deque * bid_participants = found_bid -> participants;
+		ret = insert_deque(bid_participants, BACK_DEQUE, &node_id);
+		// only occurs on OOM
+		if (unlikely(ret != 0)){
 			fprintf(stderr, "Error: could not enqueue new participant to exciting participants on bid\n");
 			return -1;
 		}
+		// update the modification counter and timestamp
+		update_item_modify(found_bid);
 	}
 	else{
 		Exchange_Item * new_bid = init_exchange_item(fingerprint, BID_ITEM, node_id);
-		if (new_bid == NULL){
+		if (unlikely(new_bid == NULL)){
 			fprintf(stderr, "Error: could not initialize new bid exchange item\n");
 			return -1;
 		}
 		ret = insert_item_table(exchange -> bids, new_bid);
-		if (ret != 0){
+		if (unlikely(ret != 0)){
 			fprintf(stderr, "Error: could not insert new bid to exchange table\n");
 			return -1;
 		}
@@ -272,7 +311,9 @@ int post_bid(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id) {
 }
 
 
-int post_offer(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id) {
+// an offer is posted after computing a new result. The fingerprint corresponding to the encoded function is posted
+//	- this fingerprint should already be in the future's table and should be moved to offer table, then this will trigger match
+int post_offer(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id, Deque ** ret_matching_bid_participants) {
 
 	int ret;
 	
@@ -285,20 +326,22 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id) {
 	ret = lookup_exch_item(exchange, fingerprint, OFFER_ITEM, &found_offer);
 	if (found_offer){
 		offer_participants = found_offer -> participants;
-		ret = enqueue(offer_participants, new_participant);
-		if (ret != 0){
+		ret = insert_deque(offer_participants, BACK_DEQUE, &node_id);
+		if (unlikely(ret != 0)){
 			fprintf(stderr, "Error: could not enqueue new participant to existing participants on offer\n");
 			return -1;
 		}
+		// update the modification counter and timestamp
+		update_item_modify(found_offer);
 	}
 	else{
-		Exchange_Item * new_offer = init_exchange_item(fingerprint, OFFER_ITEM, new_participant);
-		if (new_offer == NULL){
+		Exchange_Item * new_offer = init_exchange_item(fingerprint, OFFER_ITEM, node_id);
+		if (unlikely(new_offer == NULL)){
 			fprintf(stderr, "Error: could not initialize new offer exchange item\n");
 			return -1;
 		}
 		ret = insert_item_table(exchange -> offers, new_offer);
-		if (ret != 0){
+		if (unlikely(ret != 0)){
 			fprintf(stderr, "Error: could not insert new offer to exchange table\n");
 			return -1;
 		}
@@ -306,50 +349,50 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id) {
 	}
 
 
-	// 2.) Lookup if this fingerprint + node_id combo was in the futures table
-	//		- if so, remove it now that we know it was in offer table
-
-
-
-	// 3.) Lookup if bid exists. If so, then queue post_sends to for all (or "available") bid participants informing them of location of objects, 
-	//	   and remove participants from bid item (if no participants left, remove item). Free memory appropriately
+	// 2.) Lookup if bid exists. If so, set the bids 
 	Exchange_Item * found_bid;
+	*ret_matching_bid_participants = NULL;
 	ret = lookup_exch_item(exchange, fingerprint, BID_ITEM, &found_bid);
 	if (found_bid){
-		Deque * bid_participants = found_bid -> participants;
-		int num_participants = bid_participants -> cnt;
-		void * bid_participant;
-		uint64_t bid_node_id;
-		uint64_t bid_match_wr_id;
-		// FOR NOW REMOVING ALL BID PARTICIPANTS BUT MIGHT WANT TO CHANGE BASED ON TOPOLOGY!
-		while (!is_deque_empty(bid_participants)){
-			ret = dequeue(bid_participants, &bid_participant);
-			if (ret != 0){
-				fprintf(stderr, "Error: could not dequeue bid participant\n");
-				return -1;
-			}
-			bid_node_id = ((Bid_Participant *) bid_participant) -> node_id;
-			bid_match_wr_id =  ((Bid_Participant *) bid_participant) -> wr_id;
-			ret = handle_bid_match_notify(exchange, node_id, bid_node_id, bid_match_wr_id);
-			if (ret != 0){
-				fprintf(stderr, "Error: could not handle submitting a bid match notification\n");
-				return -1;
-			}
-			// because we already sent info, we can free the bid participant
-			free(bid_participant);
+		*ret_matching_bid_participants = found_bid -> participants;
+	}
+
+	// 3.) Remove from futures table
+	//		- it should already exist, but for flexibility not reporting error if so
+	Exchange_Item * found_future;
+	ret = lookup_exch_item(exchange, fingerprint, FUTURE_ITEM, &found_future);
+	uint64_t num_copies_removed;
+	if (found_future){
+		Deque * future_participants = found_future -> participants;
+		// could use remove_if_eq_accel here and set max_removed = 1 to speed things up
+		num_copies_removed = remove_if_eq_deque(future_participants, &node_id, false);
+		// not returning an error here, just printing a message
+		if (unlikely(num_copies_removed != 1)){
+			fprintf(stderr, "Error: was expecting to remove one copy of fingerprint from futures table after an offer from node %u, but removed: %lu",
+								node_id, num_copies_removed);
 		}
+		// update the modification counter and timestamp
+		update_item_modify(found_future);
 
-		// Now bid is empty, so remove it
-		Exchange_Item * removed_bid = remove_item_table(exchange -> bids, found_bid);
-		
-		// assert(removed_bid == found_bid)
+		// when removing, first acquire lock
+		// if there are no more participants remove the item
+		pthread_mutex_lock(&(found_future -> exch_item_lock));
+		uint64_t participant_cnt = get_count_deque(future_participants);
+		// there are no more participants, so we can remove this item from table and free its memory
+		if (participant_cnt == 0){
+			Exchange_Item * removed_item = (Exchange_Item *) remove_item_table(exchange -> futures, found_future);
+			// assert(removed_item == found_bid)
+			if (unlikely(removed_item != found_future)){
+				fprintf(stderr, "Error: issue removing exchange bid item after a offer_match confirmation from node: %u\n", node_id);
+				return -1;
+			}
 
-		// destroy deque
-		// should be the same pointer as bid_participants above
-		destroy_deque(removed_bid -> participants);
-
-		// now can free the exchange item
-		free(removed_bid);
+			destroy_exchange_item(found_future);
+		}
+		else{
+			// there were more participants, so we aren't destroying but need to release lock
+			pthread_mutex_unlock(&(found_future -> exch_item_lock));
+		}
 	}
 
 	return 0;
@@ -357,6 +400,98 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id) {
 }
 
 
+// this order type is used after a bid was placed and that node received a match notification
+// after the match notfiication when the node whose bid it was actually receives object
+// they will post this order
+
+// it doesn't do any triggering of new notification, but it adds this node to the offer participants
+// for fingerprint and removes this node from that exchange item's bid table
+
+// if this node was not in the bid table for corresponding fignerprint there was an error
+int post_offer_confirm_match_data(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id) {
+
+	int ret;
+	
+	// 1.) Lookup offers to see if exchange item exists
+	// 		a.) If Yes, append participant to the deque
+	//		b.) If no, create an exchange item and insert into table
+	Exchange_Item * found_offer;
+	Deque * offer_participants;
+	ret = lookup_exch_item(exchange, fingerprint, OFFER_ITEM, &found_offer);
+	if (found_offer){
+		offer_participants = found_offer -> participants;
+		ret = insert_deque(offer_participants, BACK_DEQUE, &node_id);
+		if (unlikely(ret != 0)){
+			fprintf(stderr, "Error: could not enqueue new participant to existing participants on offer\n");
+			return -1;
+		}
+		// update the modification counter and timestamp
+		update_item_modify(found_offer);
+	}
+	else{
+		Exchange_Item * new_offer = init_exchange_item(fingerprint, OFFER_ITEM, node_id);
+		if (unlikely(new_offer == NULL)){
+			fprintf(stderr, "Error: could not initialize new offer exchange item\n");
+			return -1;
+		}
+		ret = insert_item_table(exchange -> offers, new_offer);
+		if (unlikely(ret != 0)){
+			fprintf(stderr, "Error: could not insert new offer to exchange table\n");
+			return -1;
+		}
+		offer_participants = new_offer -> participants;
+	}
+
+
+	// 2.) Now remove bid from table
+	//		- should be an error if the bid from this fingerprint + node_id is not there
+	//			- only would occur if this item (bid) was cached out of the exchange table before confirming data
+
+	Exchange_Item * found_bid;
+	ret = lookup_exch_item(exchange, fingerprint, BID_ITEM, &found_bid);
+	uint64_t num_copies_removed;
+	if (found_bid){
+		Deque * bid_participants = found_bid -> participants;
+		num_copies_removed = remove_if_eq_deque(bid_participants, &node_id, false);
+		// not returning an error here, just printing a message
+		if (unlikely(num_copies_removed != 1)){
+			fprintf(stderr, "Error: was expecting to remove one copy of fingerprint from bid table after an offer_confirm_match_data from node %u, but removed: %lu",
+								node_id, num_copies_removed);
+		}
+		// update the modification counter and timestamp
+		update_item_modify(found_bid);
+
+		// when removing, first acquire lock
+		// if there are no more participants remove the item
+		pthread_mutex_lock(&(found_bid -> exch_item_lock));
+		uint64_t participant_cnt = get_count_deque(bid_participants);
+		// there are no more participants, so we can remove this item from table and free its memory
+		if (participant_cnt == 0){
+			Exchange_Item * removed_item = (Exchange_Item *) remove_item_table(exchange -> bids, found_bid);
+			// assert(removed_item == found_bid)
+			if (unlikely(removed_item != found_bid)){
+				fprintf(stderr, "Error: issue removing exchange bid item after a offer_match confirmation from node: %u\n", node_id);
+				return -1;
+			}
+
+			destroy_exchange_item(found_bid);
+		}
+		else{
+			// there were more participants, so we aren't destroying but need to release lock
+			pthread_mutex_unlock(&(found_bid -> exch_item_lock));
+		}
+	}
+	else{
+		// for now not returning error, but printing out
+		fprintf(stderr, "Error: was expecting the bid to existi after posting an offer_confirm_match_data with node id: %u. But now bid found for fingerprint\n", node_id);
+		return 0;
+	}
+
+	return 0;
+}
+
+
+// a future order is posted after ingesting a function. The fingerprint corresponding to encoded function is posted
 int post_future(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id) {
 	
 	int ret;
@@ -369,14 +504,15 @@ int post_future(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id) {
 	ret = lookup_exch_item(exchange, fingerprint, FUTURE_ITEM, &found_future);
 	if (found_future){
 		Deque * future_participants = found_future -> participants;
-		ret = enqueue(future_participants, new_participant);
+		ret = insert_deque(future_participants, BACK_DEQUE, &node_id);
 		if (ret != 0){
-			fprintf(stderr, "Error: could not enqueue new participant to existing participants on future\n");
+			fprintf(stderr, "Error: could not enqueue new participant with id = %u to existing participants on future\n", node_id);
 			return -1;
 		}
+		update_item_modify(found_future);
 	}
 	else{
-		Exchange_Item * new_future = init_exchange_item(fingerprint, FUTURE_ITEM, new_participant);
+		Exchange_Item * new_future = init_exchange_item(fingerprint, FUTURE_ITEM, node_id);
 		if (new_future == NULL){
 			fprintf(stderr, "Error: could not initialize new future exchange item\n");
 			return -1;

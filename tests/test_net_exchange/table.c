@@ -139,6 +139,7 @@ int resize_table(Table * table, uint64_t new_size) {
 	table -> slot_locks = new_slot_locks;
 	table -> size = new_size;
 
+	// we know these are unlocked
 	for (uint64_t i = 0; i < old_size; i++){
 		pthread_mutex_destroy(&(old_slot_locks[i]));
 	}
