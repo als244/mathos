@@ -44,14 +44,12 @@ Fifo * init_fifo(uint64_t max_items, uint64_t item_size_bytes) {
 
 	// initialize buffer to place items
 	uint64_t buffer_size = max_items * item_size_bytes;
-	void * buffer = malloc(buffer_size);
-	if (buffer == NULL){
+	fifo -> buffer = malloc(buffer_size);
+	if (fifo -> buffer == NULL){
 		fprintf(stderr, "Error: malloc failed to allocate fifo buffer of size: %lu\n", buffer_size);
 		return NULL;
 	}
-
-	fifo -> buffer = buffer;
-
+	
 	return fifo;
 }
 
