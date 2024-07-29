@@ -119,9 +119,8 @@ void * run_ctrl_handler(void * _cq_thread_data){
 				
 				switch(ctrl_message_header.message_class){
 					case EXCHANGE_CLASS:
-						printf("[Ctrl Handler] Producing on fifo with address %p\n", (void *) (((work_pool -> classes)[ctrl_message_header.message_class]) -> tasks));
+						printf("\n[Ctrl Handler] Producing on exchange tasks fifo\n");
 						fifo_insert_ind = produce_fifo((work_pool -> classes)[ctrl_message_header.message_class] -> tasks, &ctrl_message);
-						printf("[Ctrl Handler] Produced at index: %lu\n", fifo_insert_ind);
 						break;
 					default:
 						fprintf(stderr, "Error: saw an unknown message class of type %d\n", ctrl_message_header.message_class);

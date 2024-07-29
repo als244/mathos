@@ -6,14 +6,14 @@
 typedef struct fifo {
 	uint64_t max_items;
 	uint64_t item_size_bytes;
-	pthread_mutex_t fifo_lock;
 	// the index at which to place the next item produced
 	uint64_t produce_ind;
 	// the index to consume the next item
 	uint64_t consume_ind;
 	// a bit redudant but a nice field to have
 	uint64_t item_cnt;
-	//sem_t mutex_sem;
+	// lock to be used during producing/consuming
+	pthread_mutex_t fifo_lock;
 	// initialized to max_items
 	sem_t empty_slots_sem;
 	// intialized to 0
