@@ -35,7 +35,7 @@ void * run_exchange_worker(void * _worker_thread_data) {
 		// generates a copy of the data that was in fifo
 		//	- this data will be overwritten when the fifo wraps around
 
-		printf("[Exchange Worker %d] Waiting to consume on fifo with address %p\n", worker_thread_id, tasks);
+		printf("[Exchange Worker %d] Waiting to consume on fifo with address %p\n", worker_thread_id, (void *) tasks);
 		
 		ctrl_message = (Ctrl_Message *) consume_fifo(tasks);
 
