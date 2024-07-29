@@ -13,3 +13,25 @@ char * byte_arr_to_hex_str(uint64_t arr_len, uint8_t * byte_arr) {
 	return out_str;
 }
 
+
+char * message_class_to_str(CtrlMessageClass message_class) {
+
+	switch(message_class){
+		case EXCHANGE_CLASS:
+			return "EXCHANGE_CLASS";
+		case INVENTORY_CLASS:
+			return "INVENTORY_CLASS";
+		case REQUEST_CLASS:
+			return "REQUEST_CLASS";
+		case INGEST_CLASS:
+			return "INGEST_CLASS";
+		case CONFIG_CLASS:
+			return "CONFIG_CLASS";
+		case ALERT_CLASS:
+			return "ALERT_CLASS";
+		case SYSTEM_CLASS:
+			return "SYSTEM_CLASS";
+		default:
+			return "UNKNOWN_CLASS";
+	}
+}

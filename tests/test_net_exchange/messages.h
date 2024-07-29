@@ -5,7 +5,7 @@
 
 #include "exchange_messages.h"
 
-#define CONTROL_MESSAGE_MAX_SIZE_BYTES 128
+#define CONTROL_MESSAGE_CONTENT_MAX_SIZE_BYTES 128
 
 // This is imported from config.h!
 
@@ -48,7 +48,7 @@ typedef enum enpoint_type {
 } EndpointType;
 
 
-#define MAX_WORK_CLASSES 5
+#define MAX_WORK_CLASSES 7
 
 // The control message type indicates
 // to the completion queue handler
@@ -58,41 +58,12 @@ typedef enum ctrl_message_class {
 	// for data transfer intiation / response
 	// actually data transfer will not be done over control QPs
 	INVENTORY_CLASS,
-	SCHED_CLASS,
+	REQUEST_CLASS,
+	INGEST_CLASS,
+	ALERT_CLASS,
 	CONFIG_CLASS,
 	SYSTEM_CLASS
 } CtrlMessageClass;
-
-
-/*
-typedef enum ctrl_message_type {
-	DATA_REQUEST,
-	DATA_RESPONSE,
-	BID_ORDER,
-	BID_MATCH,
-	BID_CANCEL,
-	BID_Q,
-	BID_Q_RESPONSE,
-	OFFER_ORDER,
-	OFFER_CANCEL,
-	OFFER_Q,
-	OFFER_Q_RESPONSE,
-	OFFER_CONFIRM_MATCH,
-	FUTURE_ORDER,
-	FUTURE_CANCEL,
-	FUTURE_Q,
-	FUTURE_Q_RESPONSE,
-	FINGERPRINT_Q,
-	SCHED_REQUEST,
-	SCHED_RESPONSE,
-	SCHED_CANCEL,
-	HEARTBEAT,
-	PAUSE,
-	CLEAR,
-	SHUTDOWN
-} CtrlMessageType;
-*/
-
 
 
 typedef struct ctrl_message_h {
@@ -116,7 +87,7 @@ typedef struct ctrl_message_h {
 typedef struct ctrl_message {
 	Ctrl_Message_H header;
 	// to be interpreted based upon header -> message_type
-	uint8_t contents[CONTROL_MESSAGE_MAX_SIZE_BYTES - sizeof(Ctrl_Message_H)];
+	uint8_t contents[CONTROL_MESSAGE_CONTENT_MAX_SIZE_BYTES];
 } Ctrl_Message;
 
 

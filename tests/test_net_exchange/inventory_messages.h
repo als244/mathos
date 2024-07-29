@@ -4,6 +4,8 @@
 #include "common.h"
 #include "config.h"
 
+#define INVENTORY_MESSAGE_MAX_SIZE_BYTES 100
+
 
 typedef enum inventory_message_type {
 	FINGERPRINT_MATCH,
@@ -25,7 +27,7 @@ typedef struct fingerprint_match {
 
 typedef struct inventory_message {
 	InventoryMessageType message_type;
-	uint8_t message[CONTROL_MESSAGE_MAX_SIZE_BYTES - sizeof(Ctrl_Message_H) - sizeof(InventoryMessageType)];
+	uint8_t message[INVENTORY_MESSAGE_MAX_SIZE_BYTES];
 } Inventory_Message;
 
 

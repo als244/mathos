@@ -3,7 +3,6 @@
 
 #include "common.h"
 #include "messages.h"
-#include "utils.h"
 
 
 // NOTE: THE "MASTER" PROCESS AND ALL WORKERS NEED TO AGREE ON THIS CONFIG!

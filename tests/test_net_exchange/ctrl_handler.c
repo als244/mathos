@@ -108,8 +108,8 @@ void * run_ctrl_handler(void * _cq_thread_data){
 				ctrl_message_header = ctrl_message.header;
 
 				// For now just printing
-				printf("\n\n[Node %u] Received control message!\n\tSource Node ID: %u\n\tMessage Class: %d\n\t\tContents: %s\n\n", 
-							self_node_id, ctrl_message_header.source_node_id, ctrl_message_header.message_class, ctrl_message.contents);
+				printf("\n\n[Node %u] Received control message!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
+							self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
 
 
 				// REALLY SHOULD HAVE A FORMAT LIKE THIS HERE....
