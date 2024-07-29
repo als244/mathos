@@ -25,7 +25,7 @@ Fifo * init_fifo(uint64_t max_items, uint64_t item_size_bytes) {
 
 	ret = sem_init(&(fifo -> mutex_sem), 0, 1);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not initialize empty_slots_sem\n");
+		fprintf(stderr, "Error: could not initialize mutex_sem\n");
 		return NULL;
 	}
 
@@ -37,7 +37,7 @@ Fifo * init_fifo(uint64_t max_items, uint64_t item_size_bytes) {
 
 	ret = sem_init(&(fifo -> full_slots_sem), 0, 0);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not initialize empty_slots_sem\n");
+		fprintf(stderr, "Error: could not initialize full_slots_sem\n");
 		return NULL;
 	}
 
@@ -57,7 +57,7 @@ Fifo * init_fifo(uint64_t max_items, uint64_t item_size_bytes) {
 
 void * get_buffer_addr(Fifo * fifo, uint64_t ind) {
 	uint64_t buffer_addr = (uint64_t) fifo -> buffer;
-	uint64_t offset = ind * fifo -> item_size_bytes;
+	uint64_t offset = ind * (fifo -> item_size_bytes);
 	return (void *) (buffer_addr + offset);
 }
 
