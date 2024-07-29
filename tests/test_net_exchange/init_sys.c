@@ -79,6 +79,8 @@ System * init_system(char * master_ip_addr, char * self_ip_addr){
 		return NULL;
 	}
 
+	fflush(stdout);
+
 	// 9.) wait until min_init_nodes (besides master) have been added to the net_world -> nodes table
 	sem_wait(&(net_world -> is_init_ready));
 
