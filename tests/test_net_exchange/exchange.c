@@ -526,3 +526,166 @@ int post_future(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id) {
 
 	return 0;
 }
+
+
+// If offer is the trigger, then matching participants will be the set of bids that the exchange needs to send with the trigger_node_id as data location
+// If bid is the trigger, then matching participants will be the set of offer locations that the exchannge needs to send back to the trigger node
+int generate_match_ctrl_messages(uint32_t self_id, uint32_t trigger_node_id, bool is_offer_trigger, uint8_t * fingerprint, Deque * matching_particpants, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages){
+
+
+	*ret_num_ctrl_messages = 0;
+	*ret_ctrl_messages = NULL;
+
+	// Now need to iterate over all the participants and create a message for each one
+	pthread_mutex_lock(&(matching_particpants -> list_lock));
+
+	uint32_t matching_particpants_cnt = (uint32_t) matching_particpants -> cnt;
+	if (matching_particpants_cnt == 0){
+		pthread_mutex_unlock(&(matching_particpants -> list_lock));
+		return 0;
+	}
+
+	uint32_t num_response_messages;
+	if (is_offer_trigger){
+		num_response_messages = matching_particpants_cnt;
+	}
+	else{
+		num_response_messages = ceil(matching_particpants_cnt / MAX_FINGERPRINT_MATCH_LOCATIONS);
+	}
+
+
+	Ctrl_Message * match_messages = (Ctrl_Message *) malloc(num_response_messages * sizeof(Ctrl_Message));
+	if (match_messages == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate memory for generating match ctrl messages\n");
+		pthread_mutex_unlock(&(matching_particpants -> list_lock));
+		return -1;
+	}
+
+
+	Inventory_Message * inventory_message;
+	Fingerprint_Match * fingerprint_match;
+	Deque_Item * cur_deque_item = matching_particpants -> head;
+
+	// If the offer was the trigger, we need to send a set of different control messages indicating this offer node's location to each of the bid participants
+	if (is_offer_trigger){
+
+		uint32_t i = 0;
+		uint32_t bid_node_id;
+		while (cur_deque_item != NULL){
+			bid_node_id = *((uint32_t *) cur_deque_item -> item);
+
+			match_messages[i].header.source_node_id = self_id;
+			match_messages[i].header.dest_node_id = bid_node_id;
+			match_messages[i].header.message_class = INVENTORY_CLASS;
+
+			inventory_message = (Inventory_Message *) match_messages[i].contents;
+			inventory_message -> message_type = FINGERPRINT_MATCH;
+
+			fingerprint_match = (Fingerprint_Match *) inventory_message -> message;
+			memcpy(fingerprint_match -> fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
+			fingerprint_match -> num_nodes = 1;
+			(fingerprint_match -> node_ids)[0] = trigger_node_id; 
+
+			cur_deque_item = cur_deque_item -> next;
+			i++;
+		}
+	}
+	// If the bid was the trigger, we need to send matching_particpants_cnt / MAX_FINGERPRINT_MATCH_LOCATIONS messages to the node with all the locations of the offers
+	else{
+		
+		uint32_t offer_node_id;
+		uint32_t match_node_id_ind;
+		for (int message_ind = 0; message_ind < num_response_messages; message_ind++){
+			
+			match_messages[message_ind].header.source_node_id = self_id;
+			match_messages[message_ind].header.dest_node_id = trigger_node_id;
+			match_messages[message_ind].header.message_class = INVENTORY_CLASS;
+
+			inventory_message = (Inventory_Message *) match_messages[message_ind].contents;
+			inventory_message -> message_type = FINGERPRINT_MATCH;
+
+			fingerprint_match = (Fingerprint_Match *) inventory_message -> message;
+			memcpy(fingerprint_match -> fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
+			fingerprint_match -> num_nodes = 0;
+
+			match_node_id_ind = 0;
+			while ((cur_deque_item != NULL) && (match_node_id_ind < MAX_FINGERPRINT_MATCH_LOCATIONS)){
+				offer_node_id = *((uint32_t *) cur_deque_item -> item);
+				fingerprint_match -> num_nodes += 1;
+				(fingerprint_match -> node_ids)[match_node_id_ind] = offer_node_id; 
+				cur_deque_item = cur_deque_item -> next;
+				match_node_id_ind++;
+			}
+		}
+
+	}
+
+	pthread_mutex_unlock(&(matching_particpants -> list_lock));
+
+	*ret_num_ctrl_messages = num_response_messages;
+	*ret_ctrl_messages = match_messages;
+
+	return 0;
+}
+
+
+
+int do_exchange_function(Exchange * exchange, Ctrl_Message * ctrl_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages) {
+
+	int ret;
+
+	uint32_t node_id = ctrl_message -> header.source_node_id;
+
+	Exch_Message * exch_message = (Exch_Message *) ctrl_message -> contents;
+
+	ExchMessageType exch_message_type = exch_message -> message_type;
+	uint8_t * fingerprint = exch_message -> fingerprint;
+	
+	Deque * matching_particpants;
+
+	// Default return values
+	// generate_match_ctrl_messages may override these...
+	*ret_num_ctrl_messages = 0;
+	*ret_ctrl_messages = NULL;
+
+	switch(exch_message_type){			
+			case BID_ORDER:
+				ret = post_bid(exchange, fingerprint, node_id, &matching_particpants);
+				if (unlikely(ret != 0)){
+					fprintf(stderr, "Error: could not post bid from node_id %u\n", node_id);
+				}
+				ret = generate_match_ctrl_messages(exchange -> self_id, node_id, false, fingerprint, matching_particpants, ret_num_ctrl_messages, ret_ctrl_messages);
+				if (unlikely(ret != 0)){
+					fprintf(stderr, "Error: could not generate match notification message after posting bid from node_id %u\n", node_id);
+				}
+				break;
+			case OFFER_ORDER:
+				ret = post_offer(exchange, fingerprint, node_id, &matching_particpants);
+				if (unlikely(ret != 0)){
+					fprintf(stderr, "Error: could not post bid from node_id %u\n", node_id);
+				}
+				ret = generate_match_ctrl_messages(exchange -> self_id, node_id, true, fingerprint, matching_particpants, ret_num_ctrl_messages, ret_ctrl_messages);
+				if (unlikely(ret != 0)){
+					fprintf(stderr, "Error: could not generate match notification message after posting bid from node_id %u\n", node_id);
+				}
+				break;
+			case OFFER_CONFIRM_MATCH_DATA_ORDER:
+				ret = post_offer_confirm_match_data(exchange, fingerprint, node_id);
+				if (unlikely(ret != 0)){
+					fprintf(stderr, "Error: could not post offer_confirm_match_data from node_id %u\n", node_id);
+				}
+				break;
+			case FUTURE_ORDER:
+				ret = post_future(exchange, fingerprint, node_id);
+				if (unlikely(ret != 0)){
+					fprintf(stderr, "Error: could not post offer_confirm_match_data from node_id %u\n", node_id);
+				}
+				break;
+			default:
+				fprintf(stderr, "Exchange worker saw unknown exchange messsage type of %d\n", exch_message_type);
+				break;
+	}
+
+	return ret;
+
+}

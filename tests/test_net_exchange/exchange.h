@@ -6,6 +6,7 @@
 #include "table.h"
 #include "deque.h"
 #include "fingerprint.h"
+#include "inventory_messages.h"
 
 typedef enum exch_item_type {
 	BID_ITEM,
@@ -102,7 +103,7 @@ Exchange * init_exchange();
 // appropriately
 
 // Many functions will have no return type
-int do_exchange_function(Exchange * exchange, Ctrl_Message * ctrl_message, uint32_t num_ret_messages, Ctrl_Message ** ret_ctrl_messages);
+int do_exchange_function(Exchange * exchange, Ctrl_Message * ctrl_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages);
 
 
 

@@ -19,6 +19,11 @@ void * run_ctrl_handler(void * _cq_thread_data){
 	Net_World * net_world = cq_thread_data -> net_world;
 	Self_Net * self_net = net_world -> self_net;
 
+	Work_Pool * work_pool = cq_thread_data -> work_pool;
+
+
+
+
 	uint32_t self_node_id = net_world -> self_node_id;
 
 	struct ibv_poll_cq_attr poll_qp_attr = {};
@@ -46,6 +51,8 @@ void * run_ctrl_handler(void * _cq_thread_data){
 	// Burns a lot of cpu....
 	//	- but want low latency!!!
 	//	- many, many exchange requests per sec
+
+	uint64_t fifo_insert_ind;
 
 	while (1){
 
@@ -101,21 +108,23 @@ void * run_ctrl_handler(void * _cq_thread_data){
 				ctrl_message_header = ctrl_message.header;
 
 				// For now just printing
-				printf("\n\n[Node %u] Received control message!\n\tSource Node ID: %u\n\tMessage Type: %d\n\t\tContents: %s\n\n", 
-							self_node_id, ctrl_message_header.source_node_id, ctrl_message_header.message_type, ctrl_message.contents);
+				printf("\n\n[Node %u] Received control message!\n\tSource Node ID: %u\n\tMessage Class: %d\n\t\tContents: %s\n\n", 
+							self_node_id, ctrl_message_header.source_node_id, ctrl_message_header.message_class, ctrl_message.contents);
 
 
 				// REALLY SHOULD HAVE A FORMAT LIKE THIS HERE....
 
-				/*
-				switch(ctrl_message_header.message_type){
-					case BID_ORDER:
-						// send to exchange worker
-					case SCHED_REQUEST:
-						// send to sched worker
-
+				// all fifo buffers at at:
+				// work_pool -> classes)[ctrl_message_header.message_class] -> tasks
+				
+				switch(ctrl_message_header.message_class){
+					case EXCHANGE_CLASS:
+						fifo_insert_ind = produce_fifo((work_pool -> classes)[ctrl_message_header.message_class] -> tasks, &ctrl_message);
+						break;
+					default:
+						fprintf(stderr, "Error: saw an unknown message class of type %d\n", ctrl_message_header.message_class);
+						break; 
 				}
-				*/
 			}			
 		}
 

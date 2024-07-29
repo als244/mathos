@@ -51,7 +51,8 @@
 
 // EXCHANGE CONFIGURATION
 
-#define NUM_EXCHANGE_WORKER_THREADS 10
+#define NUM_EXCHANGE_WORKER_THREADS 2
+#define EXCHANGE_MAX_TASKS 4096
 
 
 #define EXCHANGE_MIN_BID_TABLE_ITEMS 1UL << 10
@@ -67,6 +68,12 @@
 // the load factor and shrink factor only matter if min_size != max_size
 #define EXCHANGE_TABLES_LOAD_FACTOR 0.25f
 #define EXCHANGE_TABLES_SHRINK_FACTOR 0.1f
+
+
+
+// INVENTORY CONFIGURATION
+
+#define MAX_FINGERPRINT_MATCH_LOCATIONS 24
 
 
 #endif

@@ -115,7 +115,10 @@ Master * init_master(char * ip_addr, uint32_t max_nodes, uint32_t min_init_nodes
 	}
 
 	// also create all cq threads here
-	ret = activate_cq_threads(net_world);
+
+	// TODO: FIGURE OUT WHAT TO DO ABOUT MASTER'S CQ's
+	// WHAT FIFO BUFFER SHOULD THOSE TASKS GO TO...?
+	ret = activate_cq_threads(net_world, NULL);
 	if (ret != 0){
 		fprintf(stderr, "[Master] Error; failure to activate_cq_threads\n");
 		return NULL;

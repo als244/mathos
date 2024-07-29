@@ -1,20 +1,7 @@
 #include "self_net.h"
 
 
-// BID TODO: fix this configuration of queue sizes to be more flexible!!!
 
-#define NUM_CQ_ENTRIES 1U << 12
-
-#define SRQ_MAX_WR 1U << 10
-#define SRQ_MAX_SGE 2
-
-#define QP_MAX_SEND_WR 1U << 6
-#define QP_MAX_SEND_SGE 2
-
-#define QP_MAX_RECV_WR 1U << 6
-#define QP_MAX_RECV_SGE 2
-
-#define QP_MAX_INLINE_DATA 128 // SEEMS LIKE 956 is the max for qp creation error...?
 
 
 // Will only use this compare function upon seeing a port go down

@@ -152,7 +152,7 @@ typedef struct send_dest {
 
 // This function has little overhead involved with sending because it doesn't have to acquire lock from active_ctrl_dest deques or deal
 // with extra overhead of determining address handle
-int post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message, uint32_t remote_node_id);
+int post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message);
 
 
 // Within this function there is a policy to choose the sending / receiving endpoints 
@@ -160,7 +160,7 @@ int post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message, uint3
 //	- currently policy is to do round-robin for each (i.e. take at front and replace at back)
 //		- for load balancing reasons
 //	- however probably want to take cpu affinity into account...
-int policy_post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message, uint32_t remote_node_id);
+int policy_post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message);
 
 // Receives are handled within the Completion Queue Handlers (polling the per-ib device CQs dedicated to control messages)
 

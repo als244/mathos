@@ -439,7 +439,7 @@ void destroy_remote_node(Net_World * net_world, Net_Node * node){
 
 // This function has little overhead involved with sending because it doesn't have to acquire lock from active_ctrl_dest deques or deal
 // with extra overhead of determining address handle
-int post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message, uint32_t remote_node_id) {
+int post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message) {
 
 	int ret;
 
@@ -452,6 +452,7 @@ int post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message, uint3
 	}
 
 	// 2.) Lookup node in table
+	uint32_t remote_node_id = ctrl_message -> header.dest_node_id;
 	Net_Node target_node;
 	target_node.node_id = remote_node_id;
 
@@ -490,9 +491,11 @@ int post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message, uint3
 //	- currently policy is to do round-robin for each (i.e. take at front and replace at back)
 //		- for load balancing reasons
 //	- however probably want to take cpu affinity into account...
-int policy_post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message, uint32_t remote_node_id) {
+int policy_post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message) {
 
 	int ret;
+
+	uint32_t remote_node_id = ctrl_message -> header.dest_node_id;
 
 	// 1.) Lookup node in table
 	Net_Node target_node;

@@ -1,6 +1,6 @@
 #include "cq_handler.h"
 
-int run_cq_thread(Net_World * net_world, pthread_t * thread, EndpointType endpoint_type, cpu_set_t * affinity, Cq_Thread_Data * cq_thread_data){
+int run_cq_thread(pthread_t * thread, EndpointType endpoint_type, cpu_set_t * affinity, Cq_Thread_Data * cq_thread_data){
 
 	int ret;
 
@@ -27,7 +27,7 @@ int run_cq_thread(Net_World * net_world, pthread_t * thread, EndpointType endpoi
 }
 
 
-int activate_cq_threads(Net_World * net_world){
+int activate_cq_threads(Net_World * net_world, Work_Pool * work_pool){
 
 	int ret;
 
@@ -59,6 +59,7 @@ int activate_cq_threads(Net_World * net_world){
 	for (int i = 0; i < num_ib_devices; i++){
 		for (int j = 0; j < num_endpoint_types; j++){
 			cq_thread_data[i * num_endpoint_types + j].net_world = net_world;
+			cq_thread_data[i * num_endpoint_types + j].work_pool = work_pool;
 			cq_thread_data[i * num_endpoint_types + j].cq = cq_collection[i][j];
 		}
 	}
@@ -69,7 +70,7 @@ int activate_cq_threads(Net_World * net_world){
 		// SHOULD GET cpu_set_t affinity here!
 		cur_ib_dev_cpu_affinity = ib_dev_cpu_affinities[i];
 		for (int j = 0; j < num_endpoint_types; j++){
-			ret = run_cq_thread(net_world, &(cq_threads[i][j]), endpoint_types[j], cur_ib_dev_cpu_affinity, &(cq_thread_data[i * num_endpoint_types + j]));
+			ret = run_cq_thread(&(cq_threads[i][j]), endpoint_types[j], cur_ib_dev_cpu_affinity, &(cq_thread_data[i * num_endpoint_types + j]));
 			if (ret != 0){
 				fprintf(stderr, "Error: could not run cq thread from device #%d, and endpoint type ind #%d\n", i, j);
 				return -1;

@@ -7,7 +7,7 @@ all: testMaster testWorker
 
 
 ## MASTER PROGRAM
-testMaster: main_master.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o master.o utils.o cq_handler.o ctrl_handler.o
+testMaster: main_master.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o master.o utils.o cq_handler.o ctrl_handler.o work_pool.o
 	${CC} ${CFLAGS} $^ -o $@ -lm -pthread -libverbs
 
 master.o: master.c
@@ -16,7 +16,7 @@ master.o: master.c
 
 ## WORKER PROGRAM
 
-testWorker: main_worker.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o init_sys.o
+testWorker: main_worker.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o work_pool.o init_sys.o
 	${CC} ${CFLAGS} $^ -o $@ -lm -pthread -libverbs -lcrypto
 
 join_net.o: join_net.c
@@ -29,6 +29,9 @@ fingerprint.o: fingerprint.c
 	${CC} ${CFLAGS} -c $^
 
 exchange.o: exchange.c
+	${CC} ${CFLAGS} -c $^
+
+exchange_worker.o: exchange_worker.c
 	${CC} ${CFLAGS} -c $^
 
 init_sys.o: init_sys.c
@@ -76,6 +79,16 @@ cq_handler.o: cq_handler.c
 
 ctrl_handler.o: ctrl_handler.c
 	${CC} ${CFLAGS} -c $^
+
+
+
+work_pool.o: work_pool.c
+	${CC} ${CFLAGS} -c $^
+
+
+
+## cleaning up
+
 
 clean:
 	rm -f *.o testMaster testWorker

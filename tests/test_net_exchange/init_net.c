@@ -59,17 +59,8 @@ Net_World * init_net(char * master_ip_addr, char * self_ip_addr) {
 	// 3b.) done with join_response so can free (was allocated within processing join_net)
 	free(join_response);
 
-	// 4.) Start all the completition queue handler threads
-	ret = activate_cq_threads(net_world);
-	if (ret != 0){
-		fprintf(stderr, "Error: failure activing cq threads\n");
-		return NULL;
-	}
-
-	// 4.) wait until min_init_nodes (besides master) have been added to the net_world -> nodes table
-	sem_wait(&(net_world -> is_init_ready));
-
-
-	// 5.) return net_world
+	// 4.) return net_world
 	return net_world;
+
+	// NOTE: Activating CQ threads and waiting for enough nodes to join will happen at the very end of init_sys!
 }

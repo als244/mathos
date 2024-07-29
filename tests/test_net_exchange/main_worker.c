@@ -34,18 +34,20 @@ int main(int argc, char * argv[]){
 	uint32_t dest_node_id;
 	if (net_world -> self_node_id == 1){
 		dest_node_id = 2;
-		ctrl_message.header.message_type = BID_ORDER;
+		ctrl_message.header.message_class = EXCHANGE_CLASS;
 		strcpy((char *) ctrl_message.contents, "Hello");
 		
 	}
 	if (net_world -> self_node_id == 2){
 		dest_node_id = 1;
-		ctrl_message.header.message_type = OFFER_ORDER;
+		ctrl_message.header.message_class = EXCHANGE_CLASS;
 		strcpy((char *) ctrl_message.contents, "World");
 	}
 
+	ctrl_message.header.dest_node_id = dest_node_id;
+
 	printf("\n\n[Node %u] Posting a control message. Sending to node id: %d...\n\n", net_world -> self_node_id, dest_node_id);
-	ret = post_send_ctrl_net(net_world, &ctrl_message, dest_node_id);
+	ret = post_send_ctrl_net(net_world, &ctrl_message);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not post control message. From id: %u going to node id: %u\n", net_world -> self_node_id, dest_node_id);
 		return -1;
