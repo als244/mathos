@@ -17,12 +17,6 @@ Fifo * init_fifo(uint64_t max_items, uint64_t item_size_bytes) {
 	fifo -> consume_ind = 0;
 	fifo -> item_cnt = 0;
 
-	ret = pthread_mutex_init(&(fifo -> fifo_lock), NULL);
-	if (ret != 0){
-		fprintf(stderr, "Error: could not init fifo lock\n");
-		return NULL;
-	}
-
 	ret = sem_init(&(fifo -> mutex_sem), 0, 1);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not initialize mutex_sem\n");
@@ -49,7 +43,7 @@ Fifo * init_fifo(uint64_t max_items, uint64_t item_size_bytes) {
 		fprintf(stderr, "Error: malloc failed to allocate fifo buffer of size: %lu\n", buffer_size);
 		return NULL;
 	}
-	
+
 	return fifo;
 }
 
