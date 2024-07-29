@@ -23,6 +23,12 @@ Fifo * init_fifo(uint64_t max_items, uint64_t item_size_bytes) {
 		return NULL;
 	}
 
+	ret = sem_init(&(fifo -> mutex_sem), 0, 1);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not initialize empty_slots_sem\n");
+		return NULL;
+	}
+
 	ret = sem_init(&(fifo -> empty_slots_sem), 0, max_items);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not initialize empty_slots_sem\n");
@@ -73,8 +79,8 @@ uint64_t produce_fifo(Fifo * fifo, void * item) {
 	sem_wait(&(fifo -> empty_slots_sem));
 
 	// 2.) Wait until the consumer has completed removing an item from buffer
-	pthread_mutex_lock(&(fifo -> fifo_lock));
-
+	//pthread_mutex_lock(&(fifo -> fifo_lock));
+	sem_wait(&(fifo -> mutex_sem));
 
 	// 3.) Actually insert item
 	//		- copies the contents => FREE AFTER PRODUCING
@@ -97,7 +103,8 @@ uint64_t produce_fifo(Fifo * fifo, void * item) {
 	fifo -> produce_ind = (fifo -> produce_ind + 1) % fifo -> max_items;
 
 	// 7.) Indicate that we have finished producing
-	pthread_mutex_unlock(&(fifo -> fifo_lock));
+	//pthread_mutex_unlock(&(fifo -> fifo_lock));
+	sem_post(&(fifo -> mutex_sem));
 
 	// 8.) Indicate that there is a new item in buffer
 	sem_post(&(fifo -> full_slots_sem));
@@ -131,7 +138,8 @@ void * consume_fifo(Fifo * fifo) {
 	sem_wait(&(fifo -> full_slots_sem));
 
 	// 2.) Wait until the producer has finished producing
-	pthread_mutex_lock(&(fifo -> fifo_lock));
+	//pthread_mutex_lock(&(fifo -> fifo_lock));
+	sem_wait(&(fifo -> mutex_sem));
 
 	// 3.) Actually consume item
 	//		- return a copy to item => FREE AFTER CONSUMING!
@@ -145,7 +153,8 @@ void * consume_fifo(Fifo * fifo) {
 	fifo -> consume_ind = (fifo -> consume_ind + 1) % fifo -> max_items;
 
 	// 6.) Indicate that the consumer has finished consuming
-	pthread_mutex_unlock(&(fifo -> fifo_lock));
+	//pthread_mutex_unlock(&(fifo -> fifo_lock));
+	sem_post(&(fifo -> mutex_sem));
 
 	// 7.) Now add can signal there is a new empty spot
 	sem_post(&(fifo -> empty_slots_sem));
