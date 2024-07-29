@@ -69,18 +69,14 @@ uint64_t produce_fifo(Fifo * fifo, void * item) {
 	}
 	*/
 
-	// 1.) acquire fifo_lock
-
-	pthread_mutex_lock(&(fifo -> fifo_lock));
-
-	// 2.) Increase the number of full slots
-	sem_post(&(fifo -> full_slots_sem));
-
-	// 3.) Reduce number of empty slots
+	// 1.) Wait until there is more room in the buffer
 	sem_wait(&(fifo -> empty_slots_sem));
 
+	// 2.) Wait until the consumer has completed removing an item from buffer
+	pthread_mutex_lock(&(fifo -> fifo_lock));
 
-	// 4.) Actually insert item
+
+	// 3.) Actually insert item
 	//		- copies the contents => FREE AFTER PRODUCING
 	void * insert_start_addr = get_buffer_addr(fifo, fifo -> produce_ind);
 
@@ -91,17 +87,20 @@ uint64_t produce_fifo(Fifo * fifo, void * item) {
 		memcpy(insert_start_addr, item, fifo -> item_size_bytes);
 	}
 	
-	// 5.) Set the index which we inserted the item at
+	// 4.) Set the index which we inserted the item at
 	uint64_t ret_ind = fifo -> produce_ind;
 
-	// 6.) Increment the item count
+	// 5.) Increment the item count
 	fifo -> item_cnt += 1;
 
-	// 7.) Increment the producer ind (circular)
+	// 6.) Increment the producer ind (circular)
 	fifo -> produce_ind = (fifo -> produce_ind + 1) % fifo -> max_items;
 
-	// 8.) Release mutex
+	// 7.) Indicate that we have finished producing
 	pthread_mutex_unlock(&(fifo -> fifo_lock));
+
+	// 8.) Indicate that there is a new item in buffer
+	sem_post(&(fifo -> full_slots_sem));
 
 	return ret_ind;
 }
@@ -128,30 +127,28 @@ void * consume_fifo(Fifo * fifo) {
 		return NULL;
 	}
 
-	// 1.) Acquire fifo lock
-	pthread_mutex_lock(&(fifo -> fifo_lock));
-
-	// 2.) Wait on full slots semaphore 
-	//		- (assumes different thread will be producing!)
+	// 1.) Wait until there is an item to consume
 	sem_wait(&(fifo -> full_slots_sem));
 
-	// 3.) Increase the number of empty slots
-	sem_post(&(fifo -> empty_slots_sem));
+	// 2.) Wait until the producer has finished producing
+	pthread_mutex_lock(&(fifo -> fifo_lock));
 
-	// 4.) Actually consume item
+	// 3.) Actually consume item
 	//		- return a copy to item => FREE AFTER CONSUMING!
 	void * remove_start_addr = get_buffer_addr(fifo, fifo -> consume_ind);
 	memcpy(ret_item, remove_start_addr, fifo -> item_size_bytes);
 
-
-	// 5.) Decrement the item count
+	// 4.) Decrement the item count
 	fifo -> item_cnt -= 1;
 
-	// 6.) Increment the consumer ind (circular)
+	// 5.) Increment the consumer ind (circular)
 	fifo -> consume_ind = (fifo -> consume_ind + 1) % fifo -> max_items;
 
-	// 7.) Release mutex
+	// 6.) Indicate that the consumer has finished consuming
 	pthread_mutex_unlock(&(fifo -> fifo_lock));
+
+	// 7.) Now add can signal there is a new empty spot
+	sem_post(&(fifo -> empty_slots_sem));
 
 	return ret_item;
 }
