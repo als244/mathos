@@ -9,6 +9,9 @@
 #include "ctrl_channel.h"
 #include "rdma_init_info.h"
 
+// to print hex when added
+#include "utils.h"
+
 #define GRH_SIZE_BYTES 40
 
 // The information needed to send to a destination

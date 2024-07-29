@@ -80,11 +80,8 @@ cq_handler.o: cq_handler.c
 ctrl_handler.o: ctrl_handler.c
 	${CC} ${CFLAGS} -c $^
 
-
-
 work_pool.o: work_pool.c
 	${CC} ${CFLAGS} -c $^
-
 
 
 ## cleaning up
