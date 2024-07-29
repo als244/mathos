@@ -2,6 +2,7 @@
 
 void * run_exchange_worker(void * _worker_thread_data) {
 	
+
 	int ret;
 
 	// cast the type correctly
@@ -10,6 +11,9 @@ void * run_exchange_worker(void * _worker_thread_data) {
 	// General worker arguments
 
 	int worker_thread_id = worker_thread_data -> worker_thread_id;
+
+	printf("[Exchange Worker %d] Started!\n", worker_thread_id);
+
 	Fifo * tasks = worker_thread_data -> tasks;
 
 	// Exchange specific arguments
@@ -24,11 +28,15 @@ void * run_exchange_worker(void * _worker_thread_data) {
 
 	while (1){
 
+
+
 		// 1.) Receive task from fifo (and ensure it was meant for this thread)
 
 		// generates a copy of the data that was in fifo
 		//	- this data will be overwritten when the fifo wraps around
 		ctrl_message = (Ctrl_Message *) consume_fifo(tasks);
+
+		printf("[Exchange Worker %d] Consumed a control message!\n", worker_thread_id);
 
 		if (ctrl_message -> header.message_class != EXCHANGE_CLASS){
 			fprintf(stderr, "[Exchange Worker %d] Error: an exchange worker saw a task not with exchange class, but instead: %d\n", worker_thread_id, ctrl_message -> header.message_class);
