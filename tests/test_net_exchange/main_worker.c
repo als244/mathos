@@ -40,7 +40,7 @@ int main(int argc, char * argv[]){
 		dest_node_id = 1;
 	}
 
-	uint64_t num_exchange_messages = 1 << 10;
+	uint64_t num_exchange_messages = 1 << 4;
 
 	// prepare all contorl messages
 
