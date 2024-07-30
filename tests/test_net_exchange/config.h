@@ -34,15 +34,15 @@
 
 // BID TODO: fix this configuration of queue sizes to be more flexible!!!
 
-#define NUM_CQ_ENTRIES 1U << 14
+#define NUM_CQ_ENTRIES 1U << 4
 
-#define SRQ_MAX_WR 1U << 10
+#define SRQ_MAX_WR 1U << 3
 #define SRQ_MAX_SGE 2
 
-#define QP_MAX_SEND_WR 1U << 10
+#define QP_MAX_SEND_WR 1U << 3
 #define QP_MAX_SEND_SGE 2
 
-#define QP_MAX_RECV_WR 1U << 6
+#define QP_MAX_RECV_WR 1U << 3
 #define QP_MAX_RECV_SGE 2
 
 #define QP_MAX_INLINE_DATA 0 // SEEMS LIKE 956 is the max for qp creation error...?
