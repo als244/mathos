@@ -55,7 +55,7 @@ void * run_ctrl_handler(void * _cq_thread_data){
 
 	uint64_t fifo_insert_ind;
 
-
+	bool to_refresh_recv = false;
 
 	while (1){
 
@@ -86,6 +86,16 @@ void * run_ctrl_handler(void * _cq_thread_data){
 		}
 
 
+		if (to_refresh_recv){
+			ret = post_recv_ctrl_channel(ctrl_channel);
+			if (unlikely(ret != 0)){
+				fprintf(stderr, "Error: failure posting a receive after trying to replace an extracted item\n");
+				return NULL;
+			}
+		}
+		
+
+
 		// IF there is work that needs to be done
 		if (seen_new_completition){
 			/* DO SOMETHING WITH wr_id! */
@@ -108,7 +118,6 @@ void * run_ctrl_handler(void * _cq_thread_data){
 			}
 
 			// 2.) Extract Item
-			//		- if this was a shared receive / receive channel then this function will automatically replenish
 
 			// Defined within ctrl_channel.
 			ret = extract_ctrl_channel(ctrl_channel, &ctrl_message);
@@ -157,6 +166,10 @@ void * run_ctrl_handler(void * _cq_thread_data){
 						break; 
 				}
 				*/
+				to_refresh_recv = true;
+			}
+			else{
+				to_refresh_recv = false;
 			}
 			// if it was a send message, then the extract should have arleady cleaned up the messages		
 			/*
@@ -165,6 +178,9 @@ void * run_ctrl_handler(void * _cq_thread_data){
 							self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
 			}
 			*/
+		}
+		else{
+			to_refresh_recv = false;
 		}
 	}
 

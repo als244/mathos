@@ -245,11 +245,6 @@ int extract_ctrl_channel(Ctrl_Channel * channel, Ctrl_Message * ret_ctrl_message
 		Recv_Ctrl_Message recv_ctrl_message;
 		consume_fifo(channel -> fifo, &recv_ctrl_message);
 		memcpy((void *) ret_ctrl_message, &(recv_ctrl_message.ctrl_message), sizeof(Ctrl_Message));
-		int ret = post_recv_ctrl_channel(channel);
-		if (unlikely(ret != 0)){
-			fprintf(stderr, "Error: failure posting a receive after trying to replace an extracted item\n");
-			return -1;
-		}
 	}
 
 	return 0;
