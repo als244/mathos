@@ -36,13 +36,13 @@ char * message_class_to_str(CtrlMessageClass message_class) {
 	}
 }
 
-char * uint64_to_str_with_comma(char *buf, uint64_t val) {
+void uint64_to_str_with_comma(char *buf, uint64_t val) {
     if (val < 1000) {
         sprintf(buf+strlen(buf), "%lu", val);
-        return buf;
+        return;
     }
     uint64_to_str_with_comma(buf, val / 1000);
     sprintf(buf+strlen(buf), ",%03lu", val % 1000);
-    return buf;
+    return;
 }
 

@@ -41,7 +41,13 @@ int main(int argc, char * argv[]){
 	}
 
 	uint64_t num_exchange_messages = 1000000;
-	
+
+
+	char num_buf[256];
+	uint64_to_str_with_comma(num_buf, num_exchange_messages);
+	printf("Number with commas: %s\n", num_buf);
+	exit(0);
+
 	// prepare all contorl messages
 
 	Ctrl_Message * ctrl_messages_to_send = (Ctrl_Message *) malloc(num_exchange_messages * sizeof(Ctrl_Message));
@@ -50,13 +56,12 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	char num_buf[256];
 	for (uint64_t i = 0; i < num_exchange_messages; i++){
 		ctrl_messages_to_send[i].header.source_node_id = self_node_id;
 		ctrl_messages_to_send[i].header.dest_node_id = dest_node_id;
 		ctrl_message.header.message_class = EXCHANGE_CLASS;
-		char * message_num_str = uint64_to_str_with_comma(num_buf, i);
-		sprintf((char *) ctrl_message.contents, "I am message #%s!", message_num_str);
+		uint64_to_str_with_comma(num_buf, i);
+		sprintf((char *) ctrl_message.contents, "I am message #%s!", num_buf);
 	}
 
 
