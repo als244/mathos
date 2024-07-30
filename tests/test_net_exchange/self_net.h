@@ -139,11 +139,14 @@ typedef struct self_net {
 	Ctrl_Channel ** dev_shared_recv_ctrl_channels;
 	// outer index is device_id
 	// inner index is endpoint type
-	struct ibv_cq_ex *** cq_collection;
+	struct ibv_cq_ex *** cq_recv_collection;
+	struct ibv_cq_ex *** cq_send_collection;
 	// outer index is device_id
 	// inner index is endpoint type
-	// pthread_create is not called until the end of init_net
-	pthread_t ** cq_threads;
+	// pthread_create is not called until the end of init_sys
+	// called from activate_cq_threads -> run_cq_thread (within cq_handler.c)
+	pthread_t ** cq_recv_threads;
+	pthread_t ** cq_send_threads;
 	// the cpu_set assoicated with the device
 	// found by reading the local_cpus file from sysfs
 	// this file has comma seperate uint32_t's representing cpu bitmasks

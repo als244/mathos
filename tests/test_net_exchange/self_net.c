@@ -14,14 +14,14 @@ int self_active_ctrl_endpoint_cmp(void * self_endpoint, void * other_self_endpoi
 }
 
 
-struct ibv_cq_ex * init_cq(struct ibv_context * ibv_dev_ctx){
+struct ibv_cq_ex * init_cq(struct ibv_context * ibv_dev_ctx, int num_cq_entries){
 
 	// 1.) Create IBV_CQ_EX struct
 
 	// TODO: have better configuration of sizing of queues!!! 
 	struct ibv_cq_init_attr_ex cq_attr;
 	memset(&cq_attr, 0, sizeof(cq_attr));
-	cq_attr.cqe = NUM_CQ_ENTRIES;    
+	cq_attr.cqe = num_cq_entries;    
 
 	// Possible perf. optimization, but leaving out for now...
 	// every cq will be in its own thread...
@@ -341,7 +341,8 @@ Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self
 
 	Self_Port * cur_port;
 	int cur_ib_device_id;
-	struct ibv_cq_ex ** cur_dev_cqs;
+	struct ibv_cq_ex ** cur_dev_send_cqs;
+	struct ibv_cq_ex ** cur_dev_recv_cqs;
 	struct ibv_cq_ex * cur_send_cq, *cur_recv_cq;
 
 	uint32_t cur_node_endpoint_ind = 0;
@@ -353,13 +354,14 @@ Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self
 	for (uint32_t i = 0; i < num_ports; i++){
 		cur_port = &(ports[i]);
 		cur_ib_device_id = cur_port -> ib_device_id;
-		cur_dev_cqs = (self_net -> cq_collection)[cur_ib_device_id];
+		cur_dev_send_cqs = (self_net -> cq_send_collection)[cur_ib_device_id];
+		cur_dev_recv_cqs = (self_net -> cq_recv_collection)[cur_ib_device_id];
 		for (int j = 0; j < num_endpoint_types; j++){
 			// using the same receive and send cq!
 			//	- may want to change
 			//	- also consider not signaling sends (save latency/BW..?)
-			cur_send_cq = cur_dev_cqs[j];
-			cur_recv_cq = cur_dev_cqs[j];
+			cur_send_cq = cur_dev_send_cqs[j];
+			cur_recv_cq = cur_dev_recv_cqs[j];
 			cur_endpoint_type = endpoint_types[j];
 			to_use_srq = to_use_srq_by_type[j];
 			endpoint_type_num_qps = num_qps_per_type[j];
@@ -466,6 +468,49 @@ Self_Node * init_self_node(Self_Net * self_net, int num_endpoint_types, Endpoint
 	return self_node;
 }
 
+struct ibv_cq_ex *** create_cq_collection(struct ibv_context ** ibv_dev_ctxs, int num_devices, int num_endpoint_types, int num_cq_entries) {
+	
+	struct ibv_cq_ex *** cq_collection = (struct ibv_cq_ex ***) malloc(num_devices * sizeof(struct ibv_cq_ex **));
+	if (cq_collection == NULL){
+		fprintf(stderr, "Error: malloc failed for allocating cq collection container\n");
+		return NULL;
+	}
+
+	struct ibv_context * ibv_dev_ctx;
+	for (int i = 0; i < num_devices; i++){
+		cq_collection[i] = (struct ibv_cq_ex **) malloc(num_endpoint_types * sizeof(struct ibv_cq_ex *));
+		if (cq_collection[i] == NULL){
+			fprintf(stderr, "Error: malloc failed for allocating cq array for device %d\n", i);
+			return NULL;
+		}
+		ibv_dev_ctx = ibv_dev_ctxs[i];
+		for (int endpoint_type = 0; endpoint_type < num_endpoint_types; endpoint_type++){
+			cq_collection[i][endpoint_type] = init_cq(ibv_dev_ctx, num_cq_entries);
+			if (cq_collection[i][endpoint_type] == NULL){
+				fprintf(stderr, "Error: failed to create completion queue for device: %d, endpoint type: %d\n", i, endpoint_type);
+				return NULL;
+			}
+		}
+	}
+	return cq_collection;
+}
+
+pthread_t ** create_cq_threads(int num_devices, int num_endpoint_types){
+
+	pthread_t ** cq_threads = (pthread_t **) malloc(num_devices * sizeof(pthread_t *));
+	if (cq_threads == NULL){
+		fprintf(stderr, "Error: malloc failed for allocating cq_threads outer device array\n");
+		return NULL;
+	}
+
+	for (int i = 0; i < num_devices; i++){
+		cq_threads[i] = (pthread_t *) malloc(num_endpoint_types * sizeof(pthread_t));
+		if (cq_threads[i] == NULL){
+			fprintf(stderr, "Error: malloc failed to create cq_threads array for endpoint types on device: %d\n", i);
+			return NULL;
+		}
+	}
+}
 
 
 // responsible for opening ib_devices/getting contexts and allocating ib structs
@@ -607,49 +652,41 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 	self_net -> dev_shared_recv_ctrl_channels = dev_shared_recv_ctrl_channels;
 
 
-	// 6.) Create Completition Queues for each device and for each endpoint type
-	struct ibv_cq_ex *** cq_collection = (struct ibv_cq_ex ***) malloc(num_devices * sizeof(struct ibv_cq_ex **));
-	if (cq_collection == NULL){
-		fprintf(stderr, "Error: malloc failed for allocating cq collection container\n");
+	// 6.) Create Completition Queues for each device and for each endpoint type for both recv and send cqs
+	
+	struct ibv_cq_ex *** cq_recv_collection = create_cq_collection(ibv_dev_ctxs, num_devices, num_endpoint_types, SRQ_MAX_WR);
+	if (cq_recv_collection == NULL){
+		fprintf(stderr, "Error: unable to intialize cq recv collection\n");
 		return NULL;
 	}
 
-	struct ibv_context * ibv_dev_ctx;
-	for (int i = 0; i < num_devices; i++){
-		cq_collection[i] = (struct ibv_cq_ex **) malloc(num_endpoint_types * sizeof(struct ibv_cq_ex *));
-		if (cq_collection[i] == NULL){
-			fprintf(stderr, "Error: malloc failed for allocating cq array for device %d\n", i);
-			return NULL;
-		}
-		ibv_dev_ctx = (self_net -> ibv_dev_ctxs)[i];
-		for (int endpoint_type = 0; endpoint_type < num_endpoint_types; endpoint_type++){
-			cq_collection[i][endpoint_type] = init_cq(ibv_dev_ctx);
-			if (cq_collection[i][endpoint_type] == NULL){
-				fprintf(stderr, "Error: failed to create completion queue for device: %d, endpoint type: %d\n", i, endpoint_type);
-				return NULL;
-			}
-		}
+	struct ibv_cq_ex *** cq_send_collection = create_cq_collection(ibv_dev_ctxs, num_devices, num_endpoint_types, QP_MAX_SEND_WR);
+	if (cq_send_collection == NULL){
+		fprintf(stderr, "Error: unable to intialize cq send collection\n");
+		return NULL;
 	}
 
-	self_net -> cq_collection = cq_collection;
+	
+	self_net -> cq_recv_collection = cq_recv_collection;
+	self_net -> cq_send_collection = cq_send_collection;
 
 
 	// 7.) Create threads for each completition queue, but do not spawn them (this is the final stage of init_net)
-	pthread_t ** cq_threads = (pthread_t **) malloc(num_devices * sizeof(pthread_t *));
-	if (cq_threads == NULL){
-		fprintf(stderr, "Error: malloc failed for allocating cq_threads outer device array\n");
+	pthread_t ** cq_recv_threads = create_cq_threads(num_devices, num_endpoint_types);
+	if (cq_recv_threads == NULL){
+		fprintf(stderr, "Error: unable to create container for cq recv threads\n");
 		return NULL;
 	}
 
-	for (int i = 0; i < num_devices; i++){
-		cq_threads[i] = (pthread_t *) malloc(num_endpoint_types * sizeof(pthread_t));
-		if (cq_threads[i] == NULL){
-			fprintf(stderr, "Error: malloc failed to create cq_threads array for endpoint types on device: %d\n", i);
-			return NULL;
-		}
+	pthread_t ** cq_send_threads = create_cq_threads(num_devices, num_endpoint_types);
+	if (cq_send_threads == NULL){
+		fprintf(stderr, "Error: unable to create container for cq send threads\n");
+		return NULL;
 	}
 
-	self_net -> cq_threads = cq_threads;	
+
+	self_net -> cq_recv_threads = cq_recv_threads;
+	self_net -> cq_send_threads = cq_send_threads;	
 
 
 	// 8.) TODO: Get cpu_set's from querying each ib_devices sysfs path

@@ -8,6 +8,7 @@
 
 typedef struct cq_thread_data{
 	struct ibv_cq_ex * cq;
+	bool is_recv_cq;
 	Net_World * net_world;
 	// The completition queue will be producing on each of these fifos
 	// each of the respective workers will be consuming from these fifos

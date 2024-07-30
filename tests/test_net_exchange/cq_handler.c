@@ -38,7 +38,8 @@ int activate_cq_threads(Net_World * net_world, Work_Pool * work_pool){
 	EndpointType * endpoint_types = self_net -> endpoint_types;
 
 
-	struct ibv_cq_ex *** cq_collection = self_net -> cq_collection;
+	struct ibv_cq_ex *** cq_recv_collection = self_net -> cq_recv_collection;
+	struct ibv_cq_ex *** cq_send_collection = self_net -> cq_send_collection;
 
 	// FOW NOW: not using
 	// TODO: SET WITHIN SELF_NET (step 9 in self_net init function)
@@ -50,29 +51,64 @@ int activate_cq_threads(Net_World * net_world, Work_Pool * work_pool){
 	// Allocate thread data for everything
 	int num_cq_threads = num_ib_devices * num_endpoint_types;
 
-	Cq_Thread_Data * cq_thread_data = (Cq_Thread_Data *) malloc(num_cq_threads * sizeof(Cq_Thread_Data));
-	if (cq_thread_data == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate array for cq thread data\n");
+
+	Cq_Thread_Data * cq_recv_thread_data = (Cq_Thread_Data *) malloc(num_cq_threads * sizeof(Cq_Thread_Data));
+	if (cq_recv_thread_data == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate array for cq recv thread data\n");
 		return -1;
 	}
 
 	for (int i = 0; i < num_ib_devices; i++){
 		for (int j = 0; j < num_endpoint_types; j++){
-			cq_thread_data[i * num_endpoint_types + j].net_world = net_world;
-			cq_thread_data[i * num_endpoint_types + j].work_pool = work_pool;
-			cq_thread_data[i * num_endpoint_types + j].cq = cq_collection[i][j];
+			cq_recv_thread_data[i * num_endpoint_types + j].net_world = net_world;
+			cq_recv_thread_data[i * num_endpoint_types + j].work_pool = work_pool;
+			cq_recv_thread_data[i * num_endpoint_types + j].is_recv_cq = true;
+			cq_recv_thread_data[i * num_endpoint_types + j].cq = cq_recv_collection[i][j];
 		}
 	}
 
-	pthread_t ** cq_threads = self_net -> cq_threads;
+
+
+	Cq_Thread_Data * cq_send_thread_data = (Cq_Thread_Data *) malloc(num_cq_threads * sizeof(Cq_Thread_Data));
+	if (cq_send_thread_data == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate array for cq send thread data\n");
+		return -1;
+	}
+
+	for (int i = 0; i < num_ib_devices; i++){
+		for (int j = 0; j < num_endpoint_types; j++){
+			cq_send_thread_data[i * num_endpoint_types + j].net_world = net_world;
+			cq_send_thread_data[i * num_endpoint_types + j].work_pool = work_pool;
+			cq_recv_thread_data[i * num_endpoint_types + j].is_recv_cq = false;
+			cq_send_thread_data[i * num_endpoint_types + j].cq = cq_send_collection[i][j];
+		}
+	}
+
+
+	pthread_t ** cq_recv_threads = self_net -> cq_recv_threads;
+	pthread_t ** cq_send_threads = self_net -> cq_send_threads;
+
 
 	for (int i = 0; i < num_ib_devices; i++){
 		// SHOULD GET cpu_set_t affinity here!
 		cur_ib_dev_cpu_affinity = ib_dev_cpu_affinities[i];
 		for (int j = 0; j < num_endpoint_types; j++){
-			ret = run_cq_thread(&(cq_threads[i][j]), endpoint_types[j], cur_ib_dev_cpu_affinity, &(cq_thread_data[i * num_endpoint_types + j]));
+			ret = run_cq_thread(&(cq_recv_threads[i][j]), endpoint_types[j], cur_ib_dev_cpu_affinity, &(cq_recv_thread_data[i * num_endpoint_types + j]));
 			if (ret != 0){
-				fprintf(stderr, "Error: could not run cq thread from device #%d, and endpoint type ind #%d\n", i, j);
+				fprintf(stderr, "Error: could not run cq recv thread from device #%d, and endpoint type ind #%d\n", i, j);
+				return -1;
+			}
+		}
+	}
+
+
+	for (int i = 0; i < num_ib_devices; i++){
+		// SHOULD GET cpu_set_t affinity here!
+		cur_ib_dev_cpu_affinity = ib_dev_cpu_affinities[i];
+		for (int j = 0; j < num_endpoint_types; j++){
+			ret = run_cq_thread(&(cq_send_threads[i][j]), endpoint_types[j], cur_ib_dev_cpu_affinity, &(cq_send_thread_data[i * num_endpoint_types + j]));
+			if (ret != 0){
+				fprintf(stderr, "Error: could not run cq send thread from device #%d, and endpoint type ind #%d\n", i, j);
 				return -1;
 			}
 		}
