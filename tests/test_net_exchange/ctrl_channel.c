@@ -85,9 +85,12 @@ Ctrl_Channel * init_ctrl_channel(CtrlChannelType channel_type, uint32_t max_item
 
 	// 1b.) Get Item Size bytes => all control messages have the same size.
 	//		- However we need to add room for Global Routing Header if this is a receive/shared receive channel (40 bytes)
-	uint32_t item_size_bytes = sizeof(Ctrl_Message);
+	uint32_t item_size_bytes;
 	if ((channel_type == RECV_CTRL_CHANNEL) || (channel_type == SHARED_RECV_CTRL_CHANNEL)){
-		item_size_bytes += sizeof(struct ibv_grh);
+		item_size_bytes = sizeof(Recv_Ctrl_Message);
+	}
+	else{
+		item_size_bytes = sizeof(Ctrl_Message);
 	}
 	
 	// 2.) Create fifo to actually hold / manage channel items
