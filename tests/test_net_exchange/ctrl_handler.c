@@ -4,6 +4,7 @@
 void * run_ctrl_handler(void * _cq_thread_data){
 
 	int ret;
+	int cq_ret;
 
 
 	// 1.) determine what cq this thread is working on
@@ -27,10 +28,10 @@ void * run_ctrl_handler(void * _cq_thread_data){
 	uint32_t self_node_id = net_world -> self_node_id;
 
 	struct ibv_poll_cq_attr poll_qp_attr = {};
-	ret = ibv_start_poll(cq, &poll_qp_attr);
+	cq_ret = ibv_start_poll(cq, &poll_qp_attr);
 
 	// If Error after start, do not call "end_poll"
-	if ((ret != 0) && (ret != ENOENT)){
+	if ((cq_ret != 0) && (cq_ret != ENOENT)){
 		fprintf(stderr, "Error: could not start poll for completition queue\n");
 		return NULL;
 	}
@@ -54,10 +55,12 @@ void * run_ctrl_handler(void * _cq_thread_data){
 
 	uint64_t fifo_insert_ind;
 
+
+
 	while (1){
 
 		// return is 0 if a new item was cosumed, otherwise it equals ENOENT
-		if (ret == 0){
+		if (cq_ret == 0){
 			seen_new_completition = 1;
 		}
 		else{
@@ -67,7 +70,23 @@ void * run_ctrl_handler(void * _cq_thread_data){
 		// Consume the completed work request
 		wr_id = cq -> wr_id;
 		status = cq -> status;
-		// other fields as well...
+
+
+		// NOTE: need to advance cq before extracting to prevent overrun
+		//			- extract_ctrl_channel consumes a slot in fifo, which allows a different thread to produce
+		//			- however that need means there are now more outstanding work request than cq entries which leads to overrun
+		// Check for next completed work request...
+		cq_ret = ibv_next_poll(cq);
+
+		if ((cq_ret != 0) && (cq_ret != ENOENT)){
+			// If Error after next, call "end_poll"
+			ibv_end_poll(cq);
+			fprintf(stderr, "Error: could not do next poll for completition queue\n");
+			return NULL;
+		}
+
+
+		// IF there is work that needs to be done
 		if (seen_new_completition){
 			/* DO SOMETHING WITH wr_id! */
 			
@@ -146,17 +165,6 @@ void * run_ctrl_handler(void * _cq_thread_data){
 							self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
 			}
 			*/
-			
-		}
-
-		// Check for next completed work request...
-		ret = ibv_next_poll(cq);
-
-		if ((ret != 0) && (ret != ENOENT)){
-			// If Error after next, call "end_poll"
-			ibv_end_poll(cq);
-			fprintf(stderr, "Error: could not do next poll for completition queue\n");
-			return NULL;
 		}
 	}
 
