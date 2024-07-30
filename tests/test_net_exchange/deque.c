@@ -186,6 +186,7 @@ int take_deque(Deque * deque, DequeEnd take_end, void ** ret_item){
 	pthread_mutex_lock(&(deque -> list_lock));
 
 	if (deque -> cnt == 0){
+		*ret_item = NULL;
 		return -1;
 	}
 
@@ -215,6 +216,7 @@ int take_and_replace_deque(Deque * deque, DequeEnd take_end, DequeEnd replace_en
 	pthread_mutex_lock(&(deque -> list_lock));
 
 	if (deque -> cnt == 0){
+		*ret_item = NULL;
 		return -1;
 	}
 
@@ -259,6 +261,7 @@ int peek_item_at_index_deque(Deque * deque, DequeEnd start_end, uint64_t index, 
 
 	if (unlikely(index >= deque -> cnt)) {
 		fprintf(stderr, "Error: cannot peek at item at index %lu, when deque count is %lu\n", index, deque -> cnt);
+		*ret_item = NULL;
 		return -1;
 	}
 

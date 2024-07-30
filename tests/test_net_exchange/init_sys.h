@@ -14,6 +14,10 @@ typedef struct system {
 	Work_Pool * work_pool;
 	Exchange * exchange;
 	Net_World * net_world;
+	// contains semaphores that the calling thread 
+	// should wait on before ready the results of the 
+	// throughput benchmark;
+	Deque * are_benchmarks_ready;
 } System;
 
 

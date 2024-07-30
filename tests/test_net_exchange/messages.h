@@ -48,7 +48,7 @@ typedef enum enpoint_type {
 } EndpointType;
 
 
-#define MAX_WORK_CLASSES 7
+#define MAX_WORK_CLASS_IND 6
 
 // The control message type indicates
 // to the completion queue handler

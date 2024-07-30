@@ -108,24 +108,39 @@ void * run_ctrl_handler(void * _cq_thread_data){
 				ctrl_message_header = ctrl_message.header;
 
 				// For now just printing
+				
+				/*
 				printf("\n\n[Node %u] Received control message!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
 							self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
-
+				*/
 
 				// REALLY SHOULD HAVE A FORMAT LIKE THIS HERE....
 
 				// all fifo buffers at at:
 				// work_pool -> classes)[ctrl_message_header.message_class] -> tasks
 				
+				// Error check a valid work class to place message on proper task fifo
+				int control_message_class = ctrl_message_header.message_class;
+				if (control_message_class > work_pool -> max_work_class_ind){
+					fprintf(stderr, "Error: received message specifying message class %d, but declared maximum work class index of %d\n", control_message_class, work_pool -> max_work_class_ind);
+				}
+
+				// Probably want to ensure there that the class has been added (and thus tasks is non-null)
+				produce_fifo((work_pool -> classes)[ctrl_message_header.message_class] -> tasks, &ctrl_message);
+
+				/* NOT USING SWITCH BECAUSE UNNECESSARY COMPARISONS
 				switch(ctrl_message_header.message_class){
 					case EXCHANGE_CLASS:
-						printf("\n[Ctrl Handler] Producing on exchange tasks fifo\n");
+						printf("\n[Ctrl Handler] Producing on EXCHANGE tasks fifo\n");
 						fifo_insert_ind = produce_fifo((work_pool -> classes)[ctrl_message_header.message_class] -> tasks, &ctrl_message);
 						break;
+					case INVENTORY_CLASS:
+
 					default:
 						fprintf(stderr, "Error: saw an unknown message class of type %d\n", ctrl_message_header.message_class);
 						break; 
 				}
+				*/
 			}			
 		}
 

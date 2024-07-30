@@ -1,7 +1,7 @@
 #include "work_pool.h"
 
 
-Work_Pool * init_work_pool(int max_work_classes) {
+Work_Pool * init_work_pool(int max_work_class_ind) {
 
 	Work_Pool * work_pool = (Work_Pool *) malloc(sizeof(Work_Pool));
 	if (work_pool == NULL){
@@ -9,15 +9,15 @@ Work_Pool * init_work_pool(int max_work_classes) {
 		return NULL;
 	}
 
-	work_pool -> max_work_classes = max_work_classes;
+	work_pool -> max_work_class_ind = max_work_class_ind;
 
-	work_pool -> classes = (Work_Class **) malloc(max_work_classes * sizeof(Work_Class *));
+	work_pool -> classes = (Work_Class **) malloc((max_work_class_ind + 1) * sizeof(Work_Class *));
 	if (work_pool -> classes == NULL){
 		fprintf(stderr, "Error: malloc failed to allocate work_pool classes array\n");
 		return NULL;
 	}
 
-	for (int i = 0; i < max_work_classes; i++){
+	for (int i = 0; i < max_work_class_ind + 1; i++){
 		(work_pool -> classes)[i] = NULL;
 	}
 
@@ -27,8 +27,8 @@ Work_Pool * init_work_pool(int max_work_classes) {
 
 int add_work_class(Work_Pool * work_pool, int work_class_index, int num_workers, uint64_t max_tasks, uint64_t task_size, void *(*start_routine)(void *), void * worker_arg) {
 
-	if (work_class_index >= work_pool -> max_work_classes){
-		fprintf(stderr, "Error: failed to add work class index: %d. The work pool was set to have a maximum of %d classes\n", work_class_index, work_pool -> max_work_classes);
+	if (work_class_index > work_pool -> max_work_class_ind){
+		fprintf(stderr, "Error: failed to add work class index: %d. The work pool was set to have a maximum class index of %d\n", work_class_index, work_pool -> max_work_class_ind);
 		return -1;
 	}
 
@@ -53,8 +53,14 @@ int add_work_class(Work_Pool * work_pool, int work_class_index, int num_workers,
 		fprintf(stderr, "Error: failed to intialize fifo work work class index: %d\n", work_class_index);
 		return -1;
 	}
+
+	
+	work_class -> work_bench = NULL;
+
+
 	work_class -> start_routine = start_routine;
 	work_class -> worker_arg = worker_arg;
+
 
 	classes[work_class_index] = work_class;
 
@@ -65,22 +71,69 @@ int add_work_class(Work_Pool * work_pool, int work_class_index, int num_workers,
 		fprintf(stderr, "Error: malloc failed to allocate array for worker thread data on class %d for %d workers\n", work_class_index, num_workers);
 		return -1;
 	}
+
 	for (int i = 0; i < num_workers; i++){
 		(work_class -> worker_thread_data)[i].worker_thread_id = i;
 		(work_class -> worker_thread_data)[i].tasks = work_class -> tasks;
+		(work_class -> worker_thread_data)[i].work_bench = NULL;
 		(work_class -> worker_thread_data)[i].worker_arg = worker_arg;
 	}
 
-
-
 	return 0;
+}
+
+
+sem_t * add_work_class_bench(Work_Pool * work_pool, int work_class_index, uint64_t task_cnt_start_bench, uint64_t task_cnt_stop_bench){
+
+	int ret;
+
+	if (work_class_index > work_pool -> max_work_class_ind){
+		fprintf(stderr, "Error: failed to add benchamrk because work class index: %d does not exist. The work pool was set to have a maximum of %d classes\n", 
+						work_class_index, work_pool -> max_work_class_ind);
+		return NULL;
+	}
+
+	Work_Bench * work_bench = (Work_Bench *) malloc(sizeof(Work_Bench));
+	if (work_bench == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate work_bench\n");
+		return NULL;
+	}
+
+	ret = pthread_mutex_init(&(work_bench -> task_cnt_lock), NULL);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not init work_class task_cnt_lock lock\n");
+		return NULL;
+	}
+
+	work_bench -> task_cnt = 0;
+	work_bench -> started = false;
+	work_bench -> stopped = false;
+
+	work_bench -> task_cnt_start_bench = task_cnt_start_bench;
+	work_bench -> task_cnt_stop_bench = task_cnt_stop_bench;
+
+	ret = sem_init(&(work_bench -> is_bench_ready), 0, 0);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not initialize is_bench_ready sem\n");
+		return NULL;
+	}
+
+	// timestamps get recorded wihtin the worker threads based on task count!
+
+
+	// set work_bench within work_class
+	Work_Class ** classes = work_pool -> classes;
+	Work_Class * work_class = classes[work_class_index];
+	work_class -> work_bench = work_bench;
+	
+	return &(work_bench -> is_bench_ready);
 }
 
 int start_all_workers(Work_Pool * work_pool) {
 
 	int ret;
 
-	int max_work_classes = work_pool -> max_work_classes;
+	int max_work_class_ind = work_pool -> max_work_class_ind;
 
 	Work_Class ** classes = work_pool -> classes;
 
@@ -89,7 +142,7 @@ int start_all_workers(Work_Pool * work_pool) {
 
 	Worker_Thread_Data * cur_worker_thread_data;
 
-	for (int i = 0; i < max_work_classes; i++){
+	for (int i = 0; i < max_work_class_ind + 1; i++){
 		cur_class = classes[i];
 		if (cur_class == NULL){
 			continue;

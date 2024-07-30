@@ -41,7 +41,7 @@ System * init_system(char * master_ip_addr, char * self_ip_addr){
 	// 6.) create work pool
 
 	// defined in messsages.h => included from config.h
-	Work_Pool * work_pool = init_work_pool(MAX_WORK_CLASSES);
+	Work_Pool * work_pool = init_work_pool(MAX_WORK_CLASS_IND);
 	if (work_pool == NULL){
 		fprintf(stderr, "Error: failed to intialize work_pool\n");
 		return NULL;
@@ -56,13 +56,39 @@ System * init_system(char * master_ip_addr, char * self_ip_addr){
 
 	// WILL OVERWRITE THE ARGUMENT IN STEP 7 WHEN READY TO RUN!
 	//	- each worker will have their own worker_data specified in their worker file
-	ret = add_work_class(work_pool, EXCHANGE_CLASS, NUM_EXCHANGE_WORKER_THREADS, EXCHANGE_MAX_TASKS, sizeof(Ctrl_Message), run_exchange_worker, &exchange_worker_data);
+	ret = add_work_class(work_pool, EXCHANGE_CLASS, NUM_EXCHANGE_WORKER_THREADS, EXCHANGE_MAX_TASKS_BACKLOG, sizeof(Ctrl_Message), run_exchange_worker, &exchange_worker_data);
 	if (ret != 0){
 		fprintf(stderr, "Error: unable to add worker class\n");
 		return NULL;
 	}
 
-	// 7.) Spawn all worker threads
+	// 7.) Add benchmakrs to record throughputs of each work_class
+
+	// init list of sempahores that calling thread can wait on to know when benchmarks are ready
+
+	// item_cmp not needed here
+	Deque * are_benchmarks_ready = init_deque(NULL);
+
+
+	// exchange throughput benchmark 
+
+	// seeing how long it takes to process 1 million exchange tasks
+	uint64_t num_exchange_tasks_bench = 1000000;
+
+	sem_t * exch_bench_sem = add_work_class_bench(work_pool, EXCHANGE_CLASS, 0, num_exchange_tasks_bench);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to add benchmark to record exchange throughput\n");
+		return NULL;
+	}
+	// adding this to benchmarks deque for calling thread to wait on
+	ret = insert_deque(are_benchmarks_ready, BACK_DEQUE, exch_bench_sem);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to insert benchmark is ready sem to deque\n");
+		return NULL;
+	}
+
+
+	// 8.) Spawn all worker threads
 
 	// For each work class populate their worker argument
 
@@ -72,21 +98,22 @@ System * init_system(char * master_ip_addr, char * self_ip_addr){
 	}
 
 	
-	// 8.) Start all the completition queue handler threads for the network
+	// 9.) Start all the completition queue handler threads for the network
 	ret = activate_cq_threads(net_world, work_pool);
 	if (ret != 0){
 		fprintf(stderr, "Error: failure activing cq threads\n");
 		return NULL;
 	}
 
-	// 9.) wait until min_init_nodes (besides master) have been added to the net_world -> nodes table
+	// 10.) wait until min_init_nodes (besides master) have been added to the net_world -> nodes table
 	sem_wait(&(net_world -> is_init_ready));
 
-	// 10.) Update system values
+	// 11.) Update system values
 
 	system -> work_pool = work_pool;
 	system -> exchange = exchange;
 	system -> net_world = net_world;
+	system -> are_benchmarks_ready = are_benchmarks_ready;
 
 	return system;
 }

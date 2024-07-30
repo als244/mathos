@@ -142,5 +142,5 @@ void consume_fifo(Fifo * fifo, void * ret_item) {
 	// 7.) Now add can signal there is a new empty spot
 	sem_post(&(fifo -> empty_slots_sem));
 
-	return ret_item;
+	return;
 }
