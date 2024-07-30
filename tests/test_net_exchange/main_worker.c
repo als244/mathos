@@ -50,13 +50,14 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	char num_buf[20];
+	//char num_buf[20];
 	for (uint64_t i = 0; i < num_exchange_messages; i++){
 		ctrl_messages_to_send[i].header.source_node_id = self_node_id;
 		ctrl_messages_to_send[i].header.dest_node_id = dest_node_id;
 		ctrl_messages_to_send[i].header.message_class = EXCHANGE_CLASS;
-		uint64_to_str_with_comma(num_buf, i);
-		sprintf((char *) (ctrl_messages_to_send[i].contents), "I am message #%s!", num_buf);
+		//uint64_to_str_with_comma(num_buf, i);
+		//sprintf((char *) (ctrl_messages_to_send[i].contents), "I am message #%s!", num_buf);
+		sprintf((char *) (ctrl_messages_to_send[i].contents), "I am message #%lu!", i);
 	}
 
 
