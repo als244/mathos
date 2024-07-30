@@ -25,16 +25,20 @@ struct ibv_cq_ex * init_cq(struct ibv_context * ibv_dev_ctx){
 
 	// Possible perf. optimization, but leaving out for now...
 	// every cq will be in its own thread...
+	
+	/*
 	uint32_t cq_create_flags = IBV_CREATE_CQ_ATTR_SINGLE_THREADED;
 	cq_attr.flags = cq_create_flags;
+	*/
 
 	// NOTE: THESE FLAGS DON'T SEEM TO BE WORKING...
 	// Maybe only on InfiniBand fabric...?
-	uint64_t wc_flags = IBV_WC_EX_WITH_QP_NUM | IBV_WC_EX_WITH_SRC_QP | IBV_WC_EX_WITH_SLID | IBV_WC_EX_WITH_BYTE_LEN 
+	/*uint64_t wc_flags = IBV_WC_EX_WITH_QP_NUM | IBV_WC_EX_WITH_SRC_QP | IBV_WC_EX_WITH_SLID | IBV_WC_EX_WITH_BYTE_LEN 
 							 | IBV_WC_EX_WITH_COMPLETION_TIMESTAMP | IBV_WC_EX_WITH_COMPLETION_TIMESTAMP_WALLCLOCK;
 
 	cq_attr.comp_mask = IBV_CQ_INIT_ATTR_MASK_FLAGS;
 	cq_attr.wc_flags = wc_flags;
+	*/
 
 	struct ibv_cq_ex * ibv_cq = ibv_create_cq_ex(ibv_dev_ctx, &cq_attr);
 	if (ibv_cq == NULL){
