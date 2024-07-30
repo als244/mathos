@@ -64,6 +64,7 @@ int main(int argc, char * argv[]){
 	printf("\n\n[Node %u] Sending %lu exchange messages to node id: %d...\n\n", net_world -> self_node_id, num_exchange_messages, dest_node_id);
 	
 	for (uint64_t i = 0; i < num_exchange_messages; i++){
+		printf("Posting send from %u to %u: message #%lu\n", net_world -> self_node_id, dest_node_id, i);
 		ret = post_send_ctrl_net(net_world, &(ctrl_messages_to_send[i]));
 		if (ret != 0){
 			fprintf(stderr, "Error: could not post control message #%lu (From id: %u going to node id: %u)\n", i, net_world -> self_node_id, dest_node_id);
