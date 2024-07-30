@@ -34,7 +34,7 @@
 
 // BID TODO: fix this configuration of queue sizes to be more flexible!!!
 
-#define NUM_CQ_ENTRIES 1U << 3
+#define NUM_CQ_ENTRIES 1U << 4
 
 #define SRQ_MAX_WR 1U << 3
 #define SRQ_MAX_SGE 2
