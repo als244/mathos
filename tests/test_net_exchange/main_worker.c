@@ -1,4 +1,5 @@
 #include "init_sys.h"
+#include "utils.h"
 
 int main(int argc, char * argv[]){
 
@@ -49,12 +50,13 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	setlocale(LC_NUMERIC, "");
+	char num_buf[256];
 	for (uint64_t i = 0; i < num_exchange_messages; i++){
 		ctrl_messages_to_send[i].header.source_node_id = self_node_id;
 		ctrl_messages_to_send[i].header.dest_node_id = dest_node_id;
 		ctrl_message.header.message_class = EXCHANGE_CLASS;
-		sprintf((char *) ctrl_message.contents, "I am message #%'lu!", i);
+		char * message_num_str = uint64_to_str_with_comma(num_buf, i);
+		sprintf((char *) ctrl_message.contents, "I am message #%s!", message_num_str);
 	}
 
 

@@ -30,9 +30,6 @@
 // for libibverbs 
 #include <infiniband/verbs.h>
 
-// to printf with commas using '
-#include <locale.h>
-
 
 #define FINGERPRINT_NUM_BYTES 32
 #define FINGERPRINT_TYPE SHA256_HASH

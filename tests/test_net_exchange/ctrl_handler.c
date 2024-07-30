@@ -100,9 +100,6 @@ void * run_ctrl_handler(void * _cq_thread_data){
 
 			// 3.) If it was a shared receive / recv channel then we should act 
 
-
-			// FOR NOW JUST PRINTING
-
 			if ((ctrl_channel -> channel_type == SHARED_RECV_CTRL_CHANNEL) || (ctrl_channel -> channel_type == RECV_CTRL_CHANNEL)){
 
 				ctrl_message_header = ctrl_message.header;
@@ -141,7 +138,8 @@ void * run_ctrl_handler(void * _cq_thread_data){
 						break; 
 				}
 				*/
-			}			
+			}
+			// if it was a send message, then the extract should have arleady cleaned up the messages		
 		}
 
 		// Check for next completed work request...
