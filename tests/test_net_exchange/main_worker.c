@@ -29,35 +29,50 @@ int main(int argc, char * argv[]){
 	Net_World * net_world = system -> net_world;
 
 	Ctrl_Message ctrl_message;
-	ctrl_message.header.source_node_id = net_world -> self_node_id;
+	uint32_t self_node_id = net_world -> self_node_id;
 
 	uint32_t dest_node_id;
 	if (net_world -> self_node_id == 1){
 		dest_node_id = 2;
-		ctrl_message.header.message_class = EXCHANGE_CLASS;
-		strcpy((char *) ctrl_message.contents, "Hello");
-		
 	}
 	if (net_world -> self_node_id == 2){
 		dest_node_id = 1;
-		ctrl_message.header.message_class = EXCHANGE_CLASS;
-		strcpy((char *) ctrl_message.contents, "World");
 	}
 
-	ctrl_message.header.dest_node_id = dest_node_id;
-
-
 	uint64_t num_exchange_messages = 1000000;
+	
+	// prepare all contorl messages
+
+	Ctrl_Message * ctrl_messages_to_send = (Ctrl_Message *) malloc(num_exchange_messages * sizeof(Ctrl_Message));
+	if (ctrl_messages_to_send == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate control message buffer for sending\n");
+		return -1;
+	}
+
+	setlocale(LC_NUMERIC, "");
+	for (uint64_t i = 0; i < num_exchange_messages; i++){
+		ctrl_messages_to_send[i].header.source_node_id = self_node_id;
+		ctrl_messages_to_send[i].header.dest_node_id = dest_node_id;
+		ctrl_message.header.message_class = EXCHANGE_CLASS;
+		sprintf((char *) ctrl_message.contents, "I am message #%'lu!", i);
+	}
+
+
 	printf("\n\n[Node %u] Sending %lu exchange messages to node id: %d...\n\n", net_world -> self_node_id, num_exchange_messages, dest_node_id);
 	
-	
 	for (uint64_t i = 0; i < num_exchange_messages; i++){
-		ret = post_send_ctrl_net(net_world, &ctrl_message);
+		ret = post_send_ctrl_net(net_world, &(ctrl_messages_to_send[i]));
 		if (ret != 0){
-			fprintf(stderr, "Error: could not post control message. From id: %u going to node id: %u\n", net_world -> self_node_id, dest_node_id);
+			fprintf(stderr, "Error: could not post control message #%lu (From id: %u going to node id: %u)\n", i, net_world -> self_node_id, dest_node_id);
 			return -1;
 		}
 	}
+
+	// all messages have been sent
+	//	- meaning contents have been copied to the verbs registered buffer 
+	//		(within with sending QP's send control channel's fifo -> buffer)
+	// so can free these messages now
+	free(ctrl_messages_to_send);
 
 	// Wait for benchmark to finish before recording
 
