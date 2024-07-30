@@ -29,9 +29,9 @@ int main(int argc, char * argv[]){
 
 	Net_World * net_world = system -> net_world;
 
-	Ctrl_Message ctrl_message;
-	uint32_t self_node_id = net_world -> self_node_id;
 
+
+	uint32_t self_node_id = net_world -> self_node_id;
 	uint32_t dest_node_id;
 	if (net_world -> self_node_id == 1){
 		dest_node_id = 2;
