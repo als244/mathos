@@ -510,6 +510,8 @@ pthread_t ** create_cq_threads(int num_devices, int num_endpoint_types){
 			return NULL;
 		}
 	}
+
+	return cq_threads;
 }
 
 
