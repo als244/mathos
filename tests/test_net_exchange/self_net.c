@@ -233,7 +233,7 @@ int init_self_endpoint(Self_Net * self_net, Self_Port * port, int ib_device_id, 
 	qp_attr.qp_type = IBV_QPT_UD;
 
 	// Consider not signaling sends (save latency/BW..?)
-	qp_attr.sq_sig_all = 1;       // if not set 0, all work requests submitted to SQ will always generate a Work Completion.
+	qp_attr.sq_sig_all = 0;       // if not set 0, all work requests submitted to SQ will always generate a Work Completion.
 	qp_attr.send_cq = ibv_cq_ex_to_cq(send_ibv_cq);         // completion queue can be shared or you can use distinct completion queues.
 	qp_attr.recv_cq = ibv_cq_ex_to_cq(recv_ibv_cq);         // completion queue can be shared or you can use distinct completion queues.
 
