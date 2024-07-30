@@ -139,11 +139,14 @@ void * run_ctrl_handler(void * _cq_thread_data){
 				}
 				*/
 			}
+			// if it was a send message, then the extract should have arleady cleaned up the messages		
+			/*
 			else{
 				printf("\n\n[Node %u] Sent message work completion!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
 							self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
 			}
-			// if it was a send message, then the extract should have arleady cleaned up the messages		
+			*/
+			
 		}
 
 		// Check for next completed work request...
