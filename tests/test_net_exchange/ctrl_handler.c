@@ -123,6 +123,7 @@ void * run_ctrl_handler(void * _cq_thread_data){
 				int control_message_class = ctrl_message_header.message_class;
 				if (control_message_class > work_pool -> max_work_class_ind){
 					fprintf(stderr, "Error: received message specifying message class %d, but declared maximum work class index of %d\n", control_message_class, work_pool -> max_work_class_ind);
+					continue;
 				}
 
 				// Probably want to ensure there that the class has been added (and thus tasks is non-null)
