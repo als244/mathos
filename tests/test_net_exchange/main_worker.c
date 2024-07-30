@@ -40,7 +40,7 @@ int main(int argc, char * argv[]){
 		dest_node_id = 1;
 	}
 
-	uint64_t num_exchange_messages = 10;
+	uint64_t num_exchange_messages = 1 << 15;
 
 	// prepare all contorl messages
 
@@ -57,7 +57,7 @@ int main(int argc, char * argv[]){
 		ctrl_messages_to_send[i].header.message_class = EXCHANGE_CLASS;
 		//uint64_to_str_with_comma(num_buf, i);
 		//sprintf((char *) (ctrl_messages_to_send[i].contents), "I am message #%s!", num_buf);
-		sprintf((char *) (ctrl_messages_to_send[i].contents), "I am message #%lu!", i);
+		sprintf((char *) (ctrl_messages_to_send[i].contents), "I am message #%lu from node %u!", i, self_node_id);
 	}
 
 
