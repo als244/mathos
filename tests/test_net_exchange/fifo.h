@@ -34,7 +34,7 @@ uint64_t produce_fifo(Fifo * fifo, void * item);
 // returns the next item to be consume
 // unless fifo is NULL or cannot allocate memory for item => returns NULL
 // BLOCKING!
-void * consume_fifo(Fifo * fifo);
+void consume_fifo(Fifo * fifo, void * ret_item);
 
 
 // convert a combination of fifo buffer and index into a memory reference

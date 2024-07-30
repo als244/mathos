@@ -21,7 +21,7 @@ void * run_exchange_worker(void * _worker_thread_data) {
 	Exchange * exchange = exchange_worker_data -> exchange;
 	Net_World * net_world = exchange_worker_data -> net_world;
 
-	Ctrl_Message * ctrl_message;
+	Ctrl_Message ctrl_message;
 
 	uint32_t num_triggered_response_ctrl_messages;
 	Ctrl_Message * triggered_response_ctrl_messages;
@@ -34,16 +34,16 @@ void * run_exchange_worker(void * _worker_thread_data) {
 
 		// generates a copy of the data that was in fifo
 		//	- this data will be overwritten when the fifo wraps around
-		ctrl_message = (Ctrl_Message *) consume_fifo(tasks);
+		consume_fifo(tasks, &ctrl_message);
 
 		printf("[Exchange Worker %d] Consumed a control message!\n", worker_thread_id);
 
-		if (ctrl_message -> header.message_class != EXCHANGE_CLASS){
-			fprintf(stderr, "[Exchange Worker %d] Error: an exchange worker saw a task not with exchange class, but instead: %d\n", worker_thread_id, ctrl_message -> header.message_class);
+		if (ctrl_message.header.message_class != EXCHANGE_CLASS){
+			fprintf(stderr, "[Exchange Worker %d] Error: an exchange worker saw a task not with exchange class, but instead: %d\n", worker_thread_id, ctrl_message.header.message_class);
 		}
 
 		// 2.) Actually perform the task
-		ret = do_exchange_function(exchange, ctrl_message, &num_triggered_response_ctrl_messages, &triggered_response_ctrl_messages);
+		ret = do_exchange_function(exchange, &ctrl_message, &num_triggered_response_ctrl_messages, &triggered_response_ctrl_messages);
 		if (ret != 0){
 			fprintf(stderr, "[Exchange Worker %d] Error: do_exchange_function failed\n", worker_thread_id);
 		}
@@ -59,8 +59,7 @@ void * run_exchange_worker(void * _worker_thread_data) {
 		}
 
 
-		// 4.) Clean up memory
-		free(ctrl_message);
+		// 4.) Clean up memory if necesary
 		// generate_match_ctrl_messages() allocated memory if there were messages that needed to be sent, but now free
 		// because the message informatioin got copied to the send control channel
 		if (num_triggered_response_ctrl_messages > 0){

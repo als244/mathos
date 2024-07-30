@@ -102,11 +102,13 @@ uint64_t produce_fifo(Fifo * fifo, void * item) {
 }
 
 
-// RETRUNS A COPY OF THE ITEM IN THE BUFFER, SO SHOULD FREE ITEM
+// RETRUNS A COPY OF THE ITEM IN THE BUFFER
 // ASSUME A DIFFERNT PRODUCER THREAD => Otherwise, deadlock will occur
 // BLOCKING!
 // Can return NULL if not empty to 
-void * consume_fifo(Fifo * fifo) {
+
+// ASSUME MEMORY FOR RET_ITEM ALREADY ALLOCATED
+void consume_fifo(Fifo * fifo, void * ret_item) {
 
 	// Error Check (if we want)
 
@@ -116,12 +118,6 @@ void * consume_fifo(Fifo * fifo) {
 		return NULL;
 	}
 	*/
-
-	void * ret_item = malloc(fifo -> item_size_bytes);
-	if (ret_item == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate memory for copy of item in fifo buffer\n");
-		return NULL;
-	}
 
 	// 1.) Wait until there is an item to consume
 	sem_wait(&(fifo -> full_slots_sem));

@@ -90,6 +90,11 @@ typedef struct ctrl_message {
 	uint8_t contents[CONTROL_MESSAGE_CONTENT_MAX_SIZE_BYTES];
 } Ctrl_Message;
 
+typedef struct recv_ctrl_message {
+	struct ibv_grh grh;
+	Ctrl_Message ctrl_message;
+} Recv_Ctrl_Message;
+
 
 
 

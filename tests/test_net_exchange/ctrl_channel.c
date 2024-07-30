@@ -228,36 +228,26 @@ int extract_ctrl_channel(Ctrl_Channel * channel, Ctrl_Message * ret_ctrl_message
 	*/
 
 	// returns a copy of the item in fifo buffer => should free it when done!
-	void * fifo_item = consume_fifo(channel -> fifo);
-	if (unlikely(fifo_item == NULL)){
-		fprintf(stderr, "Error: within extract_ctrl_channel, consume_fifo returned null\n");
-		return -1;
-	}
 
 	// when we put a message in control channel there is no extra space
 	if ((channel -> channel_type == SEND_CTRL_CHANNEL)){
-		memcpy((void *) ret_ctrl_message, fifo_item, sizeof(Ctrl_Message));
+		Ctrl_Message send_ctrl_message;
+		consume_fifo(channel -> fifo, &send_ctrl_message);
+		memcpy((void *) ret_ctrl_message, &send_ctrl_message, sizeof(Ctrl_Message));
 	}
 	// when we get a receive message the first 40 bytes are GRH, so can skip passed this
 	// and cast to control message
+	// HERE COULD BE AND ELSE BUT BEING EXPLICITY FOR READABILITY
 	if ((channel -> channel_type == RECV_CTRL_CHANNEL) || (channel -> channel_type == SHARED_RECV_CTRL_CHANNEL)){
-		memcpy((void *) ret_ctrl_message, (void *) ((uint64_t) fifo_item + sizeof(struct ibv_grh)), sizeof(Ctrl_Message));
-	}
-	
-	if ((channel -> channel_type == RECV_CTRL_CHANNEL) || (channel -> channel_type == SHARED_RECV_CTRL_CHANNEL)){
-		// after extracting a control item (must have been in receive queue), replace it
+		Recv_Ctrl_Message recv_ctrl_message;
+		consume_fifo(channel -> fifo, &recv_ctrl_message);
+		memcpy((void *) ret_ctrl_message, &(recv_ctrl_message.ctrl_message), sizeof(Ctrl_Message));
 		int ret = post_recv_ctrl_channel(channel);
 		if (unlikely(ret != 0)){
 			fprintf(stderr, "Error: failure posting a receive after trying to replace an extracted item\n");
 			return -1;
 		}
 	}
-
-	// the consume_fifo() returned a copy of the item in the buffer,
-	// so we want to free this now that we have copied contents to a ctrl message
-	free(fifo_item);
-
-	// NOTE: ensure to free the message returned from extract!
 
 	return 0;
 }
