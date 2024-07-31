@@ -127,10 +127,10 @@ void * run_ctrl_handler(void * _cq_thread_data){
 			}
 			*/
 		}
-		else{
-			printf("\n\n[Node %u] Sent message work completion!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
-						self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
-		}	
+		// else{
+		// 	printf("\n\n[Node %u] Sent message work completion!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
+		// 				self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
+		// }	
 	}
 
 	return 0;

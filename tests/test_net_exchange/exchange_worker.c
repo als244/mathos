@@ -140,7 +140,6 @@ void * run_exchange_worker(void * _worker_thread_data) {
 			pthread_mutex_lock(&(work_bench -> task_cnt_lock));
 			// increment count
 			work_bench -> task_cnt += 1;
-			printf("Task cnt: %lu\n", work_bench -> task_cnt);
 			// because we are changing count while holding lock, don't need to recheck the stopped flag
 			//	(only 1 thread will be exactly equal if all threads are changing the value)
 			if (work_bench -> task_cnt == work_bench -> task_cnt_stop_bench){
