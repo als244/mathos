@@ -78,7 +78,7 @@ void * run_exchange_worker(void * _worker_thread_data) {
 		//	- this data will be overwritten when the fifo wraps around
 		consume_fifo(tasks, &ctrl_message);
 
-		//printf("[Exchange Worker %d] Consumed a control message!\n", worker_thread_id);
+		printf("[Exchange Worker %d] Consumed a control message!\n", worker_thread_id);
 
 		if (ctrl_message.header.message_class != EXCHANGE_CLASS){
 			fprintf(stderr, "[Exchange Worker %d] Error: an exchange worker saw a task not with exchange class, but instead: %d\n", worker_thread_id, ctrl_message.header.message_class);
