@@ -40,7 +40,7 @@ int main(int argc, char * argv[]){
 		dest_node_id = 1;
 	}
 
-	uint64_t num_exchange_messages = 1 << 6;
+	uint64_t num_exchange_messages = 1000000;
 
 	// prepare all contorl messages
 
@@ -63,16 +63,9 @@ int main(int argc, char * argv[]){
 
 	if (dest_node_id == 2){
 
-		struct ibv_cq_ex * send_cq = (net_world -> self_net -> cq_send_collection)[0][0];
-
-
 		printf("\n\n[Node %u] Sending %lu exchange messages to node id: %d...\n\n", net_world -> self_node_id, num_exchange_messages, dest_node_id);
-		
-		printf("CQE of sending cq: %d\n", send_cq -> cqe);
-		printf("Max items of sender sq: %lu\n", (net_world -> self_net -> self_node -> endpoints)[0].send_ctrl_channel -> fifo -> max_items);
 
 		for (uint64_t i = 0; i < num_exchange_messages; i++){
-			printf("Posting send from %u to %u: message #%lu\n", net_world -> self_node_id, dest_node_id, i);
 			ret = post_send_ctrl_net(net_world, &(ctrl_messages_to_send[i]));
 			if (ret != 0){
 				fprintf(stderr, "Error: could not post control message #%lu (From id: %u going to node id: %u)\n", i, net_world -> self_node_id, dest_node_id);
