@@ -60,6 +60,8 @@ int activate_cq_threads(Net_World * net_world, Work_Pool * work_pool){
 
 	for (int i = 0; i < num_ib_devices; i++){
 		for (int j = 0; j < num_endpoint_types; j++){
+			cq_recv_thread_data[i * num_endpoint_types + j].ib_device_id = i;
+			cq_recv_thread_data[i * num_endpoint_types + j].endpoint_type = endpoint_types[j];
 			cq_recv_thread_data[i * num_endpoint_types + j].net_world = net_world;
 			cq_recv_thread_data[i * num_endpoint_types + j].work_pool = work_pool;
 			cq_recv_thread_data[i * num_endpoint_types + j].is_recv_cq = true;
@@ -77,9 +79,11 @@ int activate_cq_threads(Net_World * net_world, Work_Pool * work_pool){
 
 	for (int i = 0; i < num_ib_devices; i++){
 		for (int j = 0; j < num_endpoint_types; j++){
+			cq_send_thread_data[i * num_endpoint_types + j].ib_device_id = i;
+			cq_send_thread_data[i * num_endpoint_types + j].endpoint_type = endpoint_types[j];
 			cq_send_thread_data[i * num_endpoint_types + j].net_world = net_world;
 			cq_send_thread_data[i * num_endpoint_types + j].work_pool = work_pool;
-			cq_recv_thread_data[i * num_endpoint_types + j].is_recv_cq = false;
+			cq_send_thread_data[i * num_endpoint_types + j].is_recv_cq = false;
 			cq_send_thread_data[i * num_endpoint_types + j].cq = cq_send_collection[i][j];
 		}
 	}

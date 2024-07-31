@@ -7,6 +7,8 @@
 #include "work_pool.h"
 
 typedef struct cq_thread_data{
+	EndpointType endpoint_type;
+	int ib_device_id;
 	struct ibv_cq_ex * cq;
 	bool is_recv_cq;
 	Net_World * net_world;
