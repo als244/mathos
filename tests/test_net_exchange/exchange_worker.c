@@ -78,7 +78,7 @@ void * run_exchange_worker(void * _worker_thread_data) {
 		//	- this data will be overwritten when the fifo wraps around
 		consume_fifo(tasks, &ctrl_message);
 
-		printf("[Exchange Worker %d] Consumed a control message!\n", worker_thread_id);
+		//printf("[Exchange Worker %d] Consumed a control message!\n", worker_thread_id);
 
 		if (ctrl_message.header.message_class != EXCHANGE_CLASS){
 			fprintf(stderr, "[Exchange Worker %d] Error: an exchange worker saw a task not with exchange class, but instead: %d\n", worker_thread_id, ctrl_message.header.message_class);
@@ -92,6 +92,7 @@ void * run_exchange_worker(void * _worker_thread_data) {
 			if ((!work_bench -> started) && (work_bench -> task_cnt == work_bench -> task_cnt_start_bench)){
 				clock_gettime(CLOCK_MONOTONIC, &(work_bench -> start));
 				work_bench -> started = true;
+				printf("Work bench started!\n");
 			}
 			pthread_mutex_unlock(&(work_bench -> task_cnt_lock));
 		}
