@@ -46,8 +46,10 @@
 #define QP_MAX_INLINE_DATA 0 // SEEMS LIKE 956 is the max for qp creation error...?
 
 
+// CONTROL 
 
-
+#define RECV_CTRL_MAX_POLL_ENTRIES 256
+#define SEND_CTRL_MAX_POLL_ENTRIES 32
 
 
 // MASTER CLASS CONFIGURATION

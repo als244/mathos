@@ -18,6 +18,8 @@ void * run_ctrl_handler(void * _cq_thread_data){
 	Self_Net * self_net = net_world -> self_net;
 
 	Work_Pool * work_pool = cq_thread_data -> work_pool;
+	bool is_recv_cq = cq_thread_data -> is_recv_cq;
+
 
 	struct ibv_cq * cq = ibv_cq_ex_to_cq(cq_ex);
 
@@ -31,8 +33,7 @@ void * run_ctrl_handler(void * _cq_thread_data){
 	Ctrl_Channel * ctrl_channel;
 		
 	// these will get populated upon extracting an item from channel
-	Ctrl_Message ctrl_message;
-	Ctrl_Message_H ctrl_message_header;
+	
 
 	// For now doing an infnite loop unless error....
 	// Burns a lot of cpu....
@@ -41,11 +42,23 @@ void * run_ctrl_handler(void * _cq_thread_data){
 
 	uint64_t fifo_insert_ind;
 
-	struct ibv_wc wc;
+	
 
 	int num_comp;
 
-	int max_poll_entries = 1;
+	int max_poll_entries;
+
+	if (is_recv_cq){
+		max_poll_entries = RECV_CTRL_MAX_POLL_ENTRIES;
+	}
+	else{
+		max_poll_entries = SEND_CTRL_MAX_POLL_ENTRIES;
+	}
+
+	
+
+	struct ibv_wc work_completions[max_poll_entries];
+	
 
 
 	// Knowing what to modulus by when placing wokrer
@@ -66,100 +79,109 @@ void * run_ctrl_handler(void * _cq_thread_data){
 	}
 
 
+	Ctrl_Message ctrl_message;
+	Ctrl_Message_H ctrl_message_header;
+
+
 
 	while (1){
 
 		// wait for an entry
 		do {
-			num_comp = ibv_poll_cq(cq, max_poll_entries, &wc);
+			num_comp = ibv_poll_cq(cq, max_poll_entries, work_completions);
 		} while (num_comp == 0);
 		
-		// Consume the completed work request
-		wr_id = wc.wr_id;
-		status = wc.status;
 
-		
-		/* DO SOMETHING WITH wr_id! */
+		for (int i = 0; i < num_comp; i++){
+
+
+			// Consume the completed work request
+			wr_id = work_completions[i].wr_id;
+			status = work_completions[i].status;
+
 			
-		// This message is kinda ugly. Can be helpful with errors
-		// printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
-
-		if (status != IBV_WC_SUCCESS){
-			fprintf(stderr, "Error: work request id %lu had error. Status: %d\n", wr_id, status);
-			// DO ERROR HANDLING HERE!
-		}
-
-		// 1-3 should probably be in loop the size of max_poll_entries
-
-
-		// 1.) get channel
-
-		// Defined within self_net.c
-		ctrl_channel = get_ctrl_channel(self_net, wr_id);
-		if (unlikely(ctrl_channel == NULL)){
-			fprintf(stderr, "Error: control completion handler failed. Couldn't get channel. For wr_id = %lu\n", wr_id);
-			return NULL;
-		}
-
-		
-		// 2.) Extract Item
-
-		// Defined within ctrl_channel.
-		//	- will refresh posting a receive if was on recv/shared recv channel
-		ret = extract_ctrl_channel(ctrl_channel, &ctrl_message);
-		if (unlikely(ret != 0)){
-			fprintf(stderr, "Error: control completion handler failed. Couldn't extract channel item. For wr_id = %lu\n", wr_id);
-			return NULL;
-		}
-
-		
-		// 3.) If it was a shared receive / recv channel then we should act 
-
-		if ((ctrl_channel -> channel_type == SHARED_RECV_CTRL_CHANNEL) || (ctrl_channel -> channel_type == RECV_CTRL_CHANNEL)){
-
-			ctrl_message_header = ctrl_message.header;
+			/* DO SOMETHING WITH wr_id! */
 				
+			// This message is kinda ugly. Can be helpful with errors
+			// printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
+
+			if (status != IBV_WC_SUCCESS){
+				fprintf(stderr, "Error: work request id %lu had error. Status: %d\n", wr_id, status);
+				// DO ERROR HANDLING HERE!
+			}
+
+			// 1-3 should probably be in loop the size of max_poll_entries
+
+
+			// 1.) get channel
+
+			// Defined within self_net.c
+			ctrl_channel = get_ctrl_channel(self_net, wr_id);
+			if (unlikely(ctrl_channel == NULL)){
+				fprintf(stderr, "Error: control completion handler failed. Couldn't get channel. For wr_id = %lu\n", wr_id);
+				return NULL;
+			}
+
+			
+			// 2.) Extract Item
+
+			// Defined within ctrl_channel.
+			//	- will refresh posting a receive if was on recv/shared recv channel
+			ret = extract_ctrl_channel(ctrl_channel, &ctrl_message);
+			if (unlikely(ret != 0)){
+				fprintf(stderr, "Error: control completion handler failed. Couldn't extract channel item. For wr_id = %lu\n", wr_id);
+				return NULL;
+			}
+
+			
+			// 3.) If it was a shared receive / recv channel then we should act 
+
+			if (is_recv_cq){
+
+				ctrl_message_header = ctrl_message.header;
+					
+					
+				// printf("\n\n[Node %u] Received control message!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
+				// 				self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
+
+				// all fifo buffers at at:
+				// work_pool -> classes)[ctrl_message_header.message_class] -> tasks
+					
+				// Error check a valid work class to place message on proper task fifo
+				int control_message_class = ctrl_message_header.message_class;
+				if (control_message_class > work_pool -> max_work_class_ind){
+					fprintf(stderr, "Error: received message specifying message class %d, but declared maximum work class index of %d\n", control_message_class, work_pool -> max_work_class_ind);
+					continue;
+				}
+
+				// Probably want to ensure there that the class has been added (and thus tasks is non-null)
+			
+
+				Fifo ** worker_fifos = (work_pool -> classes)[control_message_class] -> worker_tasks;
+
+				int next_worker_id = next_worker_id_by_class[control_message_class] % num_workers_per_class[control_message_class];
 				
-			// printf("\n\n[Node %u] Received control message!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
+				fifo_insert_ind = produce_fifo(worker_fifos[next_worker_id], &ctrl_message);
+
+				/* NOT USING SWITCH BECAUSE UNNECESSARY COMPARISONS
+				switch(ctrl_message_header.message_class){
+					case EXCHANGE_CLASS:
+						printf("\n[Ctrl Handler] Producing on EXCHANGE tasks fifo\n");
+						fifo_insert_ind = produce_fifo((work_pool -> classes)[ctrl_message_header.message_class] -> tasks, &ctrl_message);
+						break;
+					case INVENTORY_CLASS:
+
+					default:
+						fprintf(stderr, "Error: saw an unknown message class of type %d\n", ctrl_message_header.message_class);
+						break; 
+				}
+				*/
+			}
+			// else{
+			// 	printf("\n\n[Node %u] Sent message work completion!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
 			// 				self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
-
-			// all fifo buffers at at:
-			// work_pool -> classes)[ctrl_message_header.message_class] -> tasks
-				
-			// Error check a valid work class to place message on proper task fifo
-			int control_message_class = ctrl_message_header.message_class;
-			if (control_message_class > work_pool -> max_work_class_ind){
-				fprintf(stderr, "Error: received message specifying message class %d, but declared maximum work class index of %d\n", control_message_class, work_pool -> max_work_class_ind);
-				continue;
-			}
-
-			// Probably want to ensure there that the class has been added (and thus tasks is non-null)
-		
-
-			Fifo ** worker_fifos = (work_pool -> classes)[control_message_class] -> worker_tasks;
-
-			int next_worker_id = next_worker_id_by_class[control_message_class] % num_workers_per_class[control_message_class];
-			
-			fifo_insert_ind = produce_fifo(worker_fifos[next_worker_id], &ctrl_message);
-
-			/* NOT USING SWITCH BECAUSE UNNECESSARY COMPARISONS
-			switch(ctrl_message_header.message_class){
-				case EXCHANGE_CLASS:
-					printf("\n[Ctrl Handler] Producing on EXCHANGE tasks fifo\n");
-					fifo_insert_ind = produce_fifo((work_pool -> classes)[ctrl_message_header.message_class] -> tasks, &ctrl_message);
-					break;
-				case INVENTORY_CLASS:
-
-				default:
-					fprintf(stderr, "Error: saw an unknown message class of type %d\n", ctrl_message_header.message_class);
-					break; 
-			}
-			*/
-		}
-		// else{
-		// 	printf("\n\n[Node %u] Sent message work completion!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
-		// 				self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
-		// }	
+			// }
+		}	
 	}
 
 	return 0;

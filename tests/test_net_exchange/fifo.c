@@ -144,3 +144,4 @@ void consume_fifo(Fifo * fifo, void * ret_item) {
 
 	return;
 }
+
