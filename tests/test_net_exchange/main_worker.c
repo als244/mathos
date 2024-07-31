@@ -72,6 +72,10 @@ int main(int argc, char * argv[]){
 				return -1;
 			}
 		}
+
+		printf("\n\n[Node %u] Finished sending %lu messages to node %u!\n\n", net_world -> self_node_id, num_exchange_messages, dest_node_id);
+
+
 	}
 
 	// all messages have been sent
