@@ -36,7 +36,7 @@ typedef struct worker_thread_data {
 typedef struct work_class {
 	int num_workers;
 	pthread_t * worker_threads;
-	Fifo * tasks;
+	Fifo ** worker_tasks;
 	// Optionally add benchmark
 	Work_Bench * work_bench;
 	void *(*start_routine)(void *);
@@ -52,7 +52,7 @@ typedef struct work_pool {
 
 Work_Pool * init_work_pool(int max_work_class_ind);
 
-int add_work_class(Work_Pool * work_pool, int work_class_index, int num_workers, uint64_t max_tasks, uint64_t task_size, void *(*start_routine)(void *), void * worker_arg);
+int add_work_class(Work_Pool * work_pool, int work_class_index, int num_workers, uint64_t worker_max_tasks, uint64_t task_size, void *(*start_routine)(void *), void * worker_arg);
 
 // Can wait on the work_bench -> is_bench_ready semaphore to know when the start/stop is ready to be read
 // NOTE: needs to be called before starting workers

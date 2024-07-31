@@ -25,7 +25,7 @@ Work_Pool * init_work_pool(int max_work_class_ind) {
 }
 
 
-int add_work_class(Work_Pool * work_pool, int work_class_index, int num_workers, uint64_t max_tasks, uint64_t task_size, void *(*start_routine)(void *), void * worker_arg) {
+int add_work_class(Work_Pool * work_pool, int work_class_index, int num_workers, uint64_t worker_max_tasks, uint64_t task_size, void *(*start_routine)(void *), void * worker_arg) {
 
 	if (work_class_index > work_pool -> max_work_class_ind){
 		fprintf(stderr, "Error: failed to add work class index: %d. The work pool was set to have a maximum class index of %d\n", work_class_index, work_pool -> max_work_class_ind);
@@ -48,10 +48,18 @@ int add_work_class(Work_Pool * work_pool, int work_class_index, int num_workers,
 		fprintf(stderr, "Error: malloc failed to allocate worker threads container\n");
 		return -1;
 	}
-	work_class -> tasks = init_fifo(max_tasks, task_size);
-	if (work_class -> tasks == NULL){
-		fprintf(stderr, "Error: failed to intialize fifo work work class index: %d\n", work_class_index);
+	work_class -> worker_tasks = (Fifo **) malloc(num_workers * sizeof(Fifo *));
+	if (work_class -> worker_tasks == NULL){
+		fprintf(stderr, "Error: failed to intialize fifo worker tasks container\n");
 		return -1;
+	}
+
+	for (int i = 0; i < num_workers; i++){
+		(work_class -> worker_tasks)[i] = init_fifo(worker_max_tasks, task_size);
+		if ((work_class -> worker_tasks)[i] == NULL){
+			fprintf(stderr, "Error: unable to intialize worker task fifo for worker num %d\n", i);
+			return -1;
+		}
 	}
 
 	
@@ -74,7 +82,7 @@ int add_work_class(Work_Pool * work_pool, int work_class_index, int num_workers,
 
 	for (int i = 0; i < num_workers; i++){
 		(work_class -> worker_thread_data)[i].worker_thread_id = i;
-		(work_class -> worker_thread_data)[i].tasks = work_class -> tasks;
+		(work_class -> worker_thread_data)[i].tasks = (work_class -> worker_tasks)[i];
 		(work_class -> worker_thread_data)[i].work_bench = &(work_class -> work_bench);
 		(work_class -> worker_thread_data)[i].worker_arg = worker_arg;
 	}

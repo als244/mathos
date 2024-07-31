@@ -56,7 +56,7 @@ System * init_system(char * master_ip_addr, char * self_ip_addr){
 
 	// WILL OVERWRITE THE ARGUMENT IN STEP 7 WHEN READY TO RUN!
 	//	- each worker will have their own worker_data specified in their worker file
-	ret = add_work_class(work_pool, EXCHANGE_CLASS, NUM_EXCHANGE_WORKER_THREADS, EXCHANGE_MAX_TASKS_BACKLOG, sizeof(Ctrl_Message), run_exchange_worker, &exchange_worker_data);
+	ret = add_work_class(work_pool, EXCHANGE_CLASS, NUM_EXCHANGE_WORKER_THREADS, EXCHANGE_WORKER_MAX_TASKS_BACKLOG, sizeof(Ctrl_Message), run_exchange_worker, &exchange_worker_data);
 	if (ret != 0){
 		fprintf(stderr, "Error: unable to add worker class\n");
 		return NULL;

@@ -47,6 +47,26 @@ void * run_ctrl_handler(void * _cq_thread_data){
 
 	int max_poll_entries = 1;
 
+
+	// Knowing what to modulus by when placing wokrer
+	int num_workers_per_class[work_pool -> max_work_class_ind];
+	for (int i = 0; i < work_pool -> max_work_class_ind; i++){
+		if ((work_pool -> classes)[i] == NULL){
+			num_workers_per_class[i] = 0;
+		}
+		else{
+			num_workers_per_class[i] = (work_pool -> classes)[i] -> num_workers;
+		}
+	}
+
+	// Deciding which worker fifo to place on
+	uint64_t next_worker_id_by_class[work_pool -> max_work_class_ind];
+	for (int i = 0; i < work_pool -> max_work_class_ind; i++){
+		next_worker_id_by_class[i] = 0;
+	}
+
+
+
 	while (1){
 
 		// wait for an entry
@@ -68,6 +88,9 @@ void * run_ctrl_handler(void * _cq_thread_data){
 			fprintf(stderr, "Error: work request id %lu had error. Status: %d\n", wr_id, status);
 			// DO ERROR HANDLING HERE!
 		}
+
+		// 1-3 should probably be in loop the size of max_poll_entries
+
 
 		// 1.) get channel
 
@@ -111,7 +134,13 @@ void * run_ctrl_handler(void * _cq_thread_data){
 			}
 
 			// Probably want to ensure there that the class has been added (and thus tasks is non-null)
-			fifo_insert_ind = produce_fifo((work_pool -> classes)[ctrl_message_header.message_class] -> tasks, &ctrl_message);
+		
+
+			Fifo ** worker_fifos = (work_pool -> classes)[control_message_class] -> worker_tasks;
+
+			int next_worker_id = next_worker_id_by_class[control_message_class] % num_workers_per_class[control_message_class];
+			
+			fifo_insert_ind = produce_fifo(worker_fifos[next_worker_id], &ctrl_message);
 
 			/* NOT USING SWITCH BECAUSE UNNECESSARY COMPARISONS
 			switch(ctrl_message_header.message_class){
