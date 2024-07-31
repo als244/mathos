@@ -656,13 +656,13 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 
 	// 6.) Create Completition Queues for each device and for each endpoint type for both recv and send cqs
 	
-	struct ibv_cq_ex *** cq_recv_collection = create_cq_collection(ibv_dev_ctxs, num_devices, num_endpoint_types, 2 * SRQ_MAX_WR);
+	struct ibv_cq_ex *** cq_recv_collection = create_cq_collection(ibv_dev_ctxs, num_devices, num_endpoint_types, SRQ_MAX_WR);
 	if (cq_recv_collection == NULL){
 		fprintf(stderr, "Error: unable to intialize cq recv collection\n");
 		return NULL;
 	}
 
-	struct ibv_cq_ex *** cq_send_collection = create_cq_collection(ibv_dev_ctxs, num_devices, num_endpoint_types, 2 * QP_MAX_SEND_WR);
+	struct ibv_cq_ex *** cq_send_collection = create_cq_collection(ibv_dev_ctxs, num_devices, num_endpoint_types, QP_MAX_SEND_WR);
 	if (cq_send_collection == NULL){
 		fprintf(stderr, "Error: unable to intialize cq send collection\n");
 		return NULL;
