@@ -1,54 +1,5 @@
 #include "fifo.h"
 
-// returns the sem_id 
-int init_semaphore(int init_val){
-	int sem_id = semget(IPC_PRIVATE, 1, IPC_CREAT | IPC_EXCL | S_IRUSR |
-        S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
-	if (sem_id < 0){
-		fprintf(stderr, "Error: semget failed\n");
-		return -1;
-	}
-
-	union semun sem_setval;
-	sem_setval.val = init_val;
-
-	int ret = semctl(sem_id, 0, SETVAL, sem_setval);
-
-	if (ret != 0){
-		fprintf(stderr, "Error: failure to set semaphore value to %d\n", init_val);
-		return -1;
-	}
-
-	return sem_id;
-}
-
-int do_semop(int sem_id, int val){
-
-	struct sembuf sem_op_buf;
-
-	sem_op_buf.sem_num = 0;
-	sem_op_buf.sem_op = val;
-	sem_op_buf.sem_flg = SEM_UNDO;
-
-	int ret = semop(sem_id, &sem_op_buf, 1);
-	if (ret != 0){
-		fprintf(stderr, "Error: semop failed\n");
-		return -1;
-	}
-	return 0;
-}
-
-
-int semaphore_post(int sem_id, uint32_t items){
-	return do_semop(sem_id, (int) items);
-}
-
-int semaphore_wait(int sem_id, uint32_t items){
-	int items_neg = -1 * ((int) items);
-	return do_semop(sem_id, items_neg);
-}
-
-
 
 // Initializes fifo struct and allocates memory for buffer
 Fifo * init_fifo(uint64_t max_items, uint64_t item_size_bytes) {
@@ -67,26 +18,25 @@ Fifo * init_fifo(uint64_t max_items, uint64_t item_size_bytes) {
 	fifo -> consume_ind = 0;
 	fifo -> item_cnt = 0;
 
-	ret = pthread_mutex_init(&(fifo -> fifo_lock), NULL);
+	ret = pthread_mutex_init(&(fifo -> update_lock), NULL);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not init table lock\n");
+		fprintf(stderr, "Error: could not init fifo lock\n");
 		return NULL;
 	}
 
-	int empty_slots_sem_id = init_semaphore(max_items);
-	if (empty_slots_sem_id < 0){
-		fprintf(stderr, "Error: could not initialize empty slots semaphore\n");
+	ret = pthread_cond_init(&(fifo -> produced_cv), NULL);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not init fifo condition variable\n");
 		return NULL;
 	}
 
-	int full_slots_sem_id = init_semaphore(0);
-	if (empty_slots_sem_id < 0){
-		fprintf(stderr, "Error: could not initialize full slots semaphore\n");
+	ret = pthread_cond_init(&(fifo -> consumed_cv), NULL);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not init fifo condition variable\n");
 		return NULL;
 	}
 
-	fifo -> empty_slots_sem_id  = empty_slots_sem_id;
-	fifo -> full_slots_sem_id = full_slots_sem_id;
+	fifo -> available_items = 0;
 
 	// initialize buffer to place items
 	uint64_t buffer_size = max_items * item_size_bytes;
@@ -106,7 +56,10 @@ void * get_buffer_addr(Fifo * fifo, uint64_t ind) {
 }
 
 
-// COPIES CONTENTS OF ITEM SO CAN FREE ITEM AFTER
+// Returns the index of insertion
+//	- Needed for receive channels to proply post IB receive work requests
+
+// COPIES CONTENTS OF ITEM
 // BLOCKING!
 uint64_t produce_fifo(Fifo * fifo, void * item) {
 
@@ -119,39 +72,43 @@ uint64_t produce_fifo(Fifo * fifo, void * item) {
 	}
 	*/
 
-	// 1.) Wait until there is more room in the buffer
-	semaphore_wait(fifo -> empty_slots_sem_id, 1);
+	uint64_t insert_ind;
 
-	// 2.) Wait until the consumer has completed removing an item from buffer
-	pthread_mutex_lock(&(fifo -> fifo_lock));
+	// 1.) Optimisitically acquire update lock
+
+	pthread_mutex_lock(&(fifo -> update_lock));
+
+	// 2.) Wait until there is space to insert item
+	while (fifo -> available_items == fifo -> max_items){
+		pthread_cond_wait(&(fifo -> consumed_cv), &(fifo -> update_lock));
+	}
 
 	// 3.) Actually insert item
-	//		- copies the contents => FREE AFTER PRODUCING
-	void * insert_start_addr = get_buffer_addr(fifo, fifo -> produce_ind);
+
+	insert_ind = fifo -> produce_ind;
+	void * insert_start_addr;
 
 	// NOTE:
 	//	- for posting receives item will be null and it will get populated by NIC
 	//	- for posting sends, item will have contents that need to be copied from non-registered memory and sent out
 	if (item != NULL){
+		insert_start_addr = get_buffer_addr(fifo, insert_ind);
 		memcpy(insert_start_addr, item, fifo -> item_size_bytes);
 	}
+
+	// 4.) Update the number of items and the next spot to insert
+	fifo -> available_items += 1;
+	fifo -> produce_ind = (fifo -> produce_ind + 1) % (fifo -> max_items);
+
+	// 5.) Release the update lock
+	pthread_mutex_unlock(&(fifo -> update_lock));
 	
-	// 4.) Set the index which we inserted the item at
-	uint64_t ret_ind = fifo -> produce_ind;
+	// 6.) Indicate that we updated the produced cv to unblock a consumer
+	//		- for single item producer (not-batched) can use signal
+	//		- deicding to signal after unlock so consumer thread is not blocked on the update lock
+	pthread_cond_signal(&(fifo -> produced_cv));
 
-	// 5.) Increment the item count
-	fifo -> item_cnt += 1;
-
-	// 6.) Increment the producer ind (circular)
-	fifo -> produce_ind = (fifo -> produce_ind + 1) % fifo -> max_items;
-
-	// 7.) Indicate that we have finished producing
-	pthread_mutex_unlock(&(fifo -> fifo_lock));
-
-	// 8.) Indicate that there is a new item in buffer
-	semaphore_post(fifo -> full_slots_sem_id, 1);
-
-	return ret_ind;
+	return insert_ind;
 }
 
 
@@ -172,28 +129,147 @@ void consume_fifo(Fifo * fifo, void * ret_item) {
 	}
 	*/
 
-	// 1.) Wait until there is an item to consume
-	semaphore_wait(fifo -> full_slots_sem_id, 1);
+	// 1.) Optimisitically acquire the update lock
+	pthread_mutex_lock(&(fifo -> update_lock));
 
-	// 2.) Wait until the producer has finished producing
-	pthread_mutex_lock(&(fifo -> fifo_lock));
+	// 2.) Wait until there are items to consume
+
+	while (fifo -> available_items == 0){
+		pthread_cond_wait(&(fifo -> produced_cv), &(fifo -> update_lock));
+	}
 
 	// 3.) Actually consume item
-	//		- return a copy to item => FREE AFTER CONSUMING!
 	void * remove_start_addr = get_buffer_addr(fifo, fifo -> consume_ind);
 	memcpy(ret_item, remove_start_addr, fifo -> item_size_bytes);
 
-	// 4.) Decrement the item count
-	fifo -> item_cnt -= 1;
+	// 4.) Update the number of items and the next spot to consume
+	fifo -> available_items -= 1;
+	fifo -> consume_ind = (fifo -> consume_ind + 1) % (fifo -> max_items);
 
-	// 5.) Increment the consumer ind (circular)
-	fifo -> consume_ind = (fifo -> consume_ind + 1) % fifo -> max_items;
+	// 5.) Release the update lock
+	pthread_mutex_unlock(&(fifo -> update_lock));
+	
+	// 6.) Indicate that we updated the produced cv to unblock a producer
+	//		- for single item producer (not-batched) can use signal
+	//		- deicding to signal after unlock so producer thread is not blocked on the update lock
+	pthread_cond_signal(&(fifo -> consumed_cv));
 
-	// 6.) Indicate that the consumer has finished consuming
-	pthread_mutex_unlock(&(fifo -> fifo_lock));
+	return;
 
-	// 7.) Now add can signal there is a new empty spot
-	semaphore_post(fifo -> empty_slots_sem_id, 1);
+}
+
+
+uint64_t produce_batch_fifo(Fifo * fifo, uint64_t num_items, void * items) {
+
+	// Error Check if we want
+
+	/*
+	if (unlikely(fifo == NULL)){
+		fprintf(stderr, "Error: produce_fifo failed because fifo is null\n");
+		return -1;
+	}
+	*/
+
+	uint64_t start_insert_ind;
+
+	// 1.) Optimisitically acquire update lock
+
+	pthread_mutex_lock(&(fifo -> update_lock));
+
+	// 2.) Wait until there is space to insert items
+	while (fifo -> available_items + num_items > fifo -> max_items){
+		pthread_cond_wait(&(fifo -> consumed_cv), &(fifo -> update_lock));
+	}
+
+	// 3.) Actually insert item
+
+	start_insert_ind = fifo -> produce_ind;
+	uint64_t items_til_end, bytes_til_end, remain_bytes; 
+	void * start_insert_addr;
+
+	// NOTE:
+	//	- for posting receives item will be null and it will get populated by NIC
+	//	- for posting sends, item will have contents that need to be copied from non-registered memory and sent out
+	if (items != NULL){
+
+		items_til_end = fifo -> max_items - start_insert_ind;
+		bytes_til_end = items_til_end * fifo -> item_size_bytes;
+
+		// copy items to the end of the ring buffer then start at the beginning
+		start_insert_addr = get_buffer_addr(fifo, start_insert_ind);
+		memcpy(start_insert_addr, items, bytes_til_end);
+
+		// start copying items from beginning of buffer
+		void * remain_items = (void *) ((uint64_t) items + bytes_til_end);
+		remain_bytes = (num_items - items_til_end) * fifo -> item_size_bytes;
+		memcpy(fifo -> buffer, remain_items, remain_bytes); 
+	}
+
+	
+	// 4.) Update the number of items and the next spot to insert
+	fifo -> available_items += num_items;
+	fifo -> produce_ind = (fifo -> produce_ind + num_items) % (fifo -> max_items);
+
+	// 5.) Release the update lock
+	pthread_mutex_unlock(&(fifo -> update_lock));
+	
+	// 6.) Indicate that we updated the produced cv to unblock consumers
+	//		- now use broadcast because some of the waiting consumers 
+	//			could have varying amounts they are trying to consume
+	pthread_cond_broadcast(&(fifo -> produced_cv));
+
+	return start_insert_ind;
+}
+
+
+void consume_batch_fifo(Fifo * fifo, uint64_t num_items, void * ret_items) {
+
+
+	// 1.) Optimisitically acquire update lock
+	pthread_mutex_lock(&(fifo -> update_lock));
+
+	// 2.) Wait until there is space to insert items
+	while (fifo -> available_items < num_items){
+		pthread_cond_wait(&(fifo -> produced_cv), &(fifo -> update_lock));
+	}
+
+	// 3.) Actually insert item
+
+	uint64_t items_til_end, bytes_til_end, remain_bytes; 
+		
+	// calling these "remove" index/address, but really they are copying
+	//	- the producer will be over-writing
+	//	- could memset to 0 if we wanted to actually remove
+
+
+	uint64_t start_remove_ind = fifo -> consume_ind;
+	void * start_remove_addr = get_buffer_addr(fifo, start_remove_ind);
+
+
+	items_til_end = fifo -> max_items - start_remove_ind;
+	bytes_til_end = items_til_end * fifo -> item_size_bytes;
+
+	// copy items until the end of the ring buffer then start at the beginning
+	start_remove_addr = get_buffer_addr(fifo, start_remove_ind);
+	memcpy(ret_items, start_remove_addr, bytes_til_end);
+
+	// start copying items from beginning of buffer
+	void * remain_items = (void *) ((uint64_t) ret_items + bytes_til_end);
+	remain_bytes = (num_items - items_til_end) * fifo -> item_size_bytes;
+	memcpy(remain_items, fifo -> buffer, remain_bytes); 
+
+	
+	// 4.) Update the number of items and the next spot to insert
+	fifo -> available_items -= num_items;
+	fifo -> consume_ind = (fifo -> consume_ind + num_items) % (fifo -> max_items);
+
+	// 5.) Release the update lock
+	pthread_mutex_unlock(&(fifo -> update_lock));
+	
+	// 6.) Indicate that we updated the consume cv to unblock producers
+	//		- now use broadcast because some of the waiting consumers 
+	//			could have varying amounts they are trying to consume
+	pthread_cond_broadcast(&(fifo -> consumed_cv));
 
 	return;
 }

@@ -1,5 +1,5 @@
-#ifndef FIFO_H
-#define FIFO_H
+#ifndef FIFO_SYSV_H
+#define FIFO_SYSV_H
 
 #include "common.h"
 
@@ -13,13 +13,11 @@ typedef struct fifo {
 	// a bit redudant but a nice field to have
 	uint64_t item_cnt;
 	// lock to be used during producing/consuming
-	pthread_mutex_t update_lock;
-	// the consumers will wait on this and producer signals
-	pthread_cond_t produced_cv;
-	// the producers will wait on this and consumer signals
-	pthread_cond_t consumed_cv;
-	// initialized to 0
-	uint64_t available_items;
+	pthread_mutex_t fifo_lock;
+	// initialized to max_items
+	int empty_slots_sem_id;
+	// intialized to 0
+	int full_slots_sem_id;
 	// actually contains the items
 	void * buffer;
 } Fifo;
@@ -41,10 +39,6 @@ void consume_fifo(Fifo * fifo, void * ret_item);
 
 // convert a combination of fifo buffer and index into a memory reference
 void * get_buffer_addr(Fifo * fifo, uint64_t ind);
-
-
-uint64_t produce_batch_fifo(Fifo * fifo, uint64_t num_items, void * items);
-void consume_batch_fifo(Fifo * fifo, uint64_t num_items, void * ret_items);
 
 
 
