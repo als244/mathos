@@ -1,5 +1,54 @@
 #include "fifo.h"
 
+// returns the sem_id 
+int init_semaphore(int init_val){
+	int sem_id = semget(IPC_PRIVATE, 1, 0);
+	if (sem_id < 0){
+		fprintf(stderr, "Error: semget failed\n");
+		return -1;
+	}
+
+	union semun sem_setval;
+	sem_setval.val = init_val;
+
+	int ret = semctl(sem_id, 0, SETVAL, sem_setval);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: failure to set semaphore value to %d\n", init_val);
+		return -1;
+	}
+
+	return sem_id;
+}
+
+int do_semop(int sem_id, int val){
+
+	struct sembuf sem_op_buf;
+
+	sem_op_buf.sem_num = 0;
+	sem_op_buf.sem_op = val;
+	sem_op_buf.sem_flg = SEM_UNDO;
+
+	int ret = semop(sem_id, &sem_op_buf, 1);
+	if (ret != 0){
+		fprintf(stderr, "Error: semop failed\n");
+		return -1;
+	}
+	return 0;
+}
+
+
+int semaphore_post(int sem_id, uint32_t items){
+	return do_semop(sem_id, (int) items);
+}
+
+int semaphore_wait(int sem_id, uint32_t items){
+	int items_neg = -1 * ((int) items);
+	return do_semop(sem_id, items_neg);
+}
+
+
+
 // Initializes fifo struct and allocates memory for buffer
 Fifo * init_fifo(uint64_t max_items, uint64_t item_size_bytes) {
 
@@ -23,17 +72,20 @@ Fifo * init_fifo(uint64_t max_items, uint64_t item_size_bytes) {
 		return NULL;
 	}
 
-	ret = sem_init(&(fifo -> empty_slots_sem), 0, max_items);
-	if (ret != 0){
-		fprintf(stderr, "Error: could not initialize empty_slots_sem\n");
+	int empty_slots_sem_id = init_semaphore(max_items);
+	if (empty_slots_sem_id < 0){
+		fprintf(stderr, "Error: could not initialize empty slots semaphore\n");
 		return NULL;
 	}
 
-	ret = sem_init(&(fifo -> full_slots_sem), 0, 0);
-	if (ret != 0){
-		fprintf(stderr, "Error: could not initialize full_slots_sem\n");
+	int full_slots_sem_id = init_semaphore(0);
+	if (empty_slots_sem_id < 0){
+		fprintf(stderr, "Error: could not initialize full slots semaphore\n");
 		return NULL;
 	}
+
+	fifo -> empty_slots_sem_id  = empty_slots_sem_id;
+	fifo -> full_slots_sem_id = full_slots_sem_id;
 
 	// initialize buffer to place items
 	uint64_t buffer_size = max_items * item_size_bytes;
@@ -67,7 +119,7 @@ uint64_t produce_fifo(Fifo * fifo, void * item) {
 	*/
 
 	// 1.) Wait until there is more room in the buffer
-	sem_wait(&(fifo -> empty_slots_sem));
+	semaphore_wait(fifo -> empty_slots_sem_id, 1);
 
 	// 2.) Wait until the consumer has completed removing an item from buffer
 	pthread_mutex_lock(&(fifo -> fifo_lock));
@@ -96,7 +148,7 @@ uint64_t produce_fifo(Fifo * fifo, void * item) {
 	pthread_mutex_unlock(&(fifo -> fifo_lock));
 
 	// 8.) Indicate that there is a new item in buffer
-	sem_post(&(fifo -> full_slots_sem));
+	semaphore_post(fifo -> full_slots_sem_id, 1);
 
 	return ret_ind;
 }
@@ -120,7 +172,7 @@ void consume_fifo(Fifo * fifo, void * ret_item) {
 	*/
 
 	// 1.) Wait until there is an item to consume
-	sem_wait(&(fifo -> full_slots_sem));
+	semaphore_wait(fifo -> full_slots_sem_id, 1);
 
 	// 2.) Wait until the producer has finished producing
 	pthread_mutex_lock(&(fifo -> fifo_lock));
@@ -140,7 +192,7 @@ void consume_fifo(Fifo * fifo, void * ret_item) {
 	pthread_mutex_unlock(&(fifo -> fifo_lock));
 
 	// 7.) Now add can signal there is a new empty spot
-	sem_post(&(fifo -> empty_slots_sem));
+	semaphore_post(fifo -> empty_slots_sem_id, 1);
 
 	return;
 }

@@ -15,9 +15,9 @@ typedef struct fifo {
 	// lock to be used during producing/consuming
 	pthread_mutex_t fifo_lock;
 	// initialized to max_items
-	sem_t empty_slots_sem;
+	int empty_slots_sem_id;
 	// intialized to 0
-	sem_t full_slots_sem;
+	int full_slots_sem_id;
 	// actually contains the items
 	void * buffer;
 } Fifo;

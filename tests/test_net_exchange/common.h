@@ -15,8 +15,11 @@
 #include <pthread.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
-#include <sys/types.h>
+// System V semaphores (can increment/decrement other than one)
+#include <sys/sem.h>
+// Simpler POSIX semaphores
 #include <semaphore.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -39,6 +42,17 @@
 
 
 typedef int (*Item_Cmp)(void * item, void * other_item);
+
+
+// Per man semctl, calling progrma must define this union as follows
+// For LINUX!
+union semun {
+	int val; /* Value for SETVAL */
+	struct semid_ds *buf; /* Buffer for IPC_STAT, IPC_SET */
+	unsigned short *array; /* Array for GETALL, SETALL */
+	struct seminfo *__buf; /* Buffer for IPC_INFO
+	(Linux specific) */
+};
 
 
 #endif
