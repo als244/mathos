@@ -37,7 +37,7 @@
 #define SRQ_MAX_WR 1U << 14
 #define SRQ_MAX_SGE 2
 
-#define QP_MAX_SEND_WR 1U << 4
+#define QP_MAX_SEND_WR 1U << 1
 #define QP_MAX_SEND_SGE 2
 
 #define QP_MAX_RECV_WR 1U << 8
