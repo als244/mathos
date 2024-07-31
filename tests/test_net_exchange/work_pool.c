@@ -75,7 +75,7 @@ int add_work_class(Work_Pool * work_pool, int work_class_index, int num_workers,
 	for (int i = 0; i < num_workers; i++){
 		(work_class -> worker_thread_data)[i].worker_thread_id = i;
 		(work_class -> worker_thread_data)[i].tasks = work_class -> tasks;
-		(work_class -> worker_thread_data)[i].work_bench = NULL;
+		(work_class -> worker_thread_data)[i].work_bench = &(work_class -> work_bench);
 		(work_class -> worker_thread_data)[i].worker_arg = worker_arg;
 	}
 

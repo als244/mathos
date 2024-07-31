@@ -29,7 +29,7 @@ typedef struct worker_thread_data {
 	int worker_thread_id;
 	Fifo * tasks;
 	// optionally have benchmark for recording timestamps upon certain cnts
-	Work_Bench * work_bench;
+	Work_Bench ** work_bench;
 	void * worker_arg;
 } Worker_Thread_Data;
 

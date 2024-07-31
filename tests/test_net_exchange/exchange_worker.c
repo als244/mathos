@@ -32,7 +32,7 @@ void * run_exchange_worker(void * _worker_thread_data) {
 
 	// If a benchmark was set
 
-	Work_Bench * work_bench = worker_thread_data -> work_bench;
+	Work_Bench * work_bench = *(worker_thread_data -> work_bench);
 
 	if (work_bench == NULL){
 		fprintf(stderr, "Error: work bench is null\n");
