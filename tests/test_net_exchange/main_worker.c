@@ -69,6 +69,7 @@ int main(int argc, char * argv[]){
 		printf("\n\n[Node %u] Sending %lu exchange messages to node id: %d...\n\n", net_world -> self_node_id, num_exchange_messages, dest_node_id);
 		
 		printf("CQE of sending cq: %d\n", send_cq -> cqe);
+		printf("Max items of sender sq: %lu\n", (net_world -> self_net -> self_node -> endpoints)[0].send_ctrl_channel -> fifo -> max_items);
 
 		for (uint64_t i = 0; i < num_exchange_messages; i++){
 			printf("Posting send from %u to %u: message #%lu\n", net_world -> self_node_id, dest_node_id, i);
