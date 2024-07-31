@@ -82,6 +82,9 @@ int main(int argc, char * argv[]){
 
 	// Wait for benchmark to finish before recording
 
+
+	// THIS BENCHMARK IS FOR RECEIVING 1,000,000 exchange class messages
+
 	Deque * are_benchmarks_ready = system -> are_benchmarks_ready;
 
 	sem_t * cur_bench_ready;
