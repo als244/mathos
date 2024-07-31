@@ -44,11 +44,14 @@ void * run_ctrl_handler(void * _cq_thread_data){
 	struct ibv_wc wc;
 
 	int num_comp;
+
+	int max_poll_entries = 1;
+
 	while (1){
 
 		// wait for an entry
 		do {
-			num_comp = ibv_poll_cq(cq, 1, &wc);
+			num_comp = ibv_poll_cq(cq, max_poll_entries, &wc);
 		} while (num_comp == 0);
 		
 		// Consume the completed work request
@@ -137,6 +140,12 @@ void * run_ctrl_handler(void * _cq_thread_data){
 	return 0;
 }
 
+
+
+
+// NOT SURE THE RIGHT WAY TO MAKE THIS WORK!!!
+
+/*
 
 void * run_ctrl_handler_ex(void * _cq_thread_data){
 
@@ -235,7 +244,6 @@ void * run_ctrl_handler_ex(void * _cq_thread_data){
 
 		// IF there is work that needs to be done
 		if (seen_new_completition){
-			/* DO SOMETHING WITH wr_id! */
 			
 			// This message is kinda ugly. Can be helpful with errors
 			// printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
@@ -290,19 +298,19 @@ void * run_ctrl_handler_ex(void * _cq_thread_data){
 				// Probably want to ensure there that the class has been added (and thus tasks is non-null)
 				produce_fifo((work_pool -> classes)[ctrl_message_header.message_class] -> tasks, &ctrl_message);
 
-				/* NOT USING SWITCH BECAUSE UNNECESSARY COMPARISONS
-				switch(ctrl_message_header.message_class){
-					case EXCHANGE_CLASS:
-						printf("\n[Ctrl Handler] Producing on EXCHANGE tasks fifo\n");
-						fifo_insert_ind = produce_fifo((work_pool -> classes)[ctrl_message_header.message_class] -> tasks, &ctrl_message);
-						break;
-					case INVENTORY_CLASS:
+				// NOT USING SWITCH BECAUSE UNNECESSARY COMPARISONS
+				// switch(ctrl_message_header.message_class){
+				// 	case EXCHANGE_CLASS:
+				// 		printf("\n[Ctrl Handler] Producing on EXCHANGE tasks fifo\n");
+				// 		fifo_insert_ind = produce_fifo((work_pool -> classes)[ctrl_message_header.message_class] -> tasks, &ctrl_message);
+				// 		break;
+				// 	case INVENTORY_CLASS:
 
-					default:
-						fprintf(stderr, "Error: saw an unknown message class of type %d\n", ctrl_message_header.message_class);
-						break; 
-				}
-				*/
+				// 	default:
+				// 		fprintf(stderr, "Error: saw an unknown message class of type %d\n", ctrl_message_header.message_class);
+				// 		break; 
+				// }
+	
 				to_refresh_recv = true;
 			}
 			else{
@@ -320,4 +328,7 @@ void * run_ctrl_handler_ex(void * _cq_thread_data){
 
 	return 0;
 }
+
+
+*/
 
