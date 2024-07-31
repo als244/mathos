@@ -19,6 +19,8 @@
 #include <sys/sem.h>
 // Simpler POSIX semaphores
 #include <semaphore.h>
+// Setting file permission bits
+#include <fcntl.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>

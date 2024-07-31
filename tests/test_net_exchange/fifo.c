@@ -2,7 +2,8 @@
 
 // returns the sem_id 
 int init_semaphore(int init_val){
-	int sem_id = semget(IPC_PRIVATE, 1, 0);
+	int sem_id = semget(IPC_PRIVATE, 1, IPC_CREAT | IPC_EXCL | S_IRUSR |
+        S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
 	if (sem_id < 0){
 		fprintf(stderr, "Error: semget failed\n");
 		return -1;
