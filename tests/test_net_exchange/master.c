@@ -116,9 +116,28 @@ Master * init_master(char * ip_addr, uint32_t max_nodes, uint32_t min_init_nodes
 
 	// also create all cq threads here
 
+
+	Work_Pool * work_pool = init_work_pool(MAX_WORK_CLASS_IND);
+	if (work_pool == NULL){
+		fprintf(stderr, "Error: failed to intialize work_pool\n");
+		return NULL;
+	}
+
+
+	Master_Worker_Data master_worker_data;
+	master_worker_data.net_world = net_world;
+
+	// WILL OVERWRITE THE ARGUMENT IN STEP 7 WHEN READY TO RUN!
+	//	- each worker will have their own worker_data specified in their worker file
+	ret = add_work_class(work_pool, MASTER_CLASS, NUM_MASTER_WORKER_THREADS, MASTER_WORKER_MAX_TASKS_BACKLOG, sizeof(Ctrl_Message), run_master_worker, &master_worker_data);
+	if (ret != 0){
+		fprintf(stderr, "Error: unable to add master worker class within init_master\n");
+		return NULL;
+	}
+
 	// TODO: FIGURE OUT WHAT TO DO ABOUT MASTER'S CQ's
 	// WHAT FIFO BUFFER SHOULD THOSE TASKS GO TO...?
-	ret = activate_cq_threads(net_world, NULL);
+	ret = activate_cq_threads(net_world, work_pool);
 	if (ret != 0){
 		fprintf(stderr, "[Master] Error; failure to activate_cq_threads\n");
 		return NULL;

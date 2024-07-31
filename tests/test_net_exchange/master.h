@@ -8,6 +8,7 @@
 #include "net.h"
 #include "tcp_rdma_init.h"
 #include "cq_handler.h"
+#include "master_worker.h"
 
 typedef struct master {
 	char * ip_addr;

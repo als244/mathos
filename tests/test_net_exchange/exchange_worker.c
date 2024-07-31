@@ -34,10 +34,6 @@ void * run_exchange_worker(void * _worker_thread_data) {
 
 	Work_Bench * work_bench = *(worker_thread_data -> work_bench);
 
-	if (work_bench == NULL){
-		fprintf(stderr, "Error: work bench is null\n");
-	}
-
 	// Saving local variables to avoid pointer lookups during every iteration
 	//	- curious perf different compared to what step 5 is now...
 

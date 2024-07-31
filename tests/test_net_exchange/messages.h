@@ -48,12 +48,13 @@ typedef enum enpoint_type {
 } EndpointType;
 
 
-#define MAX_WORK_CLASS_IND 6
+#define MAX_WORK_CLASS_IND 7
 
 // The control message type indicates
 // to the completion queue handler
 // what worker they should hand off to
 typedef enum ctrl_message_class {
+	MASTER_CLASS,
 	EXCHANGE_CLASS,
 	// for data transfer intiation / response
 	// actually data transfer will not be done over control QPs

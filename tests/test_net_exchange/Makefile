@@ -7,7 +7,7 @@ all: testMaster testWorker
 
 
 ## MASTER PROGRAM
-testMaster: main_master.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o master.o utils.o cq_handler.o ctrl_handler.o work_pool.o
+testMaster: main_master.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o master.o utils.o cq_handler.o ctrl_handler.o work_pool.o master_worker.o
 	${CC} ${CFLAGS} $^ -o $@ -lm -pthread -libverbs
 
 master.o: master.c
@@ -35,6 +35,9 @@ exchange_worker.o: exchange_worker.c
 	${CC} ${CFLAGS} -c $^
 
 init_sys.o: init_sys.c
+	${CC} ${CFLAGS} -c $^
+
+master_worker.o: master_worker.c
 	${CC} ${CFLAGS} -c $^
 
 
@@ -82,6 +85,9 @@ ctrl_handler.o: ctrl_handler.c
 
 work_pool.o: work_pool.c
 	${CC} ${CFLAGS} -c $^
+
+
+
 
 
 ## cleaning up
