@@ -98,8 +98,8 @@ void * run_send_ctrl_handler(void * _cq_thread_data){
 
 			ctrl_message_header = ctrl_message.header;
 
-			printf("\n\n[Node %u] Sent message work completion!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
-						net_world -> self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
+			// printf("\n\n[Node %u] Sent message work completion!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
+			// 			net_world -> self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
 		}	
 	}
 
