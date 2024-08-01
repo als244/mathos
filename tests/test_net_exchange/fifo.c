@@ -171,6 +171,7 @@ uint64_t produce_batch_fifo(Fifo * fifo, uint64_t num_items, void * items) {
 	*/
 
 	uint64_t start_insert_ind;
+	uint64_t max_items = fifo -> max_items;
 
 	// 1.) Optimisitically acquire update lock
 
@@ -184,30 +185,38 @@ uint64_t produce_batch_fifo(Fifo * fifo, uint64_t num_items, void * items) {
 	// 3.) Actually produce items
 
 	start_insert_ind = fifo -> produce_ind;
-	uint64_t items_til_end, bytes_til_end, remain_bytes; 
+	uint64_t items_til_end, bytes_til_end, remain_item_cnt, remain_bytes; 
 	void * start_insert_addr;
 
-	uint64_t remain_item_cnt = 0;
 	// NOTE:
 	//	- for posting receives item will be null and it will get populated by NIC
 	//	- for posting sends, item will have contents that need to be copied from non-registered memory and sent out
 	if (items != NULL){
 
-		if (num_items > (fifo -> max_items - start_insert_ind - 1)){
-			remain_item_cnt = num_items - (fifo -> max_items - start_insert_ind - 1);
-		}
+		
+		items_til_end = num_items;
 
-		items_til_end = num_items - remain_item_cnt;
+		// check for loop around
+		if ((start_insert_ind + num_items) > max_items){
+			items_til_end = max_items - start_insert_ind;
+		}
+	
+		remain_item_cnt = num_items - items_til_end;
+
+
 		bytes_til_end = items_til_end * fifo -> item_size_bytes;
 
 		// copy items to the end of the ring buffer then start at the beginning
 		start_insert_addr = get_buffer_addr(fifo, start_insert_ind);
 		memcpy(start_insert_addr, items, bytes_til_end);
 
-		// start copying items from beginning of buffer
-		void * remain_items = (void *) ((uint64_t) items + bytes_til_end);
-		remain_bytes = (num_items - items_til_end) * fifo -> item_size_bytes;
-		memcpy(fifo -> buffer, remain_items, remain_bytes); 
+		// if we need to loop around and insert items at beginning
+		if (remain_item_cnt > 0){
+			// start copying items from beginning of buffer
+			void * remain_items = (void *) ((uint64_t) items + bytes_til_end);
+			remain_bytes = remain_item_cnt * fifo -> item_size_bytes;
+			memcpy(fifo -> buffer, remain_items, remain_bytes); 
+		}
 	}
 
 	
@@ -229,6 +238,7 @@ uint64_t produce_batch_fifo(Fifo * fifo, uint64_t num_items, void * items) {
 
 void consume_batch_fifo(Fifo * fifo, uint64_t num_items, void * ret_items) {
 
+	uint64_t max_items = fifo -> max_items;
 
 	// 1.) Optimisitically acquire update lock
 	pthread_mutex_lock(&(fifo -> update_lock));
@@ -240,7 +250,7 @@ void consume_batch_fifo(Fifo * fifo, uint64_t num_items, void * ret_items) {
 
 	// 3.) Actually consume items
 
-	uint64_t items_til_end, bytes_til_end, remain_bytes; 
+	uint64_t items_til_end, bytes_til_end, remain_item_cnt, remain_bytes; 
 		
 	// calling these "remove" index/address, but really they are copying
 	//	- the producer will be over-writing
@@ -250,10 +260,14 @@ void consume_batch_fifo(Fifo * fifo, uint64_t num_items, void * ret_items) {
 	uint64_t start_remove_ind = fifo -> consume_ind;
 	void * start_remove_addr = get_buffer_addr(fifo, start_remove_ind);
 
-	uint64_t remain_item_cnt = 0;
-	if (num_items > (fifo -> max_items - start_remove_ind - 1)){
-		remain_item_cnt = num_items - (fifo -> max_items - start_remove_ind - 1);
+	items_til_end = num_items;
+
+	// check for loop around
+	if ((start_remove_ind + num_items) > max_items){
+		items_til_end = max_items - start_remove_ind;
 	}
+
+	remain_item_cnt = num_items - items_til_end;
 
 	items_til_end = num_items - remain_item_cnt;
 	bytes_til_end = items_til_end * fifo -> item_size_bytes;
@@ -263,11 +277,15 @@ void consume_batch_fifo(Fifo * fifo, uint64_t num_items, void * ret_items) {
 	memcpy(ret_items, start_remove_addr, bytes_til_end);
 
 	// start copying items from beginning of buffer
-	void * remain_items = (void *) ((uint64_t) ret_items + bytes_til_end);
-	remain_bytes = (num_items - items_til_end) * fifo -> item_size_bytes;
-	memcpy(remain_items, fifo -> buffer, remain_bytes); 
 
-	
+	// if we need to loop around and insert items at beginning
+	if (remain_item_cnt > 0){
+		void * remain_items = (void *) ((uint64_t) ret_items + bytes_til_end);
+		remain_bytes = remain_item_cnt * fifo -> item_size_bytes;
+		memcpy(remain_items, fifo -> buffer, remain_bytes);
+	}
+	 
+
 	// 4.) Update the number of items and the next spot to insert
 	fifo -> available_items -= num_items;
 	fifo -> consume_ind = (fifo -> consume_ind + num_items) % (fifo -> max_items);
@@ -291,6 +309,8 @@ void consume_batch_fifo(Fifo * fifo, uint64_t num_items, void * ret_items) {
 //	- Needed for receive channels to proply post IB receive work requests
 uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void * consumed_items, void * reproduced_items) {
 
+
+	uint64_t max_items = fifo -> max_items;
 	uint64_t start_insert_ind;
 
 
@@ -302,9 +322,11 @@ uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void 
 		pthread_cond_wait(&(fifo -> produced_cv), &(fifo -> update_lock));
 	}
 
+	void * remain_items;
+
 	// 3.) Actually consume items
 
-	uint64_t items_til_end, bytes_til_end, remain_bytes; 
+	uint64_t items_til_end, bytes_til_end, remain_item_cnt, remain_bytes; 
 		
 	// calling these "remove" index/address, but really they are copying
 	//	- the producer will be over-writing
@@ -314,12 +336,16 @@ uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void 
 	uint64_t start_remove_ind = fifo -> consume_ind;
 	void * start_remove_addr = get_buffer_addr(fifo, start_remove_ind);
 
-	uint64_t remain_item_cnt = 0;
-	if (num_items > (fifo -> max_items - start_remove_ind - 1)){
-		remain_item_cnt = num_items - (fifo -> max_items - start_remove_ind - 1);
+	items_til_end = num_items;
+
+	// check for loop around
+	if ((start_remove_ind + num_items) > max_items){
+		items_til_end = max_items - start_remove_ind;
 	}
 
-	items_til_end = num_items - remain_item_cnt;
+	remain_item_cnt = num_items - items_til_end;
+
+
 	bytes_til_end = items_til_end * fifo -> item_size_bytes;
 
 	// copy items until the end of the ring buffer then start at the beginning
@@ -327,11 +353,13 @@ uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void 
 	memcpy(consumed_items, start_remove_addr, bytes_til_end);
 
 	// start copying items from beginning of buffer
-	void * remain_items = (void *) ((uint64_t) consumed_items + bytes_til_end);
-	remain_bytes = (num_items - items_til_end) * fifo -> item_size_bytes;
-	memcpy(remain_items, fifo -> buffer, remain_bytes); 
-
+	if (remain_item_cnt > 0){
+		remain_items = (void *) ((uint64_t) consumed_items + bytes_til_end);
+		remain_bytes = remain_item_cnt * fifo -> item_size_bytes;
+		memcpy(remain_items, fifo -> buffer, remain_bytes); 
+	}
 	
+
 	// 4.) Actually reproduce items
 
 	start_insert_ind = fifo -> produce_ind;
@@ -342,12 +370,15 @@ uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void 
 	//	- for posting sends, item will have contents that need to be copied from non-registered memory and sent out
 	if (reproduced_items != NULL){
 
-		remain_item_cnt = 0;
-		if (num_items > (fifo -> max_items - start_insert_ind - 1)){
-			remain_item_cnt = num_items - (fifo -> max_items - start_insert_ind - 1);
+		items_til_end = num_items;
+
+		// check for loop around
+		if ((start_insert_ind + num_items) > max_items){
+			items_til_end = max_items - start_insert_ind;
 		}
 
-		items_til_end = num_items - remain_item_cnt;
+		remain_item_cnt = num_items - items_til_end;
+		
 		bytes_til_end = items_til_end * fifo -> item_size_bytes;
 
 		// copy items to the end of the ring buffer then start at the beginning
@@ -355,9 +386,11 @@ uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void 
 		memcpy(start_insert_addr, reproduced_items, bytes_til_end);
 
 		// start copying items from beginning of buffer
-		remain_items = (void *) ((uint64_t) reproduced_items + bytes_til_end);
-		remain_bytes = (num_items - items_til_end) * fifo -> item_size_bytes;
-		memcpy(fifo -> buffer, remain_items, remain_bytes); 
+		if (remain_item_cnt > 0){
+			remain_items = (void *) ((uint64_t) reproduced_items + bytes_til_end);
+			remain_bytes = remain_item_cnt * fifo -> item_size_bytes;
+			memcpy(fifo -> buffer, remain_items, remain_bytes);
+		}
 	}
 
 
