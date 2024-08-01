@@ -37,7 +37,11 @@ void * run_send_ctrl_handler(void * _cq_thread_data){
 
 	int max_poll_entries = SEND_CTRL_MAX_POLL_ENTRIES;
 
-	struct ibv_wc work_completions[max_poll_entries];
+	struct ibv_wc * work_completions = (struct ibv_wc *) malloc(max_poll_entries * sizeof(struct ibv_wc));
+	if (work_completions == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate space for work_completions\n");
+		return NULL;
+	}
 
 	
 
@@ -143,13 +147,8 @@ void * run_recv_ctrl_handler(void * _cq_thread_data) {
 
 
 
-
-
-
 	enum ibv_wc_status status;
 	uint64_t wr_id;
-
-	
 		
 	// these will get populated upon extracting an item from channel
 	
@@ -163,10 +162,21 @@ void * run_recv_ctrl_handler(void * _cq_thread_data) {
 
 	int max_poll_entries = RECV_CTRL_MAX_POLL_ENTRIES;
 
-	struct ibv_wc work_completions[max_poll_entries];
+	struct ibv_wc * work_completions = (struct ibv_wc *) malloc(max_poll_entries * sizeof(struct ibv_wc));
+	if (work_completions == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate space for work_completions\n");
+		return NULL;
+	}
 	
 
-	Recv_Ctrl_Message recv_ctrl_messages[max_poll_entries];
+	Recv_Ctrl_Message * recv_ctrl_messages = (Recv_Ctrl_Message *) malloc(max_poll_entries * sizeof(Recv_Ctrl_Message));
+	if (recv_ctrl_messages == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate space for recv ctrl messages\n");
+		return NULL;
+	}
+	
+
+
 	Ctrl_Channel * recv_ctrl_channel = get_recv_ctrl_channel(net_world -> self_net, ib_device_id);
 
 
