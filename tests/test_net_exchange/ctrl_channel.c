@@ -109,6 +109,9 @@ int post_recv_batch_ctrl_channel(Ctrl_Channel * channel, uint32_t num_recvs, boo
 
 	// 5.) Actually post the work requests
 	if (channel -> channel_type == SHARED_RECV_CTRL_CHANNEL){
+		if (items_til_end == 0){
+			printf("Posting to srq batch with items_til_end == 0\n");
+		}
 		ret = post_srq_batch_work_requests(channel -> srq, items_til_end, (uint64_t) start_buffer_addr, item_length, lkey, wr_id_start);
 
 	}
@@ -120,6 +123,9 @@ int post_recv_batch_ctrl_channel(Ctrl_Channel * channel, uint32_t num_recvs, boo
 	if (remain_recvs > 0){
 
 		if (channel -> channel_type == SHARED_RECV_CTRL_CHANNEL){
+			if (items_til_end == 0){
+				printf("Posting to srq batch with remain_recvs == 0\n");
+			}
 			ret = post_srq_batch_work_requests(channel -> srq, remain_recvs, (uint64_t) channel -> fifo -> buffer, item_length, lkey, wr_id_remain);
 		}
 		else{
