@@ -619,7 +619,8 @@ int generate_match_ctrl_messages(uint32_t self_id, uint32_t trigger_node_id, boo
 		num_response_messages = matching_particpants_cnt;
 	}
 	else{
-		num_response_messages = ceil(matching_particpants_cnt / MAX_FINGERPRINT_MATCH_LOCATIONS);
+		// the ceil of number of response messages
+		num_response_messages = matching_particpants_cnt / MAX_FINGERPRINT_MATCH_LOCATIONS + ((matching_particpants_cnt % MAX_FINGERPRINT_MATCH_LOCATIONS) != 0);
 	}
 
 
