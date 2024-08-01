@@ -8,6 +8,7 @@
 
 #include "work_pool.h"
 #include "exchange_worker.h"
+#include "inventory_worker.h"
 
 
 typedef struct system {

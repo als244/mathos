@@ -47,30 +47,57 @@ System * init_system(char * master_ip_addr, char * self_ip_addr){
 		return NULL;
 	}
 
-	// add our exchange work pool
 
-	Exchange_Worker_Data exchange_worker_data;
+	// 7.) Add all work classes to pool!
 
-	exchange_worker_data.exchange = exchange;
-	exchange_worker_data.net_world = net_world;
 
-	// WILL OVERWRITE THE ARGUMENT IN STEP 7 WHEN READY TO RUN!
+	// a.) Exchange Class
+
+	Exchange_Worker_Data * exchange_worker_data = (Exchange_Worker_Data *) malloc(sizeof(Exchange_Worker_Data));
+	if (exchange_worker_data == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate exchange_worker_data before adding to work pool\n");
+		return NULL;
+	}
+
+	exchange_worker_data -> exchange = exchange;
+	exchange_worker_data -> net_world = net_world;
+
 	//	- each worker will have their own worker_data specified in their worker file
-	ret = add_work_class(work_pool, EXCHANGE_CLASS, NUM_EXCHANGE_WORKER_THREADS, EXCHANGE_WORKER_MAX_TASKS_BACKLOG, sizeof(Ctrl_Message), run_exchange_worker, &exchange_worker_data);
+	ret = add_work_class(work_pool, EXCHANGE_CLASS, NUM_EXCHANGE_WORKER_THREADS, EXCHANGE_WORKER_MAX_TASKS_BACKLOG, sizeof(Ctrl_Message), run_exchange_worker, exchange_worker_data);
 	if (ret != 0){
 		fprintf(stderr, "Error: unable to add worker class\n");
 		return NULL;
 	}
 
-	// 7.) Add benchmakrs to record throughputs of each work_class
+
+	// b.) Inventory Class
+
+	Inventory_Worker_Data * inventory_worker_data = (Inventory_Worker_Data *) malloc(sizeof(Inventory_Worker_Data));
+	if (inventory_worker_data == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate exchange_worker_data before adding to work pool\n");
+		return NULL;
+	}
+
+	//inventory_worker_data.inventory = inventory;
+	inventory_worker_data -> net_world = net_world;
+
+	//	- each worker will have their own worker_data specified in their worker file
+	ret = add_work_class(work_pool, INVENTORY_CLASS, NUM_INVENTORY_WORKER_THREADS, INVENTORY_WORKER_MAX_TASKS_BACKLOG, sizeof(Ctrl_Message), run_inventory_worker, &inventory_worker_data);
+	if (ret != 0){
+		fprintf(stderr, "Error: unable to add worker class\n");
+		return NULL;
+	}
+
+
+
+
+	// 8.) Add list to hold semaphores that calling thread should wait on before benchmark results are available
 
 	// init list of sempahores that calling thread can wait on to know when benchmarks are ready
-
 	// item_cmp not needed here
 	Deque * are_benchmarks_ready = init_deque(NULL);
 
-
-	// 8.) Update system values
+	// 9.) Update system values
 
 	system -> work_pool = work_pool;
 	system -> exchange = exchange;
@@ -85,7 +112,7 @@ System * init_system(char * master_ip_addr, char * self_ip_addr){
 
 
 // This should be called after init_system but before start_system
-int add_message_class_benchmark(System * system, CtrlMessageClass message_class, uint64_t start_message_cnt, uint64_t end_message_cnt){
+int add_message_class_benchmark(System * system, CtrlMessageClass message_class, uint64_t start_message_cnt, uint64_t end_message_cnt) {
 
 
 	Deque * are_benchmarks_ready = system -> are_benchmarks_ready;
@@ -113,7 +140,7 @@ int add_message_class_benchmark(System * system, CtrlMessageClass message_class,
 
 // This returns after min_init_nodes have been added to the net_world table
 // After calling this then can start to actually send/recv messages
-int start_system(System * system){
+int start_system(System * system) {
 
 	int ret;
 
