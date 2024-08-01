@@ -42,6 +42,29 @@ int main(int argc, char * argv[]){
 
 	uint64_t num_exchange_messages = 1000000;
 
+
+
+	// Starting benchmark at count 0 means it will set the start timestamp upon first message
+	ret = add_message_class_benchmark(system, EXCHANGE_CLASS, 0, num_exchange_messages);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to add benchmark to track work class throughput\n");
+		return -1;
+	}
+
+
+
+	// Actually start all threads!
+	//	- this call blocks until min_init_nodes (set within master) have been added to the net_world table
+	ret = start_system(system);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to start system\n");
+		return -1;
+	}
+
+
+	// NOW SEND/RECV MESSAGES!
+
+
 	// prepare all contorl messages
 
 	Ctrl_Message * ctrl_messages_to_send = (Ctrl_Message *) malloc(num_exchange_messages * sizeof(Ctrl_Message));

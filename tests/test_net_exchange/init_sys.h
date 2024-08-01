@@ -23,5 +23,9 @@ typedef struct system {
 
 System * init_system(char * master_ip_addr, char * self_ip_addr);
 
+int add_message_class_benchmark(System * system, CtrlMessageClass message_class, uint64_t start_message_cnt, uint64_t end_message_cnt);
+
+int start_system(System * system);
+
 
 #endif

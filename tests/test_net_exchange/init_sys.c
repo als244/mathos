@@ -70,23 +70,56 @@ System * init_system(char * master_ip_addr, char * self_ip_addr){
 	Deque * are_benchmarks_ready = init_deque(NULL);
 
 
+	// 8.) Update system values
+
+	system -> work_pool = work_pool;
+	system -> exchange = exchange;
+	system -> net_world = net_world;
+	system -> are_benchmarks_ready = are_benchmarks_ready;
+
+	// NOTE: 
+	//	- need to run start_system in order to actually bringup all CQ threads and all Worker Threads!!!
+
+	return system;
+}
+
+
+// This should be called after init_system but before start_system
+int add_message_class_benchmark(System * system, CtrlMessageClass message_class, uint64_t start_message_cnt, uint64_t end_message_cnt){
+
+
+	Deque * are_benchmarks_ready = system -> are_benchmarks_ready;
+	Work_Pool * work_pool = system -> work_pool; 
+
 	// exchange throughput benchmark 
 
 	// seeing how long it takes to process 1 million exchange tasks
-	uint64_t num_exchange_tasks_bench = 1000000;
-
-	sem_t * exch_bench_sem = add_work_class_bench(work_pool, EXCHANGE_CLASS, 0, num_exchange_tasks_bench);
-	if (ret != 0){
-		fprintf(stderr, "Error: failed to add benchmark to record exchange throughput\n");
-		return NULL;
+	sem_t * bench_sem = add_work_class_bench(work_pool, message_class, start_message_cnt, end_message_cnt);
+	if (bench_sem == NULL){
+		fprintf(stderr, "Error: failed to add benchmark to record throughput for class %d\n", message_class);
+		return -1;
 	}
 	// adding this to benchmarks deque for calling thread to wait on
-	ret = insert_deque(are_benchmarks_ready, BACK_DEQUE, exch_bench_sem);
+	int ret = insert_deque(are_benchmarks_ready, BACK_DEQUE, bench_sem);
 	if (ret != 0){
 		fprintf(stderr, "Error: failed to insert benchmark is ready sem to deque\n");
-		return NULL;
+		return -1;
 	}
 
+	return 0;
+}
+
+
+
+// This returns after min_init_nodes have been added to the net_world table
+// After calling this then can start to actually send/recv messages
+int start_system(System * system){
+
+	int ret;
+
+
+	Net_World * net_world = system -> net_world;
+	Work_Pool * work_pool = system -> work_pool;
 
 	// 8.) Spawn all worker threads
 
@@ -95,6 +128,7 @@ System * init_system(char * master_ip_addr, char * self_ip_addr){
 	ret = start_all_workers(work_pool);
 	if (ret != 0){
 		fprintf(stderr, "Error: starting all workers failed\n");
+		return -1;
 	}
 
 	
@@ -102,18 +136,11 @@ System * init_system(char * master_ip_addr, char * self_ip_addr){
 	ret = activate_cq_threads(net_world, work_pool);
 	if (ret != 0){
 		fprintf(stderr, "Error: failure activing cq threads\n");
-		return NULL;
+		return -1;
 	}
 
 	// 10.) wait until min_init_nodes (besides master) have been added to the net_world -> nodes table
 	sem_wait(&(net_world -> is_init_ready));
 
-	// 11.) Update system values
-
-	system -> work_pool = work_pool;
-	system -> exchange = exchange;
-	system -> net_world = net_world;
-	system -> are_benchmarks_ready = are_benchmarks_ready;
-
-	return system;
+	return 0;
 }
