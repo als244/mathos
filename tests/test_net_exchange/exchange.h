@@ -107,31 +107,7 @@ int do_exchange_function(Exchange * exchange, Ctrl_Message * ctrl_message, uint3
 
 
 
-// THE FUNCTIONS BELOW SHOULD NOT BE EXPOSED...
-
-
-// a bid is posted after ingesting a function and not having an argument fingerprints in local inventory.
-// The fingerprint corresponding to argument(s) is posted
-int post_bid(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id, Deque ** ret_matching_offer_participants);
-
-// an offer is posted after computing a new result. The fingerprint corresponding to the encoded function is posted
-//	- this fingerprint should already be in the future's table and should be moved to offer table, then this will trigger match
-int post_offer(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id, Deque ** ret_matching_bid_participants);
-
-
-// this order type is used after a bid was placed and that node received a match notification
-// after the match notfiication when the node whose bid it was actually receives object
-// they will post this order
-
-// it doesn't do any triggering of new notification, but it adds this node to the offer participants
-// for fingerprint and removes this node from that exchange item's bid table
-
-// if this node was not in the bid table for corresponding fignerprint there was an error
-int post_offer_confirm_match_data(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id);
-
-
-// a future order is posted after ingesting a function. The fingerprint corresponding to encoded function is posted
-int post_future(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id);
+void exch_message_type_to_str(char * buf, ExchMessageType exch_message_type);
 
 
 #endif

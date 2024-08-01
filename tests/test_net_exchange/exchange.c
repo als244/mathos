@@ -689,3 +689,52 @@ int do_exchange_function(Exchange * exchange, Ctrl_Message * ctrl_message, uint3
 	return ret;
 
 }
+
+
+void exch_message_type_to_str(char * buf, ExchMessageType exch_message_type){
+
+	switch(exch_message_type){
+			case BID_ORDER:
+				strcpy(buf, "BID_ORDER");
+				return;
+			case BID_CANCEL_ORDER:
+				strcpy(buf, "BID_CANCEL_ORDER");
+				return;
+			case BID_Q:
+				strcpy(buf, "BID_Q");
+				return;
+			case BID_Q_RESPONSE:
+				strcpy(buf, "BID_Q_RESPONSE");
+				return;
+			case OFFER_ORDER:
+				strcpy(buf, "OFFER_ORDER");
+				return;
+			case OFFER_CONFIRM_MATCH_DATA_ORDER:
+				strcpy(buf, "OFFER_CONFIRM_MATCH_DATA_ORDER");
+				return;
+			case OFFER_CANCEL_ORDER:
+				strcpy(buf, "OFFER_CANCEL_ORDER");
+				return;
+			case OFFER_Q:
+				strcpy(buf, "OFFER_Q");
+				return;
+			case OFFER_Q_RESPONSE:
+				strcpy(buf, "OFFER_Q_RESPONSE");
+				return;
+			case FUTURE_ORDER:
+				strcpy(buf, "FUTURE_ORDER");
+				return;
+			case FUTURE_CANCEL_ORDER:
+				strcpy(buf, "FUTURE_CANCEL_ORDER");
+				return;
+			case FUTURE_Q:
+				strcpy(buf, "FUTURE_Q");
+				return;
+			case FUTURE_Q_RESPONSE:
+				strcpy(buf, "FUTURE_Q_RESPONSE");
+				return;
+			default:
+				strcpy(buf, "UNKNOWN_EXCH_MESSAGE_TYPE");
+				return;
+	}
+}

@@ -46,11 +46,17 @@ void * run_exchange_worker(void * _worker_thread_data) {
 	}
 
 	Ctrl_Message ctrl_message;
+	Ctrl_Message_H ctrl_message_header;
+	Exch_Message * exch_message;
 
 	uint32_t num_triggered_response_ctrl_messages;
 	Ctrl_Message * triggered_response_ctrl_messages;
 
 	uint64_t num_consumed;
+
+	char exch_message_type_str[255];
+
+	char fingerprint_as_hex_str[2 * FINGERPRINT_NUM_BYTES + 1];
 
 	while (1){
 
@@ -68,12 +74,25 @@ void * run_exchange_worker(void * _worker_thread_data) {
 		for (uint64_t i = 0; i < num_consumed; i++){
 
 			ctrl_message = ctrl_messages[i];
+			ctrl_message_header = ctrl_message.header;
 			
 			//printf("[Exchange Worker %d] Consumed a control message!\n", worker_thread_id);
 
 			if (ctrl_message.header.message_class != EXCHANGE_CLASS){
 				fprintf(stderr, "[Exchange Worker %d] Error: an exchange worker saw a task not with exchange class, but instead: %d\n", worker_thread_id, ctrl_message.header.message_class);
 			}
+
+
+			exch_message = (Exch_Message *) &ctrl_message.contents;
+			
+			// within exchange.c
+			exch_message_type_to_str(exch_message_type_str, exch_message -> message_type);
+
+			// within utils.c
+			copy_byte_arr_to_hex_str(fingerprint_as_hex_str, FINGERPRINT_NUM_BYTES, exch_message -> fingerprint);
+
+			printf("\n\n[Exchange Worker %d] Processing exchange control message!\n\tSource Node ID: %u\n\tExchange Message Type: %s\n\tFingerprint: %s\n\n", 
+							net_world -> self_node_id, ctrl_message_header.source_node_id, exch_message_type_str, fingerprint_as_hex_str);
 
 			
 			// 1b.) Possibly need to start recording for benchmark
