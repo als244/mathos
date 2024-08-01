@@ -57,8 +57,17 @@ int post_recv_batch_work_requests(struct ibv_qp * qp, uint32_t num_items, uint64
 
 	struct ibv_recv_wr * bad_wr = NULL;
 
-	struct ibv_recv_wr wr_batch[num_items];
-	struct ibv_sge sge_batch[num_items];
+	struct ibv_recv_wr * wr_batch = (struct ibv_recv_wr *) malloc(num_items * sizeof(struct ibv_recv_wr));
+	if (wr_batch == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate wr_batch within post recv batch\n");
+		return -1;
+	}
+
+	struct ibv_sge * sge_batch = (struct ibv_sge *) malloc(num_items * sizeof(struct ibv_sge));
+	if (sge_batch == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate sge_batch within post recv batch\n");
+		return -1;
+	}
 
 	for (uint32_t i = 0; i < num_items; i++){
 		sge_batch[i].addr = addr_start + (i * item_length);
@@ -82,6 +91,9 @@ int post_recv_batch_work_requests(struct ibv_qp * qp, uint32_t num_items, uint64
 		fprintf(stderr, "Error: could not post receive work request within batch\n");
 		return -1;
 	}
+
+	free(wr_batch);
+	free(sge_batch);
 
 	return 0;
 }
@@ -124,8 +136,17 @@ int post_srq_batch_work_requests(struct ibv_srq * srq, uint32_t num_items, uint6
 
 	struct ibv_recv_wr * bad_wr = NULL;
 
-	struct ibv_recv_wr wr_batch[num_items];
-	struct ibv_sge sge_batch[num_items];
+	struct ibv_recv_wr * wr_batch = (struct ibv_recv_wr *) malloc(num_items * sizeof(struct ibv_recv_wr));
+	if (wr_batch == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate wr_batch within post srq batch\n");
+		return -1;
+	}
+
+	struct ibv_sge * sge_batch = (struct ibv_sge *) malloc(num_items * sizeof(struct ibv_sge));
+	if (sge_batch == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate sge_batch within post srq batch\n");
+		return -1;
+	}
 
 	for (uint32_t i = 0; i < num_items; i++){
 		sge_batch[i].addr = addr_start + (i * item_length);
@@ -148,8 +169,13 @@ int post_srq_batch_work_requests(struct ibv_srq * srq, uint32_t num_items, uint6
 	if (ret != 0){
 		fprintf(stderr, "Error: could not post srq work request within batch: %d\nNum items: %u, item length: %u, wr_id start %lu, addr_start: %lu\n\n", ret, num_items, item_length, wr_id_start, addr_start);
 		fprintf(stderr, "Bad WR:\n\tAddr: %lu\n\tLength: %u\n\tWr ID: %lu\n\n", (bad_wr -> sg_list)[0].addr, (bad_wr -> sg_list)[0].length, bad_wr -> wr_id);
+		free(wr_batch);
+		free(sge_batch);
 		return -1;
 	}
+
+	free(wr_batch);
+	free(sge_batch);
 
 	return 0;
 }
