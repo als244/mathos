@@ -73,6 +73,6 @@ void * run_recv_ctrl_dispatcher(void * _ctrl_recv_dispatcher_thread_data) {
 
 		next_worker_id = next_worker_id_by_class[control_message_class] % num_workers_per_class[control_message_class];
 				
-		produce_fifo(worker_fifos[next_worker_id], &ctrl_message);\
+		produce_fifo(worker_fifos[next_worker_id], &ctrl_message);
 	}
 }
