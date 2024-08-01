@@ -125,7 +125,7 @@ void * run_exchange_worker(void * _worker_thread_data) {
 					}
 				}
 				else{
-					printf("Triggered exchange response for self!");
+					printf("\n[Exchange Worker %d] Triggered exchange response for self!\n\tMessage Class: %d\n\n", net_world -> self_node_id, triggered_response_ctrl_messages[i].header.message_class);
 				}
 				
 			}
