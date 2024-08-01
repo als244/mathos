@@ -55,7 +55,6 @@ void * run_exchange_worker(void * _worker_thread_data) {
 	uint64_t num_consumed;
 
 	char exch_message_type_str[255];
-
 	char fingerprint_as_hex_str[2 * FINGERPRINT_NUM_BYTES + 1];
 
 	while (1){
@@ -125,7 +124,7 @@ void * run_exchange_worker(void * _worker_thread_data) {
 					}
 				}
 				else{
-					printf("\n[Exchange Worker %d] Triggered exchange response for self (should be routed to appropriate class function)!\n\tMessage Class: %d\n\n", 
+					printf("\n[Exchange Worker %d] Triggered exchange response for self (should be routed to appropriate class function)!\n\tMessage Class: %s\n\n", 
 								net_world -> self_node_id, message_class_to_str(triggered_response_ctrl_messages[i].header.message_class));
 				}
 				
