@@ -48,7 +48,7 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 	// Set the exchange message within control message class
 
 	// cast the contents buffer within control message to exchange message so we can easily write to it
-	Exch_Message * exch_message = (Exch_Message *) exch_ctrl_message.contents;
+	Exch_Message * exch_message = (Exch_Message *) (&exch_ctrl_message.contents);
 	exch_message -> message_type = exch_message_type;
 	memcpy(exch_message -> fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
 
