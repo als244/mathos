@@ -43,7 +43,7 @@ int post_recv_work_request(struct ibv_qp * qp, uint64_t addr, uint32_t length, u
 
 	ret = ibv_post_recv(qp, &wr, &bad_wr);
 	if (ret != 0){
-		fprintf(stderr, "Error: could note post receive work request\n");
+		fprintf(stderr, "Error: could not post receive work request\n");
 		return -1;
 	}
 
@@ -67,7 +67,7 @@ int post_recv_batch_work_requests(struct ibv_qp * qp, uint32_t num_items, uint64
 
 		wr_batch[i].sg_list = &(sge_batch[i]);
 		wr_batch[i].num_sge = 1;
-		wr_batch[i].wr_id = wr_id_start + 1;
+		wr_batch[i].wr_id = wr_id_start + i;
 
 		if (i < num_items - 1){
 			wr_batch[i].next = &(wr_batch[i + 1]);
@@ -79,7 +79,7 @@ int post_recv_batch_work_requests(struct ibv_qp * qp, uint32_t num_items, uint64
 
 	ret = ibv_post_recv(qp, wr_batch, &bad_wr);
 	if (ret != 0){
-		fprintf(stderr, "Error: could note post receive work request\n");
+		fprintf(stderr, "Error: could not post receive work request within batch\n");
 		return -1;
 	}
 
@@ -110,7 +110,7 @@ int post_srq_work_request(struct ibv_srq * srq, uint64_t addr, uint32_t length, 
 
 	ret = ibv_post_srq_recv(srq, &wr, &bad_wr);
 	if (ret != 0){
-		fprintf(stderr, "Error: could note post srq work request\n");
+		fprintf(stderr, "Error: could not post srq work request\n");
 		return -1;
 	}
 
@@ -134,7 +134,7 @@ int post_srq_batch_work_requests(struct ibv_srq * srq, uint32_t num_items, uint6
 
 		wr_batch[i].sg_list = &(sge_batch[i]);
 		wr_batch[i].num_sge = 1;
-		wr_batch[i].wr_id = wr_id_start + 1;
+		wr_batch[i].wr_id = wr_id_start + i;
 
 		if (i < num_items - 1){
 			wr_batch[i].next = &(wr_batch[i + 1]);
@@ -146,7 +146,8 @@ int post_srq_batch_work_requests(struct ibv_srq * srq, uint32_t num_items, uint6
 
 	ret = ibv_post_srq_recv(srq, wr_batch, &bad_wr);
 	if (ret != 0){
-		fprintf(stderr, "Error: could note post receive work request\n");
+		fprintf(stderr, "Error: could not post srq work request within batch: %d\nNum items: %u, item length: %u, wr_id start %lu, addr_start: %lu\n\n", ret, num_items, item_length, wr_id_start, addr_start);
+		fprintf(stderr, "Bad WR:\n\tAddr: %lu\n\tLength: %u\n\tWr ID: %lu\n\n", (bad_wr -> sg_list)[0].addr, (bad_wr -> sg_list)[0].length, bad_wr -> wr_id);
 		return -1;
 	}
 
