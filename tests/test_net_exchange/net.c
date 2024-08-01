@@ -328,9 +328,33 @@ Net_Node * net_add_node(Net_World * net_world, Rdma_Init_Info * remote_rdma_init
 	}
 
 	node -> endpoints = remote_endpoints;
-	node -> active_ctrl_endpoints = active_ctrl_endpoints;
+	node -> dest_active_ctrl_endpoints = active_ctrl_endpoints;
 
-	// 4.) Set default net_dest for control destination (if we want to avoid overhead of taking/replacing from active dest list)
+
+	// 4.) Set a default sending control channel to get to this node
+	//		- chooseing dest_node_id % noumber of self active ctrl endpoints
+
+	Deque * self_active_ctrl_endpoints = net_world -> self_net -> self_node -> active_ctrl_endpoints;
+	uint64_t num_self_active_ctrl_dest = get_count_deque(self_active_ctrl_endpoints);
+
+	uint64_t default_assigned_ctrl_send_ind = node -> node_id % num_self_active_ctrl_dest;
+
+	Self_Endpoint * default_send_ctrl_endpoint;
+	ret = peek_item_at_index_deque(self_active_ctrl_endpoints, FRONT_DEQUE, default_assigned_ctrl_send_ind, (void **) &default_send_ctrl_endpoint);
+	
+	Ctrl_Channel * default_send_ctrl_channel;
+	// there are no active contorl endpoints here
+	if (ret != 0){
+		default_send_ctrl_channel = NULL;
+	}
+	else{
+		default_send_ctrl_channel = default_send_ctrl_endpoint -> send_ctrl_channel;
+	}
+
+	node -> default_send_ctrl_channel = default_send_ctrl_channel;
+
+
+	// 5.) Set default net_dest for control destination (if we want to avoid overhead of taking/replacing from active dest list)
 	//		- choosing self_node_id % number of active ctrl endpoints at dest
 	//			- this so that in a large network various nodes will have different default destinations to the same node id
 
@@ -354,7 +378,6 @@ Net_Node * net_add_node(Net_World * net_world, Rdma_Init_Info * remote_rdma_init
 		// need to look up the correct address handle
 		
 		// 1.) look up deafult sending channel to determine the ib device
-		Ctrl_Channel * default_send_ctrl_channel = net_world -> self_net -> self_node -> default_send_ctrl_channel;
 		// there are no sending control endpoints with an active port => we can't have a destination contorl endpoint
 		if (default_send_ctrl_channel == NULL){
 			ah = NULL;
@@ -434,6 +457,8 @@ void destroy_remote_node(Net_World * net_world, Net_Node * node){
 }
 
 // Upon intialization the default control / send channels are decided upon
+//	- choose node_id % number of self active ctrl endpoints to send
+//		- so that control messags to different nodes won't be blocked
 //	- choosing self_node_id % number of active ctrl endpoints at dest
 //		- this so that in a large network various nodes will have different default destinations to the same node id
 
@@ -443,29 +468,28 @@ int post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message) {
 
 	int ret;
 
-	// 1.) Ensure that this node has a send control endpoint available
-
-	Ctrl_Channel * default_send_ctrl_channel = net_world -> self_net -> self_node -> default_send_ctrl_channel;
-	if (default_send_ctrl_channel == NULL){
-		fprintf(stderr, "Error: default_post_send_ctrl_net failed because it appears this sending node has no control endpoints available for sending on\n");
-		return -1;
-	}
-
-	// 2.) Lookup node in table
+	// 1.) Lookup node in table
 	uint32_t remote_node_id = ctrl_message -> header.dest_node_id;
 	Net_Node target_node;
 	target_node.node_id = remote_node_id;
 
 	Net_Node * remote_node = find_item_table(net_world -> nodes, &target_node);
 	if (remote_node == NULL){
-		fprintf(stderr, "Error: default_post_send_ctrl_net failed because couldn't find remote node with id %u in net_world -> nodes table\n", remote_node_id);
+		fprintf(stderr, "Error: post_send_ctrl_net failed because couldn't find remote node with id %u in net_world -> nodes table\n", remote_node_id);
+		return -1;
+	}
+
+	// 2.) Obtain the appropriate sending channel
+	Ctrl_Channel * default_send_ctrl_channel = remote_node -> default_send_ctrl_channel;
+	if (default_send_ctrl_channel == NULL){
+		fprintf(stderr, "Error: post_send_ctrl_net failed becaues it appears this node as no control endpoints available\n");
 		return -1;
 	}
 
 	// 3.) Obtain default destination from node
 	Net_Dest default_ctrl_dest = remote_node -> default_ctrl_dest;
 	if (default_ctrl_dest.ah == NULL){
-		fprintf(stderr, "Error: default_post_send_ctrl_net failed because it appears the destination node %u, has no control endpoints available\n", remote_node_id);
+		fprintf(stderr, "Error: post_send_ctrl_net failed because it appears the destination node %u, has no control endpoints available\n", remote_node_id);
 		return -1;
 	}
 
@@ -531,7 +555,7 @@ int policy_post_send_ctrl_net(Net_World * net_world, Ctrl_Message * ctrl_message
 	// 2b.) Decide remote endpoint
 
 	Net_Endpoint * remote_ctrl_endpoint;
-	Deque * remote_active_ctrl_endpoints = remote_node -> active_ctrl_endpoints;
+	Deque * remote_active_ctrl_endpoints = remote_node -> dest_active_ctrl_endpoints;
 
 	ret = take_and_replace_deque(remote_active_ctrl_endpoints, FRONT_DEQUE, BACK_DEQUE, (void **) &remote_ctrl_endpoint);
 	if (ret != 0){

@@ -1,6 +1,6 @@
 #include "ctrl_handler.h"
 
-void * run_ctrl_handler(void * _cq_thread_data){
+void * run_send_ctrl_handler(void * _cq_thread_data){
 
 	int ret;
 
@@ -17,20 +17,12 @@ void * run_ctrl_handler(void * _cq_thread_data){
 	Net_World * net_world = cq_thread_data -> net_world;
 	Self_Net * self_net = net_world -> self_net;
 
-	Work_Pool * work_pool = cq_thread_data -> work_pool;
-	bool is_recv_cq = cq_thread_data -> is_recv_cq;
-
-
 	struct ibv_cq * cq = ibv_cq_ex_to_cq(cq_ex);
-
-
-	uint32_t self_node_id = net_world -> self_node_id;
-
 
 	enum ibv_wc_status status;
 	uint64_t wr_id;
 
-	Ctrl_Channel * ctrl_channel;
+	
 		
 	// these will get populated upon extracting an item from channel
 	
@@ -40,48 +32,19 @@ void * run_ctrl_handler(void * _cq_thread_data){
 	//	- but want low latency!!!
 	//	- many, many exchange requests per sec
 
-	uint64_t fifo_insert_ind;
-
-	
 
 	int num_comp;
 
-	int max_poll_entries;
-
-	if (is_recv_cq){
-		max_poll_entries = RECV_CTRL_MAX_POLL_ENTRIES;
-	}
-	else{
-		max_poll_entries = SEND_CTRL_MAX_POLL_ENTRIES;
-	}
-
-	
+	int max_poll_entries = SEND_CTRL_MAX_POLL_ENTRIES;
 
 	struct ibv_wc work_completions[max_poll_entries];
+
 	
 
-
-	// Knowing what to modulus by when placing wokrer
-	int num_workers_per_class[work_pool -> max_work_class_ind];
-	for (int i = 0; i < work_pool -> max_work_class_ind; i++){
-		if ((work_pool -> classes)[i] == NULL){
-			num_workers_per_class[i] = 0;
-		}
-		else{
-			num_workers_per_class[i] = (work_pool -> classes)[i] -> num_workers;
-		}
-	}
-
-	// Deciding which worker fifo to place on
-	uint64_t next_worker_id_by_class[work_pool -> max_work_class_ind];
-	for (int i = 0; i < work_pool -> max_work_class_ind; i++){
-		next_worker_id_by_class[i] = 0;
-	}
-
+	Ctrl_Channel * ctrl_channel;
 
 	Ctrl_Message ctrl_message;
 	Ctrl_Message_H ctrl_message_header;
-
 
 
 	while (1){
@@ -90,17 +53,15 @@ void * run_ctrl_handler(void * _cq_thread_data){
 		do {
 			num_comp = ibv_poll_cq(cq, max_poll_entries, work_completions);
 		} while (num_comp == 0);
+
+
+		// Iterate over all sends, and see which QP's send control channel needs to be consumed
 		
-
 		for (int i = 0; i < num_comp; i++){
-
 
 			// Consume the completed work request
 			wr_id = work_completions[i].wr_id;
 			status = work_completions[i].status;
-
-			
-			/* DO SOMETHING WITH wr_id! */
 				
 			// This message is kinda ugly. Can be helpful with errors
 			// printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
@@ -110,13 +71,11 @@ void * run_ctrl_handler(void * _cq_thread_data){
 				// DO ERROR HANDLING HERE!
 			}
 
-			// 1-3 should probably be in loop the size of max_poll_entries
-
 
 			// 1.) get channel
 
 			// Defined within self_net.c
-			ctrl_channel = get_ctrl_channel(self_net, wr_id);
+			ctrl_channel = get_send_ctrl_channel(self_net, wr_id);
 			if (unlikely(ctrl_channel == NULL)){
 				fprintf(stderr, "Error: control completion handler failed. Couldn't get channel. For wr_id = %lu\n", wr_id);
 				return NULL;
@@ -133,55 +92,139 @@ void * run_ctrl_handler(void * _cq_thread_data){
 				return NULL;
 			}
 
-			
-			// 3.) If it was a shared receive / recv channel then we should act 
+			ctrl_message_header = ctrl_message.header;
 
-			if (is_recv_cq){
-
-				ctrl_message_header = ctrl_message.header;
-					
-					
-				// printf("\n\n[Node %u] Received control message!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
-				// 				self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
-
-				// all fifo buffers at at:
-				// work_pool -> classes)[ctrl_message_header.message_class] -> tasks
-					
-				// Error check a valid work class to place message on proper task fifo
-				int control_message_class = ctrl_message_header.message_class;
-				if (control_message_class > work_pool -> max_work_class_ind){
-					fprintf(stderr, "Error: received message specifying message class %d, but declared maximum work class index of %d\n", control_message_class, work_pool -> max_work_class_ind);
-					continue;
-				}
-
-				// Probably want to ensure there that the class has been added (and thus tasks is non-null)
-			
-
-				Fifo ** worker_fifos = (work_pool -> classes)[control_message_class] -> worker_tasks;
-
-				int next_worker_id = next_worker_id_by_class[control_message_class] % num_workers_per_class[control_message_class];
-				
-				fifo_insert_ind = produce_fifo(worker_fifos[next_worker_id], &ctrl_message);
-
-				/* NOT USING SWITCH BECAUSE UNNECESSARY COMPARISONS
-				switch(ctrl_message_header.message_class){
-					case EXCHANGE_CLASS:
-						printf("\n[Ctrl Handler] Producing on EXCHANGE tasks fifo\n");
-						fifo_insert_ind = produce_fifo((work_pool -> classes)[ctrl_message_header.message_class] -> tasks, &ctrl_message);
-						break;
-					case INVENTORY_CLASS:
-
-					default:
-						fprintf(stderr, "Error: saw an unknown message class of type %d\n", ctrl_message_header.message_class);
-						break; 
-				}
-				*/
-			}
-			// else{
-			// 	printf("\n\n[Node %u] Sent message work completion!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
-			// 				self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
-			// }
+			printf("\n\n[Node %u] Sent message work completion!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
+						net_world -> self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
 		}	
+	}
+
+	return 0;
+}
+
+void * run_recv_ctrl_handler(void * _cq_thread_data) {
+
+	int ret;
+
+	Cq_Thread_Data * cq_thread_data = (Cq_Thread_Data *) _cq_thread_data;
+
+
+	// 1.) Start a dispatcher thread if needed
+
+	Fifo * recv_dispatcher_fifo = cq_thread_data -> recv_dispatcher_fifo;
+
+
+	Ctrl_Recv_Dispatcher_Thread_Data recv_dispatcher_thread_data;
+	recv_dispatcher_thread_data.ib_device_id = cq_thread_data -> ib_device_id;
+	recv_dispatcher_thread_data.dispatcher_fifo = recv_dispatcher_fifo;
+	recv_dispatcher_thread_data.net_world = cq_thread_data -> net_world;
+	recv_dispatcher_thread_data.work_pool = cq_thread_data -> work_pool;
+
+
+	// if we are supposed to dispatch
+	if (recv_dispatcher_fifo != NULL){
+		ret = pthread_create(&(cq_thread_data -> dispatcher_thread), NULL, run_recv_ctrl_dispatcher, &recv_dispatcher_thread_data);
+		if (ret != 0){
+			fprintf(stderr, "Error: failed to start ctrl receive dispatcher thread within ib device id: %d\n", cq_thread_data -> ib_device_id);
+			return NULL;
+		}
+	}
+
+
+	// 2.) determine what cq this thread is working on
+
+	// needed to find the CQ this thread is supposed to work on! 
+	struct ibv_cq_ex * cq_ex = cq_thread_data -> cq;
+	Net_World * net_world = cq_thread_data -> net_world;
+
+	int ib_device_id = cq_thread_data -> ib_device_id;
+
+	struct ibv_cq * cq = ibv_cq_ex_to_cq(cq_ex);
+
+
+
+
+
+
+	enum ibv_wc_status status;
+	uint64_t wr_id;
+
+	
+		
+	// these will get populated upon extracting an item from channel
+	
+
+	// For now doing an infnite loop unless error....
+	// Burns a lot of cpu....
+	//	- but want low latency!!!
+	//	- many, many exchange requests per sec
+
+	int num_comp;
+
+	int max_poll_entries = RECV_CTRL_MAX_POLL_ENTRIES;
+
+	struct ibv_wc work_completions[max_poll_entries];
+	
+
+	Recv_Ctrl_Message recv_ctrl_messages[max_poll_entries];
+	Ctrl_Channel * recv_ctrl_channel = get_recv_ctrl_channel(net_world -> self_net, ib_device_id);
+
+
+	while (1){
+
+
+		// 1.) consume completed receive work requests
+
+
+		// wait for an entry
+		do {
+			num_comp = ibv_poll_cq(cq, max_poll_entries, work_completions);
+		} while (num_comp == 0);
+
+
+		// 2.) Obtain the control messages that were sent to this node
+		//		- copy the messages from the verbs-registered buffer, and then replenish the
+		//			received work requests in the SRQ corresponding to this thread's ib device
+
+
+		// This copies the data from teh control channel to recv_ctrl_messages
+		// along with marking them as consumed and re-producing the same quantity
+		//		- it "replenishes" the recv work requests
+
+		// The purpose of the batching and handing off is so ensure
+		// that there are always receive requests available for senders
+		// and that the sending messages won't be silently dropped
+		// thus want minimal overhead between consuming a receive and reproducing
+		ret = extract_batch_recv_ctrl_channel(recv_ctrl_channel, num_comp, recv_ctrl_messages);
+		if (unlikely(ret != 0)){
+			fprintf(stderr, "Error: there was an error replenishing receive work requests after consuming %d\n", num_comp);
+			return NULL;
+		}
+
+		// 3.) error handle for bad statuses
+		for (int i = 0; i < num_comp; i++){
+
+			// Consume the completed work request
+			wr_id = work_completions[i].wr_id;
+			status = work_completions[i].status;
+
+				
+			// This message is kinda ugly. Can be helpful with errors
+			// printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
+
+			if (status != IBV_WC_SUCCESS){
+				fprintf(stderr, "Error: work request id %lu had error. Status: %d\n", wr_id, status);
+				// DO ERROR HANDLING HERE!
+			}
+		}
+
+
+		// 4.) Add these receive messages to the sorting fifo 
+		//		which will be responsible for reading the header 
+		//		and placing it on the appropriate worker's task queue
+
+
+		produce_batch_fifo(recv_dispatcher_fifo, num_comp, recv_ctrl_messages);
 	}
 
 	return 0;

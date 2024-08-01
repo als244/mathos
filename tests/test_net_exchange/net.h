@@ -80,8 +80,11 @@ typedef struct net_node {
 	// For Data-Endpoints:
 	//	- the receiver will tell the sender which endpoint ind
 	Net_Endpoint * endpoints;
+	// setting a default send control channel for sending to this node
+	// will be this node's node id % number of self active control endpoints
+	Ctrl_Channel * default_send_ctrl_channel;
 	// to maintin a list of all available endpoints to send control messsages to
-	Deque * active_ctrl_endpoints;
+	Deque * dest_active_ctrl_endpoints;
 	// setting the first endpoint with type control and associated to active port as default destination
 	// assumes that this node is also using default ctrl_channel for sending to this dest
 	Net_Dest default_ctrl_dest;

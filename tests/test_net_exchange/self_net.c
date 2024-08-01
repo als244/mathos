@@ -308,7 +308,7 @@ int init_self_endpoint(Self_Net * self_net, Self_Port * port, int ib_device_id, 
 		// b.) either create or point to receive channel
 		Ctrl_Channel * recv_ctrl_channel;
 		if (to_use_srq){
-			recv_ctrl_channel = (self_net -> dev_shared_recv_ctrl_channels)[ib_device_id];
+			recv_ctrl_channel = (self_net -> recv_ctrl_channels)[ib_device_id];
 		}
 		else{
 			recv_ctrl_channel = init_ctrl_channel(RECV_CTRL_CHANNEL, QP_MAX_RECV_WR, ib_device_id, ibv_pd, node_endpoint_ind, ibv_qp, NULL, true);
@@ -451,19 +451,6 @@ Self_Node * init_self_node(Self_Net * self_net, int num_endpoint_types, Endpoint
 	self_node -> endpoints = endpoints;
 	// this has been modified within init_all_endpoints
 	self_node -> active_ctrl_endpoints = active_ctrl_endpoints;
-
-	// 4.) Set default sending contorl channel to send on 
-	//		- (if we don't want to deal with overhead taking/replacing form active_ctrl_endpoints)
-
-	Self_Endpoint * send_ctrl_endpoint; 
-	int ret = take_and_replace_deque(active_ctrl_endpoints, FRONT_DEQUE, FRONT_DEQUE, (void **) &send_ctrl_endpoint);
-	// There were no control endpoints with active port
-	if (ret != 0){
-		self_node -> default_send_ctrl_channel = NULL;
-	}
-	else{
-		self_node -> default_send_ctrl_channel = send_ctrl_endpoint -> send_ctrl_channel;
-	}
 
 	return self_node;
 }
@@ -637,21 +624,21 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 
 
 	// 5.) Create Channels for each srq
-	Ctrl_Channel ** dev_shared_recv_ctrl_channels = (Ctrl_Channel **) malloc(sizeof(Ctrl_Channel *));
-	if (dev_shared_recv_ctrl_channels == NULL){
+	Ctrl_Channel ** recv_ctrl_channels = (Ctrl_Channel **) malloc(sizeof(Ctrl_Channel *));
+	if (recv_ctrl_channels == NULL){
 		fprintf(stderr, "Error: malloc failed for allocating dev_shared_recv_channels\n");
 		return NULL;
 	}
 
 	for (uint8_t i = 0; i < num_devices; i++){
-		dev_shared_recv_ctrl_channels[i] = init_ctrl_channel(SHARED_RECV_CTRL_CHANNEL, SRQ_MAX_WR, i, dev_pds[i], 0, NULL, dev_srqs[i], true);
-		if (dev_shared_recv_ctrl_channels[i] == NULL){
+		recv_ctrl_channels[i] = init_ctrl_channel(SHARED_RECV_CTRL_CHANNEL, SRQ_MAX_WR, i, dev_pds[i], 0, NULL, dev_srqs[i], true);
+		if (recv_ctrl_channels[i] == NULL){
 			fprintf(stderr, "Error: failed to initialize shared receive channel for device: %u\n", i);
 			return NULL;
 		}
 	}
 
-	self_net -> dev_shared_recv_ctrl_channels = dev_shared_recv_ctrl_channels;
+	self_net -> recv_ctrl_channels = recv_ctrl_channels;
 
 
 	// 6.) Create Completition Queues for each device and for each endpoint type for both recv and send cqs
@@ -771,7 +758,37 @@ Self_Net * default_master_config_init_self_net(char * self_ip_addr) {
 // it sees a work completition and needs to extract it
 // and do something with it (pass it off to other worker threads)
 // (e.g. exchange workers, sched workers, config workers, etc.)
-Ctrl_Channel * get_ctrl_channel(Self_Net * self_net, uint64_t wr_id){
+Ctrl_Channel * get_recv_ctrl_channel(Self_Net * self_net, int ib_device_id){
+
+	// Could error check if we cared
+	return (self_net -> recv_ctrl_channels)[ib_device_id];
+	
+}
+
+Ctrl_Channel * get_send_ctrl_channel(Self_Net * self_net, uint64_t wr_id) {
+
+	CtrlChannelType channel_type;
+	uint8_t ib_device_id;
+	uint32_t endpoint_id;
+
+	decode_ctrl_wr_id(wr_id, &channel_type, &ib_device_id, &endpoint_id);
+
+	Self_Node * self_node = self_net -> self_node;
+
+	if (channel_type != SEND_CTRL_CHANNEL){
+		fprintf(stderr, "Error: decoded a wr_id = %lu to get a channel type of %d, but was expecting a send control type of %d\n", wr_id, channel_type, SEND_CTRL_CHANNEL);
+		return NULL;
+	}
+
+	if (endpoint_id > self_node -> num_endpoints){
+		fprintf(stderr, "Error: decoded wr_id = %lu to get send ctrl channel on endpoint id: %u, but only have %u endpoints\n", wr_id, endpoint_id, self_node -> num_endpoints);
+		return NULL;
+	}
+	return (self_node -> endpoints)[endpoint_id].send_ctrl_channel;
+}
+
+
+Ctrl_Channel * get_ctrl_channel(Self_Net * self_net, uint64_t wr_id) {
 
 	CtrlChannelType channel_type;
 	uint8_t ib_device_id;
@@ -787,7 +804,7 @@ Ctrl_Channel * get_ctrl_channel(Self_Net * self_net, uint64_t wr_id){
 				fprintf(stderr, "Error: decoded wr_id = %lu to get shared recv ctrl channel on ib device id: %u, but only have %u ib devices\n", wr_id, ib_device_id, self_net -> num_ib_devices);
 				return NULL;
 			}
-			return (self_net -> dev_shared_recv_ctrl_channels)[ib_device_id];
+			return (self_net -> recv_ctrl_channels)[ib_device_id];
 		case RECV_CTRL_CHANNEL:
 			if (endpoint_id > self_node -> num_endpoints){
 				fprintf(stderr, "Error: decoded wr_id = %lu to get recv ctrl channel on endpoint id: %u, but only have %u endpoints\n", wr_id, endpoint_id, self_node -> num_endpoints);

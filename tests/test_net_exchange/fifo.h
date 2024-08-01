@@ -46,6 +46,9 @@ void * get_buffer_addr(Fifo * fifo, uint64_t ind);
 uint64_t produce_batch_fifo(Fifo * fifo, uint64_t num_items, void * items);
 void consume_batch_fifo(Fifo * fifo, uint64_t num_items, void * ret_items);
 
+// Used within control handlers to retrieve number of work completitions and produce empty receives (insert items would be NULL)
+uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void * consumed_items, void * reproduced_items);
+
 
 
 

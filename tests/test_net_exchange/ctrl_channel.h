@@ -25,7 +25,7 @@ typedef enum ctrl_channel_type {
 
 
 
-typedef struct channel {
+typedef struct ctrl_channel {
 	// within produced_channel type determines if we will post a send/recv
 	CtrlChannelType channel_type;
 	uint8_t ib_device_id;
@@ -65,14 +65,23 @@ Ctrl_Channel * init_ctrl_channel(CtrlChannelType channel_type, uint32_t max_item
 // the 
 // should be NULL for posting receives
 
-int post_recv_ctrl_channel(Ctrl_Channel * channel);
 int post_send_ctrl_channel(Ctrl_Channel * channel, Ctrl_Message * ctrl_message, struct ibv_ah * ah, uint32_t remote_qp_num, uint32_t remote_qkey);
 
 // populates a control message template passed in
 // only returns error if cannot replace an item on a receive channel
 int extract_ctrl_channel(Ctrl_Channel * channel, Ctrl_Message * ret_ctrl_message);
 
-// used within completion queue handles to know where to extract new completions
+
+
+// Consumes num_messages from the channel and reproduces that many messages (replenshing the post receives)
+int extract_batch_recv_ctrl_channel(Ctrl_Channel * channel, uint32_t num_messages, Recv_Ctrl_Message * ret_recv_ctrl_messages);
+
+
+// This is used when consuming send_ctrl channels within the send ctrl cq handler threads
+//	called from run_send_ctrl_handler -> get_ctrl_channel (within self_net.c)
+
+// This is useful because when we have multiple control endpoint QPs per ib device we only want 1 completition thread and
+// so we use the wr_id to identify which QP channel (Send Queue) can be consumed and then posted to again (it will be blocking otherwise)
 void decode_ctrl_wr_id(uint64_t wr_id, CtrlChannelType * ret_channel_type, uint8_t * ret_ib_device_id, uint32_t * ret_endpoint_id);
 
 #endif

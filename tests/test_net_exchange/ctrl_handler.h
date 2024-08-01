@@ -7,6 +7,7 @@
 #include "net.h"
 #include "cq_thread_data.h"
 #include "work_pool.h"
+#include "ctrl_recv_dispatch.h"
 
 // to print message class
 #include "utils.h"
@@ -16,7 +17,11 @@
 
 
 // Called from within cq_handler.c => run_cq_thread
-void * run_ctrl_handler(void * _cq_thread_data);
+
+
+void * run_recv_ctrl_handler(void * _cq_thread_data);
+void * run_send_ctrl_handler(void * _cq_thread_data);
+
 
 
 #endif

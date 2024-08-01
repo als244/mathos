@@ -50,6 +50,43 @@ int post_recv_work_request(struct ibv_qp * qp, uint64_t addr, uint32_t length, u
 	return 0;
 }
 
+
+int post_recv_batch_work_requests(struct ibv_qp * qp, uint32_t num_items, uint64_t addr_start, uint32_t item_length, uint32_t lkey, uint64_t wr_id_start) {
+	
+	int ret;
+
+	struct ibv_recv_wr * bad_wr = NULL;
+
+	struct ibv_recv_wr wr_batch[num_items];
+	struct ibv_sge sge_batch[num_items];
+
+	for (uint32_t i = 0; i < num_items; i++){
+		sge_batch[i].addr = addr_start + (i * item_length);
+		sge_batch[i].length = item_length;
+		sge_batch[i].lkey = lkey;
+
+		wr_batch[i].sg_list = &(sge_batch[i]);
+		wr_batch[i].num_sge = 1;
+		wr_batch[i].wr_id = wr_id_start + 1;
+
+		if (i < num_items - 1){
+			wr_batch[i].next = &(wr_batch[i + 1]);
+		}
+		else{
+			wr_batch[i].next = NULL;
+		}
+	}
+
+	ret = ibv_post_recv(qp, wr_batch, &bad_wr);
+	if (ret != 0){
+		fprintf(stderr, "Error: could note post receive work request\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+
 int post_srq_work_request(struct ibv_srq * srq, uint64_t addr, uint32_t length, uint32_t lkey, uint64_t wr_id) {
 	
 	int ret;
@@ -74,6 +111,42 @@ int post_srq_work_request(struct ibv_srq * srq, uint64_t addr, uint32_t length, 
 	ret = ibv_post_srq_recv(srq, &wr, &bad_wr);
 	if (ret != 0){
 		fprintf(stderr, "Error: could note post srq work request\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+
+int post_srq_batch_work_requests(struct ibv_srq * srq, uint32_t num_items, uint64_t addr_start, uint32_t item_length, uint32_t lkey, uint64_t wr_id_start) {
+	
+	int ret;
+
+	struct ibv_recv_wr * bad_wr = NULL;
+
+	struct ibv_recv_wr wr_batch[num_items];
+	struct ibv_sge sge_batch[num_items];
+
+	for (uint32_t i = 0; i < num_items; i++){
+		sge_batch[i].addr = addr_start + (i * item_length);
+		sge_batch[i].length = item_length;
+		sge_batch[i].lkey = lkey;
+
+		wr_batch[i].sg_list = &(sge_batch[i]);
+		wr_batch[i].num_sge = 1;
+		wr_batch[i].wr_id = wr_id_start + 1;
+
+		if (i < num_items - 1){
+			wr_batch[i].next = &(wr_batch[i + 1]);
+		}
+		else{
+			wr_batch[i].next = NULL;
+		}
+	}
+
+	ret = ibv_post_srq_recv(srq, wr_batch, &bad_wr);
+	if (ret != 0){
+		fprintf(stderr, "Error: could note post receive work request\n");
 		return -1;
 	}
 

@@ -1,6 +1,6 @@
 #include "cq_handler.h"
 
-int run_cq_thread(pthread_t * thread, EndpointType endpoint_type, cpu_set_t * affinity, Cq_Thread_Data * cq_thread_data){
+int run_cq_thread(pthread_t * thread, EndpointType endpoint_type, cpu_set_t * affinity, Cq_Thread_Data * cq_thread_data, bool is_recv){
 
 	int ret;
 
@@ -8,7 +8,12 @@ int run_cq_thread(pthread_t * thread, EndpointType endpoint_type, cpu_set_t * af
 
 	switch(endpoint_type){
 		case CONTROL_ENDPOINT:
-			ret = pthread_create(thread, NULL, run_ctrl_handler, (void *) cq_thread_data);
+			if (is_recv){
+				ret = pthread_create(thread, NULL, run_recv_ctrl_handler, (void *) cq_thread_data);
+			}
+			else{
+				ret = pthread_create(thread, NULL, run_send_ctrl_handler, (void *) cq_thread_data);
+			}
 			break;
 		// NEED TO IMPLEMENT BUT FOR NOW DOING NOTHING
 		case DATA_ENDPOINT:
@@ -64,8 +69,17 @@ int activate_cq_threads(Net_World * net_world, Work_Pool * work_pool){
 			cq_recv_thread_data[i * num_endpoint_types + j].endpoint_type = endpoint_types[j];
 			cq_recv_thread_data[i * num_endpoint_types + j].net_world = net_world;
 			cq_recv_thread_data[i * num_endpoint_types + j].work_pool = work_pool;
-			cq_recv_thread_data[i * num_endpoint_types + j].is_recv_cq = true;
 			cq_recv_thread_data[i * num_endpoint_types + j].cq = cq_recv_collection[i][j];
+			if (endpoint_types[j] == CONTROL_ENDPOINT){
+				cq_recv_thread_data[i * num_endpoint_types + j].recv_dispatcher_fifo = init_fifo(CTRL_RECV_DISPATCHER_BACKLOG_MESSAGES, sizeof(Recv_Ctrl_Message));
+				if (cq_recv_thread_data[i * num_endpoint_types + j].recv_dispatcher_fifo == NULL){
+					fprintf(stderr, "Error: failed to initialize control receive dispatcher fifo for ib device id %d\n", i);
+				}
+			}
+			else{
+				cq_recv_thread_data[i * num_endpoint_types + j].recv_dispatcher_fifo = NULL;
+			}
+			
 		}
 	}
 
@@ -83,8 +97,8 @@ int activate_cq_threads(Net_World * net_world, Work_Pool * work_pool){
 			cq_send_thread_data[i * num_endpoint_types + j].endpoint_type = endpoint_types[j];
 			cq_send_thread_data[i * num_endpoint_types + j].net_world = net_world;
 			cq_send_thread_data[i * num_endpoint_types + j].work_pool = work_pool;
-			cq_send_thread_data[i * num_endpoint_types + j].is_recv_cq = false;
 			cq_send_thread_data[i * num_endpoint_types + j].cq = cq_send_collection[i][j];
+			cq_send_thread_data[i * num_endpoint_types + j].recv_dispatcher_fifo = NULL;
 		}
 	}
 
@@ -97,7 +111,7 @@ int activate_cq_threads(Net_World * net_world, Work_Pool * work_pool){
 		// SHOULD GET cpu_set_t affinity here!
 		cur_ib_dev_cpu_affinity = ib_dev_cpu_affinities[i];
 		for (int j = 0; j < num_endpoint_types; j++){
-			ret = run_cq_thread(&(cq_recv_threads[i][j]), endpoint_types[j], cur_ib_dev_cpu_affinity, &(cq_recv_thread_data[i * num_endpoint_types + j]));
+			ret = run_cq_thread(&(cq_recv_threads[i][j]), endpoint_types[j], cur_ib_dev_cpu_affinity, &(cq_recv_thread_data[i * num_endpoint_types + j]), true);
 			if (ret != 0){
 				fprintf(stderr, "Error: could not run cq recv thread from device #%d, and endpoint type ind #%d\n", i, j);
 				return -1;
@@ -110,7 +124,7 @@ int activate_cq_threads(Net_World * net_world, Work_Pool * work_pool){
 		// SHOULD GET cpu_set_t affinity here!
 		cur_ib_dev_cpu_affinity = ib_dev_cpu_affinities[i];
 		for (int j = 0; j < num_endpoint_types; j++){
-			ret = run_cq_thread(&(cq_send_threads[i][j]), endpoint_types[j], cur_ib_dev_cpu_affinity, &(cq_send_thread_data[i * num_endpoint_types + j]));
+			ret = run_cq_thread(&(cq_send_threads[i][j]), endpoint_types[j], cur_ib_dev_cpu_affinity, &(cq_send_thread_data[i * num_endpoint_types + j]), false);
 			if (ret != 0){
 				fprintf(stderr, "Error: could not run cq send thread from device #%d, and endpoint type ind #%d\n", i, j);
 				return -1;

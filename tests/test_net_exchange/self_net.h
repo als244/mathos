@@ -115,8 +115,6 @@ typedef struct self_node {
 	Self_Endpoint * endpoints;
 	// to maintin a list of all available endpoints to send control messsages from 
 	Deque * active_ctrl_endpoints;
-	// setting the first endpoint with type control and associated to active port as default sending channel
-	Ctrl_Channel * default_send_ctrl_channel;
 } Self_Node;
 
 typedef struct self_net {
@@ -136,7 +134,7 @@ typedef struct self_net {
 	// Create SRQs for each device that might be used
 	// for QPs within a port depending on QP usage type
 	struct ibv_srq ** dev_srqs;
-	Ctrl_Channel ** dev_shared_recv_ctrl_channels;
+	Ctrl_Channel ** recv_ctrl_channels;
 	// outer index is device_id
 	// inner index is endpoint type
 	struct ibv_cq_ex *** cq_recv_collection;
@@ -177,7 +175,14 @@ Self_Net * default_master_config_init_self_net(char * self_ip_addr);
 // it sees a work completition and needs to extract it
 // and do something with it (pass it off to other worker threads)
 // (e.g. exchange workers, sched workers, config workers, etc.)
+Ctrl_Channel * get_recv_ctrl_channel(Self_Net * self_net, int ib_device_id);
+
+
+Ctrl_Channel * get_send_ctrl_channel(Self_Net * self_net, uint64_t wr_id);
+
+// more general version of above 
 Ctrl_Channel * get_ctrl_channel(Self_Net * self_net, uint64_t wr_id);
+
 
 
 #endif

@@ -181,7 +181,7 @@ uint64_t produce_batch_fifo(Fifo * fifo, uint64_t num_items, void * items) {
 		pthread_cond_wait(&(fifo -> consumed_cv), &(fifo -> update_lock));
 	}
 
-	// 3.) Actually insert item
+	// 3.) Actually produce items
 
 	start_insert_ind = fifo -> produce_ind;
 	uint64_t items_til_end, bytes_til_end, remain_bytes; 
@@ -233,7 +233,7 @@ void consume_batch_fifo(Fifo * fifo, uint64_t num_items, void * ret_items) {
 		pthread_cond_wait(&(fifo -> produced_cv), &(fifo -> update_lock));
 	}
 
-	// 3.) Actually insert item
+	// 3.) Actually consume items
 
 	uint64_t items_til_end, bytes_til_end, remain_bytes; 
 		
@@ -272,5 +272,87 @@ void consume_batch_fifo(Fifo * fifo, uint64_t num_items, void * ret_items) {
 	pthread_cond_broadcast(&(fifo -> consumed_cv));
 
 	return;
+}
+
+
+
+// Used within control handlers to retrieve number of work completitions and produce empty receives (insert items would be NULL)
+
+// Returns the index of insertion
+//	- Needed for receive channels to proply post IB receive work requests
+uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void * consumed_items, void * reproduced_items) {
+
+	uint64_t start_insert_ind;
+
+
+	// 1.) Optimisitically acquire update lock
+	pthread_mutex_lock(&(fifo -> update_lock));
+
+	// 2.) Wait until there is space to insert items
+	while (fifo -> available_items < num_items){
+		pthread_cond_wait(&(fifo -> produced_cv), &(fifo -> update_lock));
+	}
+
+	// 3.) Actually consume items
+
+	uint64_t items_til_end, bytes_til_end, remain_bytes; 
+		
+	// calling these "remove" index/address, but really they are copying
+	//	- the producer will be over-writing
+	//	- could memset to 0 if we wanted to actually remove
+
+
+	uint64_t start_remove_ind = fifo -> consume_ind;
+	void * start_remove_addr = get_buffer_addr(fifo, start_remove_ind);
+
+
+	items_til_end = fifo -> max_items - start_remove_ind;
+	bytes_til_end = items_til_end * fifo -> item_size_bytes;
+
+	// copy items until the end of the ring buffer then start at the beginning
+	start_remove_addr = get_buffer_addr(fifo, start_remove_ind);
+	memcpy(consumed_items, start_remove_addr, bytes_til_end);
+
+	// start copying items from beginning of buffer
+	void * remain_items = (void *) ((uint64_t) consumed_items + bytes_til_end);
+	remain_bytes = (num_items - items_til_end) * fifo -> item_size_bytes;
+	memcpy(remain_items, fifo -> buffer, remain_bytes); 
+
+	
+	// 4.) Actually reproduce items
+
+	start_insert_ind = fifo -> produce_ind;
+	void * start_insert_addr;
+
+	// NOTE:
+	//	- for posting receives item will be null and it will get populated by NIC
+	//	- for posting sends, item will have contents that need to be copied from non-registered memory and sent out
+	if (reproduced_items != NULL){
+
+		items_til_end = fifo -> max_items - start_insert_ind;
+		bytes_til_end = items_til_end * fifo -> item_size_bytes;
+
+		// copy items to the end of the ring buffer then start at the beginning
+		start_insert_addr = get_buffer_addr(fifo, start_insert_ind);
+		memcpy(start_insert_addr, reproduced_items, bytes_til_end);
+
+		// start copying items from beginning of buffer
+		void * remain_items = (void *) ((uint64_t) reproduced_items + bytes_til_end);
+		remain_bytes = (num_items - items_til_end) * fifo -> item_size_bytes;
+		memcpy(fifo -> buffer, remain_items, remain_bytes); 
+	}
+
+
+	// 5.) Now we don't change the number of available items, but we 
+	//		need to update the consume and produce indicies
+	fifo -> consume_ind = (fifo -> consume_ind + num_items) % (fifo -> max_items);
+	fifo -> produce_ind = (fifo -> produce_ind + num_items) % (fifo -> max_items);
+
+	// 6.) Release the update lock
+	pthread_mutex_unlock(&(fifo -> update_lock));
+	
+	// 7.) Note: We don't need signal/broadcast anyone because available items count did not change
+	
+	return start_insert_ind;
 }
 
