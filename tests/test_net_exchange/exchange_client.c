@@ -58,6 +58,8 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 	// 2.) Now need to check if we should post to self or send a control message
 	//		- if posting to self we might have to send out control messages in response to matches
 
+	char exch_message_type_str[255];
+	char fingerprint_as_hex_str[2 * FINGERPRINT_NUM_BYTES + 1];
 	if (target_exchange_id == self_id){
 
 		// a.) Actually post to self exchange
@@ -65,6 +67,16 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 		uint32_t num_triggered_ctrl_messages;
 		Ctrl_Message * triggered_ctrl_messages;
 
+		// within exchange.c
+		exch_message_type_to_str(exch_message_type_str, exch_message -> message_type);
+
+		// within utils.c
+		copy_byte_arr_to_hex_str(fingerprint_as_hex_str, FINGERPRINT_NUM_BYTES, exch_message -> fingerprint);
+
+		printf("\n\n[Exchange Client %d] Posting to self-exchange!\n\tExchange Message Type: %s\n\tFingerprint: %s\n\n", 
+							net_world -> self_node_id, exch_message_type_str, fingerprint_as_hex_str);
+
+		
 		ret = do_exchange_function(self_exchange, &exch_ctrl_message, &num_triggered_ctrl_messages, &triggered_ctrl_messages);
 		if (ret != 0){
 			fprintf(stderr, "Error: when submitting an exchange message to self exchange, do_exchange_function failed\n");
