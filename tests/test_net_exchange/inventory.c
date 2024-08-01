@@ -20,7 +20,7 @@ void print_fingerprint_match(int thread_id, uint32_t source_node_id, Inventory_M
 	copy_id_list_to_str(node_ids_str_list, num_nodes, node_ids);
 	
 
-	printf("[Inventory Worker %d] Received FINGERPRINT_MATCH from Exchange #%u.\n\tFingerprint: %s\n\tNum Matching: %u\n\tMatching Locations: %s\n\n",
+	printf("[Inventory Worker %d] Received FINGERPRINT_MATCH from Exchange #%u.\n\tFingerprint: %s\n\tNum Matching Locations: %u\n\tMatching Locations List: %s\n\n",
 				thread_id, source_node_id, fingerprint_as_hex_str, num_nodes, node_ids_str_list);
 
 	return;
