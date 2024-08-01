@@ -187,12 +187,17 @@ uint64_t produce_batch_fifo(Fifo * fifo, uint64_t num_items, void * items) {
 	uint64_t items_til_end, bytes_til_end, remain_bytes; 
 	void * start_insert_addr;
 
+	uint64_t remain_item_cnt = 0;
 	// NOTE:
 	//	- for posting receives item will be null and it will get populated by NIC
 	//	- for posting sends, item will have contents that need to be copied from non-registered memory and sent out
 	if (items != NULL){
 
-		items_til_end = fifo -> max_items - start_insert_ind;
+		if (num_items > (fifo -> max_items - start_insert_ind - 1)){
+			remain_item_cnt = num_items - (fifo -> max_items - start_insert_ind - 1);
+		}
+
+		items_til_end = num_items - remain_item_cnt;
 		bytes_til_end = items_til_end * fifo -> item_size_bytes;
 
 		// copy items to the end of the ring buffer then start at the beginning
@@ -245,8 +250,12 @@ void consume_batch_fifo(Fifo * fifo, uint64_t num_items, void * ret_items) {
 	uint64_t start_remove_ind = fifo -> consume_ind;
 	void * start_remove_addr = get_buffer_addr(fifo, start_remove_ind);
 
+	uint64_t remain_item_cnt = 0;
+	if (num_items > (fifo -> max_items - start_remove_ind - 1)){
+		remain_item_cnt = num_items - (fifo -> max_items - start_remove_ind - 1);
+	}
 
-	items_til_end = fifo -> max_items - start_remove_ind;
+	items_til_end = num_items - remain_item_cnt;
 	bytes_til_end = items_til_end * fifo -> item_size_bytes;
 
 	// copy items until the end of the ring buffer then start at the beginning
@@ -305,8 +314,12 @@ uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void 
 	uint64_t start_remove_ind = fifo -> consume_ind;
 	void * start_remove_addr = get_buffer_addr(fifo, start_remove_ind);
 
+	uint64_t remain_item_cnt = 0;
+	if (num_items > (fifo -> max_items - start_remove_ind - 1)){
+		remain_item_cnt = num_items - (fifo -> max_items - start_remove_ind - 1);
+	}
 
-	items_til_end = fifo -> max_items - start_remove_ind;
+	items_til_end = num_items - remain_item_cnt;
 	bytes_til_end = items_til_end * fifo -> item_size_bytes;
 
 	// copy items until the end of the ring buffer then start at the beginning
@@ -329,7 +342,12 @@ uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void 
 	//	- for posting sends, item will have contents that need to be copied from non-registered memory and sent out
 	if (reproduced_items != NULL){
 
-		items_til_end = fifo -> max_items - start_insert_ind;
+		remain_item_cnt = 0;
+		if (num_items > (fifo -> max_items - start_insert_ind - 1)){
+			remain_item_cnt = num_items - (fifo -> max_items - start_insert_ind - 1);
+		}
+
+		items_til_end = num_items - remain_item_cnt;
 		bytes_til_end = items_til_end * fifo -> item_size_bytes;
 
 		// copy items to the end of the ring buffer then start at the beginning
@@ -337,7 +355,7 @@ uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void 
 		memcpy(start_insert_addr, reproduced_items, bytes_til_end);
 
 		// start copying items from beginning of buffer
-		void * remain_items = (void *) ((uint64_t) reproduced_items + bytes_til_end);
+		remain_items = (void *) ((uint64_t) reproduced_items + bytes_til_end);
 		remain_bytes = (num_items - items_til_end) * fifo -> item_size_bytes;
 		memcpy(fifo -> buffer, remain_items, remain_bytes); 
 	}
