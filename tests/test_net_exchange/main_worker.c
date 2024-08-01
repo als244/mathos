@@ -64,19 +64,24 @@ int main(int argc, char * argv[]){
 
 	// prepare all contorl messages
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
-	for (uint64_t i = 0; i < num_exchange_messages; i++){
+	
+	// Only send message from node 1
 
-		// do_fingerprinting populates an already allocated array
-		do_fingerprinting(&i, sizeof(uint64_t), fingerprint, FINGERPRINT_TYPE);
+	if (net_world -> self_node_id == 1){
+		for (uint64_t i = 0; i < num_exchange_messages; i++){
 
-		// submit exchange order copies the fingerprint contents into a control message
-		ret = submit_exchange_order(system, fingerprint, exch_message_type);
-		if (ret != 0){
-			fprintf(stderr, "Error: failure to submit exchange order\n");
-			return -1;
+			// do_fingerprinting populates an already allocated array
+			do_fingerprinting(&i, sizeof(uint64_t), fingerprint, FINGERPRINT_TYPE);
+
+			// submit exchange order copies the fingerprint contents into a control message
+			ret = submit_exchange_order(system, fingerprint, exch_message_type);
+			if (ret != 0){
+				fprintf(stderr, "Error: failure to submit exchange order\n");
+				return -1;
+			}
 		}
 	}
-
+	
 
 	// Wait for benchmark to finish before recording
 
