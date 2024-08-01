@@ -74,6 +74,7 @@ int post_recv_batch_ctrl_channel(Ctrl_Channel * channel, uint32_t num_recvs, boo
 	// 1.) Copy item into a registered memory region
 
 	uint32_t max_items = channel -> fifo -> max_items;
+	uint32_t max_ind = max_items - 1;
 
 	// We are not actually producing items because the NIC will do that
 	uint32_t start_insert_ind;
@@ -83,11 +84,12 @@ int post_recv_batch_ctrl_channel(Ctrl_Channel * channel, uint32_t num_recvs, boo
 	else {
 		start_insert_ind = produce_ind;
 	}
-	 
 
+	uint32_t remain_recvs = 0;
+	if (num_recvs > (max_ind - start_insert_ind)){
+		remain_recvs = num_recvs - (max_ind - start_insert_ind);
+	}
 
-	// Looping around the ring buffer when inserting
-	uint32_t remain_recvs = max_items - start_insert_ind - 1;
 	uint32_t items_til_end = num_recvs - remain_recvs;
 
 	// 2.) Now obtain the address of item within registered region
