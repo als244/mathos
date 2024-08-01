@@ -640,7 +640,7 @@ int generate_match_ctrl_messages(uint32_t self_id, uint32_t trigger_node_id, boo
 			match_messages[i].header.dest_node_id = bid_node_id;
 			match_messages[i].header.message_class = INVENTORY_CLASS;
 
-			inventory_message = (Inventory_Message *) (&match_messages[i].contents);
+			inventory_message = (Inventory_Message *) (&(match_messages[i].contents));
 			inventory_message -> message_type = FINGERPRINT_MATCH;
 
 			fingerprint_match = (Fingerprint_Match *) inventory_message -> message;
@@ -663,7 +663,7 @@ int generate_match_ctrl_messages(uint32_t self_id, uint32_t trigger_node_id, boo
 			match_messages[message_ind].header.dest_node_id = trigger_node_id;
 			match_messages[message_ind].header.message_class = INVENTORY_CLASS;
 
-			inventory_message = (Inventory_Message *) (&match_messages[message_ind].contents);
+			inventory_message = (Inventory_Message *) (&(match_messages[message_ind].contents));
 			inventory_message -> message_type = FINGERPRINT_MATCH;
 
 			fingerprint_match = (Fingerprint_Match *) inventory_message -> message;
