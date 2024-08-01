@@ -373,6 +373,7 @@ int post_bid(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id, Deque
 int post_offer(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id, Deque ** ret_matching_bid_participants) {
 
 	int ret;
+	*ret_matching_bid_participants = NULL;
 	
 	// 1.) Lookup offers to see if exchange item exists
 	// 		a.) If Yes, append participant to the deque
@@ -408,7 +409,6 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id, Deq
 
 	// 2.) Lookup if bid exists. If so, set the bids 
 	Exchange_Item * found_bid;
-	*ret_matching_bid_participants = NULL;
 	ret = lookup_exch_item(exchange, fingerprint, BID_ITEM, &found_bid);
 	if (found_bid){
 		*ret_matching_bid_participants = found_bid -> participants;
@@ -595,8 +595,15 @@ int post_future(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id) {
 int generate_match_ctrl_messages(uint32_t self_id, uint32_t trigger_node_id, bool is_offer_trigger, uint8_t * fingerprint, Deque * matching_particpants, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages){
 
 
+
 	*ret_num_ctrl_messages = 0;
 	*ret_ctrl_messages = NULL;
+
+	// ensure that we only generate matching participants if non-null
+	if (matching_particpants == NULL){
+		return 0;
+	}
+
 
 	// Now need to iterate over all the participants and create a message for each one
 	pthread_mutex_lock(&(matching_particpants -> list_lock));
