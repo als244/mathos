@@ -40,7 +40,7 @@ int main(int argc, char * argv[]){
 		exch_message_type = OFFER_ORDER;
 	}
 
-	uint64_t num_exchange_messages = 4;
+	uint64_t num_exchange_messages = 1;
 	// Starting benchmark at count 0 means it will set the start timestamp upon first message
 	ret = add_message_class_benchmark(system, EXCHANGE_CLASS, 0, num_exchange_messages);
 	if (ret != 0){
@@ -67,7 +67,7 @@ int main(int argc, char * argv[]){
 	
 	// Only send message from node 1
 
-	for (uint64_t i = 0; i < num_exchange_messages; i++){
+	for (uint64_t i = 3; i < num_exchange_messages; i++){
 
 		// do_fingerprinting populates an already allocated array
 		do_fingerprinting(&i, sizeof(uint64_t), fingerprint, FINGERPRINT_TYPE);
