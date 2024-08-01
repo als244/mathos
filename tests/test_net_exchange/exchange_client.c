@@ -15,7 +15,12 @@ uint32_t determine_exchange(System * system, uint8_t * fingerprint) {
 	
 	num_exchanges = get_count_table(net_world -> nodes);
 	uint64_t least_sig64 = fingerprint_to_least_sig64(fingerprint, FINGERPRINT_NUM_BYTES);
-	return least_sig64 % num_exchanges;
+
+	// because Master Node has ID 0 and it doesn't have an exchange
+	// we want to add 1 to the destination (this is valid because the
+	// the highest node id will actually be num_exchanges + 1)
+	uint64_t dest_exchange = (least_sig64 % num_exchanges) + 1;
+	return dest_exchange;
 }
 
 
