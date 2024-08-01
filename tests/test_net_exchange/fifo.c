@@ -243,7 +243,7 @@ void consume_batch_fifo(Fifo * fifo, uint64_t num_items, void * ret_items) {
 	// 1.) Optimisitically acquire update lock
 	pthread_mutex_lock(&(fifo -> update_lock));
 
-	// 2.) Wait until there is space to insert items
+	// 2.) Wait until there are enough items that we want to consume
 	while (fifo -> available_items < num_items){
 		pthread_cond_wait(&(fifo -> produced_cv), &(fifo -> update_lock));
 	}
@@ -405,5 +405,79 @@ uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void 
 	// 7.) Note: We don't need signal/broadcast anyone because available items count did not change
 	
 	return start_insert_ind;
+}
+
+
+
+// Blocks until there is at least 1 item
+// Returns the number of items consumed
+uint64_t consume_all_fifo(Fifo * fifo, void * ret_items) {
+
+
+	uint64_t max_items = fifo -> max_items;
+
+	// 1.) Optimisitically acquire update lock
+	pthread_mutex_lock(&(fifo -> update_lock));
+
+	// 2.) Wait until there are any items to consume
+	while (fifo -> available_items == 0){
+		pthread_cond_wait(&(fifo -> produced_cv), &(fifo -> update_lock));
+	}
+
+	// 3.) Actually consume items
+
+	uint64_t items_til_end, bytes_til_end, remain_item_cnt, remain_bytes; 
+		
+	// calling these "remove" index/address, but really they are copying
+	//	- the producer will be over-writing
+	//	- could memset to 0 if we wanted to actually remove
+
+	uint64_t total_items = fifo -> available_items;
+
+
+	uint64_t start_remove_ind = fifo -> consume_ind;
+	void * start_remove_addr = get_buffer_addr(fifo, start_remove_ind);
+
+
+	items_til_end = total_items;
+
+	// check for loop around
+	if ((start_remove_ind + total_items) > max_items){
+		items_til_end = max_items - start_remove_ind;
+	}
+
+	remain_item_cnt = total_items - items_til_end;
+
+	items_til_end = total_items - remain_item_cnt;
+	bytes_til_end = items_til_end * fifo -> item_size_bytes;
+
+	// copy items until the end of the ring buffer then start at the beginning
+	start_remove_addr = get_buffer_addr(fifo, start_remove_ind);
+	memcpy(ret_items, start_remove_addr, bytes_til_end);
+
+	// start copying items from beginning of buffer
+
+	// if we need to loop around and insert items at beginning
+	if (remain_item_cnt > 0){
+		void * remain_items = (void *) ((uint64_t) ret_items + bytes_til_end);
+		remain_bytes = remain_item_cnt * fifo -> item_size_bytes;
+		memcpy(remain_items, fifo -> buffer, remain_bytes);
+	}
+	 
+
+	// 4.) Update the number of items and the next spot to insert
+	fifo -> available_items = 0;
+	fifo -> consume_ind = (fifo -> consume_ind + total_items) % (fifo -> max_items);
+
+	// 5.) Release the update lock
+	pthread_mutex_unlock(&(fifo -> update_lock));
+	
+	// 6.) Indicate that we updated the consume cv to unblock producers
+	//		- now use broadcast because some of the waiting consumers 
+	//			could have varying amounts they are trying to consume
+	pthread_cond_broadcast(&(fifo -> consumed_cv));
+
+
+	return total_items;
 }
 

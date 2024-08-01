@@ -50,6 +50,11 @@ void consume_batch_fifo(Fifo * fifo, uint64_t num_items, void * ret_items);
 uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void * consumed_items, void * reproduced_items);
 
 
+// used within receiver dispatcher and among all workers to minimize lock contention
+
+// returns the number of items consumed
+uint64_t consume_all_fifo(Fifo * fifo, void * ret_items);
+
 
 
 #endif

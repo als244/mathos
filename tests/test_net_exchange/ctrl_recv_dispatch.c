@@ -31,7 +31,13 @@ void * run_recv_ctrl_dispatcher(void * _ctrl_recv_dispatcher_thread_data) {
 	Work_Class ** work_classes = work_pool -> classes;
 
 
-	Recv_Ctrl_Message recv_ctrl_message;
+	Recv_Ctrl_Message * recv_ctrl_messages = (Recv_Ctrl_Message *) malloc(dispatcher_fifo -> max_items * sizeof(Recv_Ctrl_Message));
+	if (recv_ctrl_messages == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate buffer for recv control messages within dispatcher thread\n");
+		return NULL;
+	}
+
+
 	Ctrl_Message ctrl_message;
 
 	Ctrl_Message_H ctrl_message_header;
@@ -40,39 +46,47 @@ void * run_recv_ctrl_dispatcher(void * _ctrl_recv_dispatcher_thread_data) {
 	Fifo ** worker_fifos;
 	int next_worker_id;
 
+
+	uint64_t num_consumed;
+
 	while (1){
 
 		// CONSUME THE FIFO PRODUCED BY RECV_CTRL_HANDLER
 
-		consume_fifo(dispatcher_fifo, &recv_ctrl_message);
+		num_consumed = consume_all_fifo(dispatcher_fifo, recv_ctrl_messages);
 
 
-		ctrl_message = recv_ctrl_message.ctrl_message;
+		// Consume as many as possible and store in buffer to reduce lock contention on the fifo
 
-		// For each message, route it the appropriate work_class and worker within that class
+		for (uint64_t i = 0; i < num_consumed; i++){
 
-		ctrl_message_header = ctrl_message.header;
+			ctrl_message = recv_ctrl_messages[i].ctrl_message;
+
+			// For each message, route it the appropriate work_class and worker within that class
+
+			ctrl_message_header = ctrl_message.header;
+						
+						
+			// printf("\n\n[Node %u] Received control message!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
+			// 				net_world -> self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
+
+			// all fifo buffers at at:
+			// work_pool -> classes)[ctrl_message_header.message_class] -> tasks
+						
+			// Error check a valid work class to place message on proper task fifo
+			control_message_class = ctrl_message_header.message_class;
+			if (control_message_class > work_pool -> max_work_class_ind){
+				fprintf(stderr, "Error: received message specifying message class %d, but declared maximum work class index of %d\n", control_message_class, work_pool -> max_work_class_ind);
+				continue;
+			}
+
+			// Probably want to ensure there that the class has been added (and thus tasks is non-null)
+
+			worker_fifos = work_classes[control_message_class] -> worker_tasks;
+
+			next_worker_id = next_worker_id_by_class[control_message_class] % num_workers_per_class[control_message_class];
 					
-					
-		// printf("\n\n[Node %u] Received control message!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
-		// 				net_world -> self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
-
-		// all fifo buffers at at:
-		// work_pool -> classes)[ctrl_message_header.message_class] -> tasks
-					
-		// Error check a valid work class to place message on proper task fifo
-		control_message_class = ctrl_message_header.message_class;
-		if (control_message_class > work_pool -> max_work_class_ind){
-			fprintf(stderr, "Error: received message specifying message class %d, but declared maximum work class index of %d\n", control_message_class, work_pool -> max_work_class_ind);
-			continue;
+			produce_fifo(worker_fifos[next_worker_id], &ctrl_message);
 		}
-
-		// Probably want to ensure there that the class has been added (and thus tasks is non-null)
-
-		worker_fifos = work_classes[control_message_class] -> worker_tasks;
-
-		next_worker_id = next_worker_id_by_class[control_message_class] % num_workers_per_class[control_message_class];
-				
-		produce_fifo(worker_fifos[next_worker_id], &ctrl_message);
 	}
 }
