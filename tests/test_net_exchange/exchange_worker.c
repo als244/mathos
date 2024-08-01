@@ -115,11 +115,19 @@ void * run_exchange_worker(void * _worker_thread_data) {
 
 			// 3. If there are any control messages that need be send out in response to some trigger, do so
 			for (uint32_t i = 0; i < num_triggered_response_ctrl_messages; i++){
-				ret = post_send_ctrl_net(net_world, &(triggered_response_ctrl_messages[i]));
-				if (ret != 0){
-					fprintf(stderr, "[Exchange Worker %d] Error: after do exchange function, was supposed to send %u triggered messages. But posting a send ctrl message for #%u failed\n", 
+
+				// Ensure to not post to self and instead directly pass to proper function
+				if (triggered_response_ctrl_messages[i].header.dest_node_id != net_world -> self_node_id){
+					ret = post_send_ctrl_net(net_world, &(triggered_response_ctrl_messages[i]));
+					if (ret != 0){
+						fprintf(stderr, "[Exchange Worker %d] Error: after do exchange function, was supposed to send %u triggered messages. But posting a send ctrl message for #%u failed\n", 
 						worker_thread_id, num_triggered_response_ctrl_messages, i);
+					}
 				}
+				else{
+					printf("Triggered exchange response for self!");
+				}
+				
 			}
 
 

@@ -38,6 +38,14 @@ System * init_system(char * master_ip_addr, char * self_ip_addr){
 	}
 
 
+	// 6.) Update exchange with information from net_world
+	ret = update_init_exchange_with_net_info(exchange, net_world -> self_node_id, net_world -> max_nodes);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to update exchange with net_info\n");
+		return NULL;
+	}
+
+
 	// 6.) create work pool
 
 	// defined in messsages.h => included from config.h

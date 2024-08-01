@@ -3,8 +3,8 @@
 // there are items wihtin a participants deque
 // each void * is really a uint32_t *
 int participant_item_cmp(void * participant, void * other_participant){
-	uint32_t node_id = *((uint32_t *) participant);
-	uint32_t other_node_id = *((uint32_t *) other_participant);
+	uint32_t node_id = ((Participant *) participant) -> node_id;
+	uint32_t other_node_id = ((Participant *) other_participant) -> node_id;
 	return node_id - other_node_id;
 }
 
@@ -76,8 +76,66 @@ Exchange * init_exchange() {
 		return NULL;
 	}
 
+	// Originally set participants array to NULL
+	// this will be updated after joining the net
+	// and calling update_init_exchange_with_net_info
+	//	- this call occurs within init_sys in sys.c
+
+	exchange -> participants = NULL;
+
 
 	return exchange;
+}
+
+
+// This is called after init_net and once we see self_id and max_nodes
+//	- There will be a different function to update the exchange info on joiners/leavers
+int update_init_exchange_with_net_info(Exchange * exchange, uint32_t self_id, uint32_t max_nodes){
+
+	// Now that we have self id and max nodes we can update the exchange structure
+
+	exchange -> self_id = self_id;
+	exchange -> max_nodes = max_nodes;
+
+	// have +1 because master is index 0 an doesn't count towards max_nodes
+	Participant * participants = (Participant *) malloc((max_nodes + 1) * sizeof(Participant));
+	if (participants == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate participants array within update_init_exchange_with_net_info\n");
+		return -1;
+	}
+
+
+	for (uint32_t i = 0; i < max_nodes + 1; i++){
+		participants[i].node_id = i;
+	}
+
+	// Now set to this array instead of null
+	exchange -> participants = participants;
+
+	return 0;
+}
+
+
+int insert_participant_to_deque(Exchange * exchange, uint32_t node_id, Deque * deque, DequeEnd insert_end){
+
+	Participant * participants = exchange -> participants;
+	if (participants == NULL){
+		fprintf(stderr, "Error: exchange's participants array is unitialized\n");
+		return -1;
+	}
+
+	if (node_id > exchange -> max_nodes + 1){
+		fprintf(stderr, "Error: node id is larger than maximum number of participants\n");
+		return -1;
+	}
+
+	int ret = insert_deque(deque, insert_end, &(participants[node_id]));
+	if (ret != 0){
+		fprintf(stderr, "Error: could not insert participant with node id: %u to an exchange deque\n", node_id);
+		return -1;
+	}
+
+	return 0;
 }
 
 // exchange items are initialized if fingerprint not found, 
@@ -88,7 +146,7 @@ Exchange * init_exchange() {
 //		if it is a hot-fingerprint)
 
 
-Exchange_Item * init_exchange_item(uint8_t * fingerprint, ExchangeItemType item_type, uint32_t node_id){
+Exchange_Item * init_exchange_item(Exchange * exchange, uint8_t * fingerprint, ExchangeItemType item_type, uint32_t node_id){
 
 	int ret;
 
@@ -107,9 +165,9 @@ Exchange_Item * init_exchange_item(uint8_t * fingerprint, ExchangeItemType item_
 		return NULL;
 	}
 
-	ret = insert_deque(participants, FRONT_DEQUE, &node_id);
-	if (unlikely(ret != 0)){
-		fprintf(stderr, "Error: could not insert intial participant with node id %u, to exchange item of type: %d\n", node_id, item_type);
+	ret = insert_participant_to_deque(exchange, node_id, participants, BACK_DEQUE);
+	if (ret != 0){
+		fprintf(stderr, "Error: failure to insert participant with id %u to initial init_exchange_item deque of type %d\n", node_id, item_type);
 		return NULL;
 	}
 
@@ -285,17 +343,16 @@ int post_bid(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id, Deque
 	ret = lookup_exch_item(exchange, fingerprint, BID_ITEM, &found_bid);
 	if (found_bid){
 		Deque * bid_participants = found_bid -> participants;
-		ret = insert_deque(bid_participants, BACK_DEQUE, &node_id);
-		// only occurs on OOM
-		if (unlikely(ret != 0)){
-			fprintf(stderr, "Error: could not enqueue new participant to exciting participants on bid\n");
+		ret = insert_participant_to_deque(exchange, node_id, bid_participants, BACK_DEQUE);
+		if (ret != 0){
+			fprintf(stderr, "Error: failure to insert participant to bid deque after posting bid\n");
 			return -1;
 		}
 		// update the modification counter and timestamp
 		update_item_modify(found_bid);
 	}
 	else{
-		Exchange_Item * new_bid = init_exchange_item(fingerprint, BID_ITEM, node_id);
+		Exchange_Item * new_bid = init_exchange_item(exchange, fingerprint, BID_ITEM, node_id);
 		if (unlikely(new_bid == NULL)){
 			fprintf(stderr, "Error: could not initialize new bid exchange item\n");
 			return -1;
@@ -326,16 +383,16 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id, Deq
 	ret = lookup_exch_item(exchange, fingerprint, OFFER_ITEM, &found_offer);
 	if (found_offer){
 		offer_participants = found_offer -> participants;
-		ret = insert_deque(offer_participants, BACK_DEQUE, &node_id);
-		if (unlikely(ret != 0)){
-			fprintf(stderr, "Error: could not enqueue new participant to existing participants on offer\n");
+		ret = insert_participant_to_deque(exchange, node_id, offer_participants, BACK_DEQUE);
+		if (ret != 0){
+			fprintf(stderr, "Error: failure to insert participant to offer deque after posting offer\n");
 			return -1;
 		}
 		// update the modification counter and timestamp
 		update_item_modify(found_offer);
 	}
 	else{
-		Exchange_Item * new_offer = init_exchange_item(fingerprint, OFFER_ITEM, node_id);
+		Exchange_Item * new_offer = init_exchange_item(exchange, fingerprint, OFFER_ITEM, node_id);
 		if (unlikely(new_offer == NULL)){
 			fprintf(stderr, "Error: could not initialize new offer exchange item\n");
 			return -1;
@@ -362,10 +419,13 @@ int post_offer(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id, Deq
 	Exchange_Item * found_future;
 	ret = lookup_exch_item(exchange, fingerprint, FUTURE_ITEM, &found_future);
 	uint64_t num_copies_removed;
+
+	Participant participant;
+	participant.node_id = node_id;
 	if (found_future){
 		Deque * future_participants = found_future -> participants;
 		// could use remove_if_eq_accel here and set max_removed = 1 to speed things up
-		num_copies_removed = remove_if_eq_deque(future_participants, &node_id, false);
+		num_copies_removed = remove_if_eq_deque(future_participants, &participant, false);
 		// not returning an error here, just printing a message
 		if (unlikely(num_copies_removed != 1)){
 			fprintf(stderr, "Error: was expecting to remove one copy of fingerprint from futures table after an offer from node %u, but removed: %lu",
@@ -420,16 +480,16 @@ int post_offer_confirm_match_data(Exchange * exchange, uint8_t * fingerprint, ui
 	ret = lookup_exch_item(exchange, fingerprint, OFFER_ITEM, &found_offer);
 	if (found_offer){
 		offer_participants = found_offer -> participants;
-		ret = insert_deque(offer_participants, BACK_DEQUE, &node_id);
-		if (unlikely(ret != 0)){
-			fprintf(stderr, "Error: could not enqueue new participant to existing participants on offer\n");
+		ret = insert_participant_to_deque(exchange, node_id, offer_participants, BACK_DEQUE);
+		if (ret != 0){
+			fprintf(stderr, "Error: failure to insert participant to offer deque after posting offer confirm match data\n");
 			return -1;
 		}
 		// update the modification counter and timestamp
 		update_item_modify(found_offer);
 	}
 	else{
-		Exchange_Item * new_offer = init_exchange_item(fingerprint, OFFER_ITEM, node_id);
+		Exchange_Item * new_offer = init_exchange_item(exchange, fingerprint, OFFER_ITEM, node_id);
 		if (unlikely(new_offer == NULL)){
 			fprintf(stderr, "Error: could not initialize new offer exchange item\n");
 			return -1;
@@ -450,9 +510,11 @@ int post_offer_confirm_match_data(Exchange * exchange, uint8_t * fingerprint, ui
 	Exchange_Item * found_bid;
 	ret = lookup_exch_item(exchange, fingerprint, BID_ITEM, &found_bid);
 	uint64_t num_copies_removed;
+	Participant participant;
+	participant.node_id = node_id;
 	if (found_bid){
 		Deque * bid_participants = found_bid -> participants;
-		num_copies_removed = remove_if_eq_deque(bid_participants, &node_id, false);
+		num_copies_removed = remove_if_eq_deque(bid_participants, &participant, false);
 		// not returning an error here, just printing a message
 		if (unlikely(num_copies_removed != 1)){
 			fprintf(stderr, "Error: was expecting to remove one copy of fingerprint from bid table after an offer_confirm_match_data from node %u, but removed: %lu",
@@ -504,15 +566,15 @@ int post_future(Exchange * exchange, uint8_t * fingerprint, uint32_t node_id) {
 	ret = lookup_exch_item(exchange, fingerprint, FUTURE_ITEM, &found_future);
 	if (found_future){
 		Deque * future_participants = found_future -> participants;
-		ret = insert_deque(future_participants, BACK_DEQUE, &node_id);
+		ret = insert_participant_to_deque(exchange, node_id, future_participants, BACK_DEQUE);
 		if (ret != 0){
-			fprintf(stderr, "Error: could not enqueue new participant with id = %u to existing participants on future\n", node_id);
+			fprintf(stderr, "Error: failure to insert participant to future deque after posting future order\n");
 			return -1;
 		}
 		update_item_modify(found_future);
 	}
 	else{
-		Exchange_Item * new_future = init_exchange_item(fingerprint, FUTURE_ITEM, node_id);
+		Exchange_Item * new_future = init_exchange_item(exchange, fingerprint, FUTURE_ITEM, node_id);
 		if (new_future == NULL){
 			fprintf(stderr, "Error: could not initialize new future exchange item\n");
 			return -1;
@@ -572,7 +634,7 @@ int generate_match_ctrl_messages(uint32_t self_id, uint32_t trigger_node_id, boo
 		uint32_t i = 0;
 		uint32_t bid_node_id;
 		while (cur_deque_item != NULL){
-			bid_node_id = *((uint32_t *) cur_deque_item -> item);
+			bid_node_id = ((Participant *) cur_deque_item -> item) -> node_id;
 
 			match_messages[i].header.source_node_id = self_id;
 			match_messages[i].header.dest_node_id = bid_node_id;
@@ -610,7 +672,7 @@ int generate_match_ctrl_messages(uint32_t self_id, uint32_t trigger_node_id, boo
 
 			match_node_id_ind = 0;
 			while ((cur_deque_item != NULL) && (match_node_id_ind < MAX_FINGERPRINT_MATCH_LOCATIONS)){
-				offer_node_id = *((uint32_t *) cur_deque_item -> item);
+				offer_node_id = ((Participant *) cur_deque_item -> item) -> node_id;
 				fingerprint_match -> num_nodes += 1;
 				(fingerprint_match -> node_ids)[match_node_id_ind] = offer_node_id; 
 				cur_deque_item = cur_deque_item -> next;

@@ -14,9 +14,14 @@ typedef enum exch_item_type {
 	FUTURE_ITEM
 } ExchangeItemType;
 
+
+typedef struct participant {
+	uint32_t node_id;
+} Participant;
+
 typedef struct exchange_item {
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
-	// Deque of uint32_t's representing node id's
+	// Deque of allocated dynamically allocated participants (uint32_t's) representing node id's
 	Deque * participants;
 	ExchangeItemType item_type;
 	// used for caching purposes
@@ -80,6 +85,11 @@ typedef struct exchange {
 	Table * bids;
 	Table * offers;
 	Table * futures;
+
+	// Maintain an array to reference each participant
+	// TODO: needs to dynamically increaes when notification of new node
+	uint32_t max_nodes;
+	Participant * participants;
 	// might want to build a different
 	// structure that makes it easier for a single query across all tables...?
 	//	- A fingerprint can be in multiple tables
@@ -94,6 +104,8 @@ typedef struct exchange {
 
 
 Exchange * init_exchange();
+
+int update_init_exchange_with_net_info(Exchange * exchange, uint32_t self_id, uint32_t max_nodes);
 
 
 // The generic function called by exchange workers who then call the appropriate
