@@ -1,4 +1,6 @@
-#include "init_sys.h"
+#include "sys.h"
+#include "fingerprint.h"
+#include "exchange_client.h"
 #include "utils.h"
 
 int main(int argc, char * argv[]){
@@ -30,20 +32,15 @@ int main(int argc, char * argv[]){
 	Net_World * net_world = system -> net_world;
 
 
-
-	uint32_t self_node_id = net_world -> self_node_id;
-	uint32_t dest_node_id;
+	ExchMessageType exch_message_type;
 	if (net_world -> self_node_id == 1){
-		dest_node_id = 2;
+		exch_message_type = BID_ORDER;
 	}
 	if (net_world -> self_node_id == 2){
-		dest_node_id = 1;
+		exch_message_type = OFFER_ORDER;
 	}
 
-	uint64_t num_exchange_messages = 1000000;
-
-
-
+	uint64_t num_exchange_messages = 10;
 	// Starting benchmark at count 0 means it will set the start timestamp upon first message
 	ret = add_message_class_benchmark(system, EXCHANGE_CLASS, 0, num_exchange_messages);
 	if (ret != 0){
@@ -66,46 +63,20 @@ int main(int argc, char * argv[]){
 
 
 	// prepare all contorl messages
-
-	Ctrl_Message * ctrl_messages_to_send = (Ctrl_Message *) malloc(num_exchange_messages * sizeof(Ctrl_Message));
-	if (ctrl_messages_to_send == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate control message buffer for sending\n");
-		return -1;
-	}
-
-	//char num_buf[20];
+	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
 	for (uint64_t i = 0; i < num_exchange_messages; i++){
-		ctrl_messages_to_send[i].header.source_node_id = self_node_id;
-		ctrl_messages_to_send[i].header.dest_node_id = dest_node_id;
-		ctrl_messages_to_send[i].header.message_class = EXCHANGE_CLASS;
-		//uint64_to_str_with_comma(num_buf, i);
-		//sprintf((char *) (ctrl_messages_to_send[i].contents), "I am message #%s!", num_buf);
-		sprintf((char *) (ctrl_messages_to_send[i].contents), "I am message #%lu from node %u!", i, self_node_id);
-	}
 
+		// do_fingerprinting populates an already allocated array
+		do_fingerprinting(&i, sizeof(uint64_t), fingerprint, FINGERPRINT_TYPE);
 
-	if (dest_node_id == 2){
-
-		printf("\n\n[Node %u] Sending %lu exchange messages to node id: %d...\n\n", net_world -> self_node_id, num_exchange_messages, dest_node_id);
-
-		for (uint64_t i = 0; i < num_exchange_messages; i++){
-			ret = post_send_ctrl_net(net_world, &(ctrl_messages_to_send[i]));
-			if (ret != 0){
-				fprintf(stderr, "Error: could not post control message #%lu (From id: %u going to node id: %u)\n", i, net_world -> self_node_id, dest_node_id);
-				return -1;
-			}
+		// submit exchange order copies the fingerprint contents into a control message
+		ret = submit_exchange_order(system, fingerprint, exch_message_type);
+		if (ret != 0){
+			fprintf(stderr, "Error: failure to submit exchange order\n");
+			return -1;
 		}
-
-		printf("\n\n[Node %u] Finished sending %lu messages to node %u!\n\n", net_world -> self_node_id, num_exchange_messages, dest_node_id);
-
-
 	}
 
-	// all messages have been sent
-	//	- meaning contents have been copied to the verbs registered buffer 
-	//		(within with sending QP's send control channel's fifo -> buffer)
-	// so can free these messages now
-	free(ctrl_messages_to_send);
 
 	// Wait for benchmark to finish before recording
 
@@ -125,6 +96,7 @@ int main(int argc, char * argv[]){
 	// Now all benchmarks have finished so we can read the values
 	// for now just reading the exchange class values
 
+	/*
 	Work_Bench * exchange_bench = (system -> work_pool -> classes)[EXCHANGE_CLASS] -> work_bench;
 
 	uint64_t start_timestamp = (exchange_bench -> start).tv_sec * 1e9 +  (exchange_bench -> start).tv_nsec;
@@ -137,7 +109,7 @@ int main(int argc, char * argv[]){
 
 	printf("\n\n\nExchange Throughtput Stats:\n\tNumber of Requests: %lu\n\tElapsed Time (ns): %lu\n\tThroughput (requests/sec): %lu\n\n\n",
 		num_tasks, elapsed_time_ns, tasks_per_sec);
-
+	*/
 
 	// Should Be Infinitely Blocking 
 	// (unless error or shutdown message)

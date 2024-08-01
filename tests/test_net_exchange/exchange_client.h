@@ -6,14 +6,11 @@
 #include "fingerprint.h"
 #include "exchange.h"
 #include "net.h"
+#include "sys.h"
 
 
 
-int submit_bid(Net_World * net_world, uint8_t * fingerprint);
-
-int submit_offer(Net_World * net_world, uint8_t * fingerprint);
-
-int submit_future(Net_World * net_world, uint8_t * fingerprint);
+int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageType exch_message_type);
 
 
 #endif

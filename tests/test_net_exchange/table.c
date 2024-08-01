@@ -58,7 +58,7 @@ void destroy_table(Table * table){
 	fprintf(stderr, "Destroy Table: Unimplemented Error\n");
 }
 
-uint64_t get_count(Table * table){
+uint64_t get_count_table(Table * table){
 	pthread_mutex_lock(&(table -> cnt_lock));
 	uint64_t count = table -> cnt;
 	pthread_mutex_unlock(&(table -> cnt_lock));

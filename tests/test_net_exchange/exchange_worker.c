@@ -87,12 +87,6 @@ void * run_exchange_worker(void * _worker_thread_data) {
 				pthread_mutex_unlock(&(work_bench -> task_cnt_lock));
 			}
 
-
-			// FOR NOW NOT ACTUALLY DOING ANYTHING
-			//	- just testing send/recv throughputs
-
-			/*
-
 			// 2.) Actually perform the task
 			ret = do_exchange_function(exchange, &ctrl_message, &num_triggered_response_ctrl_messages, &triggered_response_ctrl_messages);
 			if (ret != 0){
@@ -118,10 +112,13 @@ void * run_exchange_worker(void * _worker_thread_data) {
 			}
 
 
-			*/
-
 			// 5.) If we have work_bench set, do bookeeping
 			//			- Indicate completed task
+
+
+			// COULD ALSO USE GCC ATOMICS
+			// Ref: https://gcc.gnu.org/onlinedocs/gcc-4.8.2/gcc/_005f_005fatomic-Builtins.html
+			//	- __atomic_fetch_add(shared_task_cnt, 1, __ATOMIC_SEQ_CST);
 			
 			if ((work_bench != NULL) && (!work_bench -> stopped)){
 				pthread_mutex_lock(&(work_bench -> task_cnt_lock));
@@ -136,16 +133,7 @@ void * run_exchange_worker(void * _worker_thread_data) {
 				}
 				pthread_mutex_unlock(&(work_bench -> task_cnt_lock));
 			}
-
-
-			// COULD ALSO USE GCC ATOMICS
-			// Ref: https://gcc.gnu.org/onlinedocs/gcc-4.8.2/gcc/_005f_005fatomic-Builtins.html
-			//	- __atomic_fetch_add(shared_task_cnt, 1, __ATOMIC_SEQ_CST);
-
 		}
-
-
 	}
-
 	return NULL;
 }

@@ -19,7 +19,7 @@ master_worker.o: master_worker.c
 
 ## WORKER PROGRAM
 
-testWorker: main_worker.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o inventory_worker.o work_pool.o init_sys.o ctrl_recv_dispatch.o
+testWorker: main_worker.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o
 	${CC} ${CFLAGS} $^ -o $@ -lm -pthread -libverbs -lcrypto
 
 join_net.o: join_net.c
@@ -40,7 +40,10 @@ exchange_worker.o: exchange_worker.c
 inventory_worker.o: inventory_worker.c
 	${CC} ${CFLAGS} -c $^
 
-init_sys.o: init_sys.c
+sys.o: sys.c
+	${CC} ${CFLAGS} -c $^
+
+exchange_client.o: exchange_client.c
 	${CC} ${CFLAGS} -c $^
 
 
