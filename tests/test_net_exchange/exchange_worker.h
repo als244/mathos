@@ -2,6 +2,7 @@
 #define EXCHANGE_WORKER_H
 
 #include "common.h"
+#include "utils.h"
 #include "fifo.h"
 #include "exchange.h"
 #include "net.h"
