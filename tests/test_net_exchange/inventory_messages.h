@@ -10,7 +10,8 @@
 typedef enum inventory_message_type {
 	FINGERPRINT_MATCH,
 	TRANSFER_INITIATE,
-	TRANSFER_RESPONSE
+	TRANSFER_RESPONSE,
+	INVENTORY_Q
 } InventoryMessageType;
 
 

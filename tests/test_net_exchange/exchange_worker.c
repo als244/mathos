@@ -54,7 +54,7 @@ void * run_exchange_worker(void * _worker_thread_data) {
 
 	uint64_t num_consumed;
 
-	char exch_message_type_str[255];
+	char message_type_str[255];
 	char fingerprint_as_hex_str[2 * FINGERPRINT_NUM_BYTES + 1];
 
 	while (1){
@@ -85,13 +85,13 @@ void * run_exchange_worker(void * _worker_thread_data) {
 			exch_message = (Exch_Message *) &ctrl_message.contents;
 			
 			// within exchange.c
-			exch_message_type_to_str(exch_message_type_str, exch_message -> message_type);
+			exch_message_type_to_str(message_type_str, exch_message -> message_type);
 
 			// within utils.c
 			copy_byte_arr_to_hex_str(fingerprint_as_hex_str, FINGERPRINT_NUM_BYTES, exch_message -> fingerprint);
 
 			printf("\n\n[Exchange Worker %d] Processing exchange control message!\n\tSource Node ID: %u\n\tExchange Message Type: %s\n\tFingerprint: %s\n\n", 
-							net_world -> self_node_id, ctrl_message_header.source_node_id, exch_message_type_str, fingerprint_as_hex_str);
+							net_world -> self_node_id, ctrl_message_header.source_node_id, message_type_str, fingerprint_as_hex_str);
 
 			
 			// 1b.) Possibly need to start recording for benchmark

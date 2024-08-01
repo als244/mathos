@@ -40,11 +40,14 @@ void * run_inventory_worker(void * _worker_thread_data) {
 	}
 
 	Ctrl_Message ctrl_message;
+	Ctrl_Message_H ctrl_message_header;
 
 	uint32_t num_triggered_response_ctrl_messages;
 	Ctrl_Message * triggered_response_ctrl_messages;
 
 	uint64_t num_consumed;
+
+	Inventory_Message * inventory_message;
 
 	while (1){
 
@@ -62,14 +65,18 @@ void * run_inventory_worker(void * _worker_thread_data) {
 		for (uint64_t i = 0; i < num_consumed; i++){
 
 			ctrl_message = ctrl_messages[i];
-			
-			//printf("[Exchange Worker %d] Consumed a control message!\n", worker_thread_id);
 
-			if (ctrl_message.header.message_class != INVENTORY_CLASS){
-				fprintf(stderr, "[Inventory Worker %d] Error: an inventory worker saw a task not with inventory class, but instead: %d\n", worker_thread_id, ctrl_message.header.message_class);
+			Ctrl_Message_H ctrl_message_header = ctrl_message.header;
+			
+			//printf("[Inventory Worker %d] Consumed a control message!\n", worker_thread_id);
+
+			if (ctrl_message_header.message_class != INVENTORY_CLASS){
+				fprintf(stderr, "[Inventory Worker %d] Error: an inventory worker saw a task not with inventory class, but instead: %d\n", worker_thread_id, ctrl_message_header.message_class);
 			}
 
-			
+			// within inventory.c
+			print_inventory_message(worker_thread_id, &ctrl_message);
+
 			// 1b.) Possibly need to start recording for benchmark
 			if ((work_bench != NULL) && (!work_bench -> started)){
 				pthread_mutex_lock(&(work_bench -> task_cnt_lock));

@@ -26,6 +26,30 @@ void copy_byte_arr_to_hex_str(char * out_str, uint64_t arr_len, uint8_t * byte_a
 }
 
 
+
+void copy_id_list_to_str(char * out_str, uint32_t num_ids, uint32_t * id_list) {
+
+	char * cur_dest = out_str;
+	
+	int total_len = 0;
+	int num_written;
+
+	for (uint32_t i = 0; i < num_ids; i++){
+		if (i != num_ids - 1){
+			num_written = sprintf(cur_dest, "%u, ", id_list[i]);
+		}
+		else{
+			num_written = sprintf(cur_dest, "%u", id_list[i]);
+		}
+		cur_dest += num_written;
+		total_len += num_written;
+	}
+	out_str[total_len] = '\0';
+	return;
+}
+
+
+
 char * message_class_to_str(CtrlMessageClass message_class) {
 
 	switch(message_class){
