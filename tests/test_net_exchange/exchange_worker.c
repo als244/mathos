@@ -124,7 +124,7 @@ void * run_exchange_worker(void * _worker_thread_data) {
 					}
 				}
 				else{
-					printf("\n[Exchange Worker %d] Triggered exchange response for self (should be routed to appropriate class function)!\n\tMessage Class: %s\n\n", 
+					printf("\n[Exchange Worker %d] Triggered exchange response for self! Will be routed to appropriate class function handler...\n\tMessage Class: %s\n\n", 
 								net_world -> self_node_id, message_class_to_str(triggered_response_ctrl_messages[i].header.message_class));
 				}
 				
