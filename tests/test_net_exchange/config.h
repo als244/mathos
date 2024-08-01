@@ -37,7 +37,7 @@
 #define SRQ_MAX_WR 1U << 14
 #define SRQ_MAX_SGE 2
 
-#define QP_MAX_SEND_WR 1U << 12
+#define QP_MAX_SEND_WR 1U << 10
 #define QP_MAX_SEND_SGE 2
 
 #define QP_MAX_RECV_WR 1U << 8
@@ -49,7 +49,7 @@
 // CONTROL 
 
 #define RECV_CTRL_MAX_POLL_ENTRIES 1U << 14
-#define SEND_CTRL_MAX_POLL_ENTRIES 1U << 12
+#define SEND_CTRL_MAX_POLL_ENTRIES 1U << 10
 
 #define CTRL_RECV_DISPATCHER_BACKLOG_MESSAGES 1U << 21
 
