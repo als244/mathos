@@ -175,16 +175,18 @@ int insert_item_table(Table * table, void * item) {
 	
 	pthread_mutex_lock(&(table -> cnt_lock));
 	uint64_t cnt = table -> cnt;
-	pthread_mutex_unlock(&(table -> cnt_lock));
-
 	
 	// should only happen when cnt = max_size
 	uint64_t max_size = table -> max_size;
 	if (unlikely((cnt + 1) > max_size)){
-		printf("Greater than max size\n");
+		printf("Error: insert_item_table failed. Trying to insert when larger than max size\n");
+		pthread_mutex_unlock(&(table -> cnt_lock));
 		pthread_mutex_unlock(&(table -> size_lock));
 		return -1;
-	} 
+	}
+	pthread_mutex_unlock(&(table -> cnt_lock));
+
+
 	// check if we exceed load and are below max cap
 	// if so, grow
 	float load_factor = table -> load_factor;
@@ -201,7 +203,7 @@ int insert_item_table(Table * table, void * item) {
 		ret = resize_table(table, size);
 		// check if there was an error growing table
 		if (unlikely(ret == -1)){
-			printf("Resize failed\n");
+			printf("Error: insert_item_table failed. It triggered a resize table that failed\n");
 			pthread_mutex_unlock(&(table -> size_lock));
 			return -1;
 		}
@@ -442,13 +444,15 @@ void * remove_item_table(Table * table, void * item) {
 
 	pthread_mutex_lock(&(table -> cnt_lock));
 	uint64_t cnt = table -> cnt;
-	pthread_mutex_unlock(&(table -> cnt_lock));
-
+	
 	// if there are no items then we can shortcut everything
 	if (unlikely(cnt == 0)){
+		pthread_mutex_unlock(&(table -> cnt_lock));
 		pthread_mutex_unlock(&(table -> size_lock));
 		return NULL;
 	}
+	pthread_mutex_unlock(&(table -> cnt_lock));
+
 	uint64_t shrink_cap = (uint64_t) (size * shrink_factor);
 	// optimisitically assume that we would find the item 
 	// (without actually changing cnt)
