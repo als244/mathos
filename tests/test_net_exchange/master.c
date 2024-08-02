@@ -409,7 +409,7 @@ void * run_join_net_server(void * _master) {
 
 		sem_getvalue(&(master -> avail_node_cnt_sem), &sem_val);
 		if (sem_val <= 0){
-			printf("[Master Server] Network is full (%u nodes)\nWaiting for a node to leave before allowing more connections...\n\n", master -> max_nodes);
+			printf("[Master Server] Network is full (%u nodes). Waiting for a node to leave before allowing more connections...\n\n", master -> max_nodes);
 		}
 
 		// Is blocking until there is an "available node" (means max_nodes - node_cnt)
