@@ -89,7 +89,7 @@ uint64_t get_count_table(Table * table){
 // everyone else (insert/remove/find) is locked out so don't need to care about locks
 int resize_table(Table * table, uint64_t new_size) {
 
-	if (unlikely(table == NULL)){
+	if (table == NULL){
 		fprintf(stderr, "Error in resize_table, item table is null\n");
 		return -1;
 	}
@@ -156,12 +156,12 @@ int resize_table(Table * table, uint64_t new_size) {
 // return -1 upon error
 int insert_item_table(Table * table, void * item) {
 
-	if (unlikely(table == NULL)){
+	if (table == NULL){
 		fprintf(stderr, "Error in insert_item, item table is null\n");
 		return -1;
 	}
 
-	if (unlikely(item == NULL)){
+	if (item == NULL){
 		fprintf(stderr, "Error in insert_item, item is null\n");
 		return -1;
 	}
@@ -178,7 +178,7 @@ int insert_item_table(Table * table, void * item) {
 	
 	// should only happen when cnt = max_size
 	uint64_t max_size = table -> max_size;
-	if (unlikely((cnt + 1) > max_size)){
+	if ((cnt + 1) > max_size){
 		printf("Error: insert_item_table failed. Trying to insert when larger than max size. Current Count: %lu, Max Size: %lu\n", cnt, max_size);
 		pthread_mutex_unlock(&(table -> cnt_lock));
 		pthread_mutex_unlock(&(table -> size_lock));
@@ -202,7 +202,7 @@ int insert_item_table(Table * table, void * item) {
 		// updates table -> size within function
 		ret = resize_table(table, size);
 		// check if there was an error growing table
-		if (unlikely(ret == -1)){
+		if (ret == -1){
 			printf("Error: insert_item_table failed. It triggered a resize table that failed\n");
 			pthread_mutex_unlock(&(table -> size_lock));
 			return -1;
@@ -224,6 +224,11 @@ int insert_item_table(Table * table, void * item) {
 		if (tab[table_ind] == NULL) {
 			tab[table_ind] = item;
 			pthread_mutex_lock(&(table -> cnt_lock));
+			if ((cnt + 1) > max_size){
+				printf("Error: insert_item_table failed. Trying to insert when larger than max size. Current Count: %lu, Max Size: %lu\n", cnt, max_size);
+				pthread_mutex_unlock(&(table -> cnt_lock));
+				pthread_mutex_unlock(&(slot_locks[table_ind]));
+			}
 			table -> cnt += 1;
 			pthread_mutex_unlock(&(table -> cnt_lock));
 			pthread_mutex_unlock(&(slot_locks[table_ind]));
@@ -240,12 +245,12 @@ int insert_item_table(Table * table, void * item) {
 // ASSERT(table will not grow/shrink!)
 int insert_item_get_index_table(Table * table, void * item, uint64_t * ret_index) {
 
-	if (unlikely(table == NULL)){
+	if (table == NULL){
 		fprintf(stderr, "Error in insert_item, item table is null\n");
 		return -1;
 	}
 
-	if (unlikely(item == NULL)){
+	if (item == NULL){
 		fprintf(stderr, "Error in insert_item, item is null\n");
 		return -1;
 	}
@@ -283,7 +288,7 @@ int insert_item_get_index_table(Table * table, void * item, uint64_t * ret_index
 
 void * find_item_table(Table * table, void * item){
 
-	if (unlikely(table == NULL)){
+	if (table == NULL){
 		fprintf(stderr, "Error in find_item, item table is null\n");
 		return NULL;
 	}
@@ -319,7 +324,7 @@ void * find_item_table(Table * table, void * item){
 // ASSERT(no growing or shrinking)!
 int find_item_index_table(Table * table, void * item, uint64_t * ret_index) {
 
-	if (unlikely(table == NULL)){
+	if (table == NULL){
 		fprintf(stderr, "Error in find_item, item table is null\n");
 		return -1;
 	}
@@ -352,7 +357,7 @@ int find_item_index_table(Table * table, void * item, uint64_t * ret_index) {
 // ASSERT(no growing or shrinking)!
 int remove_random_item(Table * table, void ** ret_item, uint64_t * ret_index) {
 	
-	if (unlikely(table == NULL)){
+	if (table == NULL){
 		fprintf(stderr, "Error in find_item, item table is null\n");
 		return -1;
 	}
@@ -390,7 +395,7 @@ int remove_random_item(Table * table, void ** ret_item, uint64_t * ret_index) {
 // ASSERT(no growing or shrinking)!
 int remove_item_at_index_table(Table * table, void * item, uint64_t index){
 
-	if (unlikely(table == NULL)){
+	if (table == NULL){
 		fprintf(stderr, "Error: in remove_item, item table is null\n");
 		return -1;
 	}
@@ -399,7 +404,7 @@ int remove_item_at_index_table(Table * table, void * item, uint64_t index){
 	void ** tab = table -> table;
 	uint64_t size = table -> size;
 
-	if (unlikely(index >= size)){
+	if (index >= size){
 		fprintf(stderr, "Error: trying to remove at an index > table size\n");
 		return -1;
 	}
@@ -426,7 +431,7 @@ int remove_item_at_index_table(Table * table, void * item, uint64_t index){
 // remove from table and return pointer to item (can be used later for destroying)
 void * remove_item_table(Table * table, void * item) {
 	
-	if (unlikely(table == NULL)){
+	if (table == NULL){
 		fprintf(stderr, "Error in remove_item, item table is null\n");
 		return NULL;
 	}
@@ -446,7 +451,7 @@ void * remove_item_table(Table * table, void * item) {
 	uint64_t cnt = table -> cnt;
 	
 	// if there are no items then we can shortcut everything
-	if (unlikely(cnt == 0)){
+	if (cnt == 0){
 		pthread_mutex_unlock(&(table -> cnt_lock));
 		pthread_mutex_unlock(&(table -> size_lock));
 		return NULL;
@@ -517,7 +522,7 @@ void * remove_item_table(Table * table, void * item) {
 //		- (i.e. completely block out other functions until completition)
 int get_all_items_table(Table * table, bool to_start_rand, bool to_sort, uint64_t * ret_cnt, void *** ret_all_items) {
 
-	if (unlikely(table == NULL)){
+	if (table == NULL){
 		fprintf(stderr, "Error in get_all_items_table, item table is null\n");
 		return 0;
 	}
@@ -533,7 +538,7 @@ int get_all_items_table(Table * table, bool to_start_rand, bool to_sort, uint64_
 
 	// 2.) Allocate container for all the items
 	void ** all_items = (void **) malloc(cnt * sizeof(void *));
-	if (unlikely(all_items == NULL)){
+	if (all_items == NULL){
 		fprintf(stderr, "Error: malloc failed to allocate all_items container\n");
 		return -1;
 	}
@@ -573,7 +578,7 @@ int get_all_items_table(Table * table, bool to_start_rand, bool to_sort, uint64_
 
 	}
 
-	if (unlikely(num_added != cnt)){
+	if (num_added != cnt){
 		fprintf(stderr, "Error: in get_all_items_table(). The table count (%lu) differs from items added (%lu)\n", cnt, num_added);
 		return -1;
 	}
