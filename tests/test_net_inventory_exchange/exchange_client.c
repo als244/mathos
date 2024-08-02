@@ -2,27 +2,28 @@
 
 
 // Returns 0 on error (master node id)
+// Returns 0 on error (master node id)
 uint32_t determine_exchange(System * system, uint8_t * fingerprint) {
 
 	Net_World * net_world = system -> net_world;
 
-	uint32_t num_exchanges;
+	uint64_t least_sig64 = fingerprint_to_least_sig64(fingerprint, FINGERPRINT_NUM_BYTES);
+
+	
 
 	// For now assuming each node has an exchange and there are no others
 	//	- realistically makes sense to have dedicated exchange nodes however
 	//		- but many clusters are built such that each node is uniform and there isn't special topology 
 	//			or memory-heavy + network-heavy + compute-weak nodes
-	
-	num_exchanges = get_count_table(net_world -> nodes);
 
+	uint64_t num_exchanges = get_count_table(net_world -> nodes);
 	uint64_t partition_size = UINT64_MAX / num_exchanges;
-
-	uint64_t least_sig64 = fingerprint_to_least_sig64(fingerprint, FINGERPRINT_NUM_BYTES);
+	
 
 	// because Master Node has ID 0 and it doesn't have an exchange
 	// we want to add 1 to the destination (this is valid because the
 	// the highest node id will actually be num_exchanges + 1)
-	uint64_t dest_exchange = (least_sig64 / partition_size) + 1;
+	uint32_t dest_exchange = (uint32_t) ((least_sig64 / partition_size) + 1);
 	return dest_exchange;
 }
 
@@ -76,7 +77,7 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 		// within utils.c
 		copy_byte_arr_to_hex_str(fingerprint_as_hex_str, FINGERPRINT_NUM_BYTES, exch_message -> fingerprint);
 
-		printf("\n\n[Exchange Client %d] Posting to self-exchange!\n\tExchange Message Type: %s\n\tFingerprint: %s\n\n", 
+		printf("\n\n[Node %d: Exchange Client] Posting to self-exchange!\n\tExchange Message Type: %s\n\tFingerprint: %s\n\n", 
 							net_world -> self_node_id, exch_message_type_str, fingerprint_as_hex_str);
 
 		
@@ -93,12 +94,22 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 		// this may block depending on size of send queue...
 		for (uint32_t i = 0; i < num_triggered_ctrl_messages; i++){
 
-			ret = post_send_ctrl_net(net_world, &(triggered_ctrl_messages[i]));
-			if (ret != 0){
-				fprintf(stderr, "Error: post_send_ctrl_net failed when sending out triggered ctrl messages from exchange (triggered message #%u)\n", i);
-				// still free the array that was allocated within do_exchange_function
-				free(triggered_ctrl_messages);
-				return -1;
+			// a.) first check if we actually need to send a message or if it is self-directed
+			
+			if (triggered_ctrl_messages[i].header.dest_node_id != net_world -> self_node_id){
+				ret = post_send_ctrl_net(net_world, &(triggered_ctrl_messages[i]));
+				if (ret != 0){
+					fprintf(stderr, "Error: post_send_ctrl_net failed when sending out triggered ctrl messages from exchange (triggered message #%u)\n", i);
+					// still free the array that was allocated within do_exchange_function
+					free(triggered_ctrl_messages);
+					return -1;
+				}
+			}
+			else {
+				// TODO: actually call function to process this self-directed message
+				if (triggered_ctrl_messages[i].header.message_class == INVENTORY_CLASS){
+					print_inventory_message(EXCHANGE_CLIENT, 0, &(triggered_ctrl_messages[i]));
+				}
 			}
 		}
 		free(triggered_ctrl_messages);

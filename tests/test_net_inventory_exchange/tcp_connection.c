@@ -8,7 +8,7 @@ int start_server_listen(char * server_ip_addr, unsigned short server_port, int b
 	// 1.) create server TCP socket
 	int serv_sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (serv_sockfd == -1){
-		fprintf(stderr, "[Master Server] Error: could not create server socket\n");
+		fprintf(stderr, "Error: could not create server socket\n");
 		return -1;
 	}
 
@@ -20,7 +20,7 @@ int start_server_listen(char * server_ip_addr, unsigned short server_port, int b
 	// INET_ATON return 0 on error!
 	ret = inet_aton(server_ip_addr, &serv_addr.sin_addr);
 	if (ret == 0){
-		fprintf(stderr, "[Master Server] Error: master join server ip address: %s -- invalid\n", server_ip_addr);
+		fprintf(stderr, "Error: server ip address: %s -- invalid\n", server_ip_addr);
 		return -1;
 	}
 	// defined within config.h
@@ -31,7 +31,7 @@ int start_server_listen(char * server_ip_addr, unsigned short server_port, int b
 	//			 want this addr/port to be available for binding upon restart without having to deal with TIME_WAIT in kernel
 
 	int enable_reuse = 1;
-	ret = setsockopt(serv_sockfd, SOL_SOCKET, SO_REUSEADDR, &enable_reuse, sizeof(enable_reuse));
+	ret = setsockopt(serv_sockfd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &enable_reuse, sizeof(enable_reuse));
 	if (ret != 0){
 		fprintf(stderr, "Error: unable to set socket options in join_net server\n");
 		return -1;
@@ -40,14 +40,14 @@ int start_server_listen(char * server_ip_addr, unsigned short server_port, int b
 	// 4.) Bind server to port
 	ret = bind(serv_sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
 	if (ret != 0){
-		fprintf(stderr, "[Master Server] Error: could not bind server socket to address: %s, port: %u\n", server_ip_addr, server_port);
+		fprintf(stderr, "Error: could not bind server socket to address: %s, port: %u\n", server_ip_addr, server_port);
 		return -1;
 	}
 
 	// 5.) Start Listening
 	ret = listen(serv_sockfd, backlog);
 	if (ret != 0){
-		fprintf(stderr, "[Master Server] Error: could not start listening on server socket\n");
+		fprintf(stderr, "Error: could not start listening on server socket\n");
 		return -1;
 	}
 

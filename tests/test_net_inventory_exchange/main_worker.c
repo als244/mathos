@@ -34,10 +34,10 @@ int main(int argc, char * argv[]){
 
 	ExchMessageType exch_message_type;
 	if (net_world -> self_node_id == 1){
-		exch_message_type = BID_ORDER;
-	}
-	if (net_world -> self_node_id == 2){
 		exch_message_type = OFFER_ORDER;
+	}
+	if (net_world -> self_node_id >= 2){
+		exch_message_type = BID_ORDER;
 	}
 
 	uint64_t num_exchange_messages = 10;
@@ -54,7 +54,7 @@ int main(int argc, char * argv[]){
 	// Actually start all threads!
 	//	- this call blocks until min_init_nodes (set within master) have been added to the net_world table
 
-	printf("\n\nJOINING NETWORK & BRINGING SYSTEM ONLINE...!\n\n");
+	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
 
 	ret = start_system(system);
 	if (ret != 0){

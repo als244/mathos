@@ -124,8 +124,11 @@ void * run_exchange_worker(void * _worker_thread_data) {
 					}
 				}
 				else{
-					printf("\n[Exchange Worker %d] Triggered exchange response for self! Will be routed to appropriate class function handler...\n\tMessage Class: %s\n\n", 
-								worker_thread_id, message_class_to_str(triggered_response_ctrl_messages[i].header.message_class));
+
+					// TODO: actually call function to process this self-directed message
+					if (triggered_response_ctrl_messages[i].header.message_class == INVENTORY_CLASS){
+						print_inventory_message(EXCHANGE_WORKER, worker_thread_id, &(triggered_response_ctrl_messages[i]));
+					}
 				}
 				
 			}

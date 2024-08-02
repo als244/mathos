@@ -7,6 +7,7 @@
 #include "exchange.h"
 #include "net.h"
 #include "work_pool.h"
+#include "inventory.h"
 
 
 // this will be the value within worker_thread_data -> worker_arg

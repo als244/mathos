@@ -6,6 +6,8 @@
 #include "fingerprint.h"
 #include "exchange.h"
 #include "net.h"
+#include "work_pool.h"
+#include "inventory.h"
 #include "sys.h"
 
 

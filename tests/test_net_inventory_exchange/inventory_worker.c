@@ -75,7 +75,7 @@ void * run_inventory_worker(void * _worker_thread_data) {
 			}
 
 			// within inventory.c
-			print_inventory_message(worker_thread_id, &ctrl_message);
+			print_inventory_message(INVENTORY_WORKER, worker_thread_id, &ctrl_message);
 
 			// 1b.) Possibly need to start recording for benchmark
 			if ((work_bench != NULL) && (!work_bench -> started)){

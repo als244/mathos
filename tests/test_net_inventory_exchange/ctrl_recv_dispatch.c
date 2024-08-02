@@ -66,9 +66,9 @@ void * run_recv_ctrl_dispatcher(void * _ctrl_recv_dispatcher_thread_data) {
 
 			ctrl_message_header = ctrl_message.header;
 						
-						
-			printf("\n\n[Node %u] Received control message!\n\tSource Node ID: %u\n\tMessage Class: %s\n\n", 
-							net_world -> self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class));
+			// Kinda ugly for printing		
+			// printf("\n\n[Node %u] Received control message!\n\tSource Node ID: %u\n\tMessage Class: %s\n\n", 
+			// 				net_world -> self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class));
 
 			// all fifo buffers at at:
 			// work_pool -> classes)[ctrl_message_header.message_class] -> tasks
