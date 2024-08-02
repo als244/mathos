@@ -73,15 +73,6 @@ int main(int argc, char * argv[]){
 	
 	// Only send message from node 1
 
-
-	// If we are sending bids then wait to see if multiple match locations works
-	if (net_world -> self_node_id == 1){
-		printf("Sleeping for 2 seconds to let other nodes post orders (for testing correct functionality)\n");
-		sleep(2);
-	}
-
-
-
 	uint64_t start_message_id = 0;
 	for (uint64_t i = start_message_id; i < start_message_id + num_exchange_messages; i++){
 
