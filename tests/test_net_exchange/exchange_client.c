@@ -2,6 +2,7 @@
 
 
 // Returns 0 on error (master node id)
+// Returns 0 on error (master node id)
 uint32_t determine_exchange(System * system, uint8_t * fingerprint) {
 
 	Net_World * net_world = system -> net_world;
@@ -14,12 +15,15 @@ uint32_t determine_exchange(System * system, uint8_t * fingerprint) {
 	//			or memory-heavy + network-heavy + compute-weak nodes
 	
 	num_exchanges = get_count_table(net_world -> nodes);
+
+	uint64_t partition_size = UINT64_MAX / num_exchanges;
+
 	uint64_t least_sig64 = fingerprint_to_least_sig64(fingerprint, FINGERPRINT_NUM_BYTES);
 
 	// because Master Node has ID 0 and it doesn't have an exchange
 	// we want to add 1 to the destination (this is valid because the
 	// the highest node id will actually be num_exchanges + 1)
-	uint64_t dest_exchange = (least_sig64 % num_exchanges) + 1;
+	uint64_t dest_exchange = (least_sig64 / partition_size) + 1;
 	return dest_exchange;
 }
 

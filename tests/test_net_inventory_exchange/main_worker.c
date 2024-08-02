@@ -26,7 +26,7 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	printf("\n\nSuccessfully initialized system!\n\n");
+	printf("\n\nSuccessfully initialized self-system components!\n\n");
 
 
 	Net_World * net_world = system -> net_world;
@@ -54,7 +54,7 @@ int main(int argc, char * argv[]){
 	// Actually start all threads!
 	//	- this call blocks until min_init_nodes (set within master) have been added to the net_world table
 
-	printf("\n\nSTARTING SYSTEM...!\n\n");
+	printf("\n\nJOINING NETWORK & BRINGING SYSTEM ONLINE...!\n\n");
 
 	ret = start_system(system);
 	if (ret != 0){
