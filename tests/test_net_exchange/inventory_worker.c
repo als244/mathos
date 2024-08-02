@@ -12,13 +12,14 @@ void * run_inventory_worker(void * _worker_thread_data) {
 
 	int worker_thread_id = worker_thread_data -> worker_thread_id;
 
-	printf("[Inventory Worker %d] Started!\n", worker_thread_id);
+	
 
 	// Exchange specific arguments
 	Inventory_Worker_Data * inventory_worker_data = (Inventory_Worker_Data *) worker_thread_data -> worker_arg;
 	// Inventory * Inventory = inventory_worker_data -> inventory;
 	Net_World * net_world = inventory_worker_data -> net_world;
 
+	printf("[Node %u: Inventory Worker -- %d] Started!\n", net_world -> self_node_id, worker_thread_id);
 	
 
 	// The main task queue that contains control messages routed to this worker_class
@@ -75,7 +76,7 @@ void * run_inventory_worker(void * _worker_thread_data) {
 			}
 
 			// within inventory.c
-			print_inventory_message(INVENTORY_WORKER, worker_thread_id, &ctrl_message);
+			print_inventory_message(net_world -> self_node_id, INVENTORY_WORKER, worker_thread_id, &ctrl_message);
 
 			// 1b.) Possibly need to start recording for benchmark
 			if ((work_bench != NULL) && (!work_bench -> started)){

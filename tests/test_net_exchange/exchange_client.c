@@ -77,7 +77,7 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 		// within utils.c
 		copy_byte_arr_to_hex_str(fingerprint_as_hex_str, FINGERPRINT_NUM_BYTES, exch_message -> fingerprint);
 
-		printf("\n\n[Node %d: Exchange Client] Posting to self-exchange!\n\tExchange Message Type: %s\n\tFingerprint: %s\n\n", 
+		printf("\n\n[Node %d: Exchange Client -- 0] Posting to self-exchange!\n\tExchange Message Type: %s\n\tFingerprint: %s\n\n", 
 							net_world -> self_node_id, exch_message_type_str, fingerprint_as_hex_str);
 
 		
@@ -108,7 +108,7 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 			else {
 				// TODO: actually call function to process this self-directed message
 				if (triggered_ctrl_messages[i].header.message_class == INVENTORY_CLASS){
-					print_inventory_message(EXCHANGE_CLIENT, 0, &(triggered_ctrl_messages[i]));
+					print_inventory_message(net_world -> self_node_id, EXCHANGE_CLIENT, 0, &(triggered_ctrl_messages[i]));
 				}
 			}
 		}
