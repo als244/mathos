@@ -174,6 +174,8 @@ int start_system(System * system) {
 		return -1;
 	}
 
+	printf("\n\nWaiting until the minimum number of nodes (%u) have joined the net...\n\n", net_world -> min_init_nodes);
+
 	// 10.) wait until min_init_nodes (besides master) have been added to the net_world -> nodes table
 	sem_wait(&(net_world -> is_init_ready));
 
