@@ -252,7 +252,7 @@ Net_Node * net_add_node(Net_World * net_world, Rdma_Init_Info * remote_rdma_init
 
 		char * gid_hex = byte_arr_to_hex_str(GID_NUM_BYTES, remote_ports[i].gid.raw);
 
-		printf("\n[Node %u: Joining Net] Added remote port from node: %u. Port info:\n\tGID: %s\n\tLID: %u\n\tPort Num: %u\n\tState: %d\n\tActive MTU: %u\n\tActive Speed: %u\n\n", 
+		printf("\n[Node %u: Discovered Remote Port] Added remote port from node: %u. Port info:\n\tGID: %s\n\tLID: %u\n\tPort Num: %u\n\tState: %d\n\tActive MTU: %u\n\tActive Speed: %u\n\n", 
 				net_world -> self_node_id, node -> node_id, gid_hex, remote_ports[i].lid, remote_ports[i].port_num, remote_ports[i].state, remote_ports[i].active_mtu, remote_ports[i].active_speed);
 		
 		free(gid_hex);
@@ -304,7 +304,7 @@ Net_Node * net_add_node(Net_World * net_world, Rdma_Init_Info * remote_rdma_init
 		// add the index of the endpoint in case we want to move this struct around and refer back to the endpoints array
 		remote_endpoints[i].remote_node_endpoint_ind = i;
 
-		printf("\n[Node %u] Added remote endpoint from node: %u. Endpoint info:\n\tEndpoint Type: %d\n\tQP Num: %u\n\tQKey: %u\n\tRemote Node Port Ind: %u\n\tRemote Node Endpoint Ind: %u\n\n\n", 
+		printf("\n[Node %u: Discovered Remote Endpoint] Added remote endpoint from node: %u. Endpoint info:\n\tEndpoint Type: %d\n\tQP Num: %u\n\tQKey: %u\n\tRemote Node Port Ind: %u\n\tRemote Node Endpoint Ind: %u\n\n\n", 
 				net_world -> self_node_id, node -> node_id, remote_endpoints[i].endpoint_type, remote_endpoints[i].remote_qp_num, remote_endpoints[i].remote_qkey, remote_endpoints[i].remote_node_port_ind, i);
 
 		// if this is a contorl endpoint and it's corresponding port is active add it to the active_ctrl_endpoints deque
