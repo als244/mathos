@@ -173,7 +173,7 @@ int insert_deque(Deque * deque, DequeEnd insert_end, void * item){
 
 	pthread_mutex_unlock(&(deque -> list_lock));
 
-	if (unlikely(ret != 0)){
+	if (ret != 0){
 		fprintf(stderr, "Inserting to deque failed because out of memory to create new deque_item\n");
 	}
 
@@ -240,7 +240,7 @@ int take_and_replace_deque(Deque * deque, DequeEnd take_end, DequeEnd replace_en
 
 	pthread_mutex_unlock(&(deque -> list_lock));
 
-	if (unlikely(ret != 0)){
+	if (ret != 0){
 		fprintf(stderr, "Take and replace failed because out of memory to create replacement deque_item\n");
 	}
 
@@ -259,7 +259,7 @@ int peek_item_at_index_deque(Deque * deque, DequeEnd start_end, uint64_t index, 
 
 	// Error checking if we want it
 
-	if (unlikely(index >= deque -> cnt)) {
+	if (index >= deque -> cnt) {
 		fprintf(stderr, "Error: cannot peek at item at index %lu, when deque count is %lu\n", index, deque -> cnt);
 		*ret_item = NULL;
 		return -1;
