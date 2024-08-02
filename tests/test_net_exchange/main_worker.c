@@ -17,7 +17,9 @@ int main(int argc, char * argv[]){
 	char * self_ip_addr = NULL;
 	if (argc == 3){
 		self_ip_addr = argv[2];
-	}	
+	}
+
+	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
 
 	System * system = init_system(master_ip_addr, self_ip_addr);
 
@@ -26,7 +28,7 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	printf("\n\nSuccessfully initialized self-system components!\n\n");
+	printf("\n\nSuccessfully initialized system! Was assigned Node ID: %u!\n\n", system -> net_world -> self_node_id);
 
 
 	Net_World * net_world = system -> net_world;
@@ -53,8 +55,7 @@ int main(int argc, char * argv[]){
 
 	// Actually start all threads!
 	//	- this call blocks until min_init_nodes (set within master) have been added to the net_world table
-
-	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
+	printf("\n\nSpawning all worker threads & waiting until the minimum number of nodes (%u) have joined the net...\n\n", net_world -> min_init_nodes);
 
 	ret = start_system(system);
 	if (ret != 0){
