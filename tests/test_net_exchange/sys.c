@@ -90,7 +90,7 @@ System * init_system(char * master_ip_addr, char * self_ip_addr){
 	inventory_worker_data -> net_world = net_world;
 
 	//	- each worker will have their own worker_data specified in their worker file
-	ret = add_work_class(work_pool, INVENTORY_CLASS, NUM_INVENTORY_WORKER_THREADS, INVENTORY_WORKER_MAX_TASKS_BACKLOG, sizeof(Ctrl_Message), run_inventory_worker, &inventory_worker_data);
+	ret = add_work_class(work_pool, INVENTORY_CLASS, NUM_INVENTORY_WORKER_THREADS, INVENTORY_WORKER_MAX_TASKS_BACKLOG, sizeof(Ctrl_Message), run_inventory_worker, inventory_worker_data);
 	if (ret != 0){
 		fprintf(stderr, "Error: unable to add worker class\n");
 		return NULL;
