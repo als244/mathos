@@ -99,7 +99,7 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 
 				// NOTE: TODO!
 				//	- this should be better designed for easy routing to all self work-class functionality!
-				printf("\n[Node %d: Exchange Client %d] Triggered exchange response for self! Will be routed to appropriate class function handler...\n\tMessage Class: %s\n\n", 
+				printf("\n[Node %d: Exchange Client] Triggered exchange response for self! Will be routed to appropriate class function handler...\n\tMessage Class: %s\n\n", 
 								net_world -> self_node_id, message_class_to_str(triggered_ctrl_messages[i].header.message_class));
 			}
 			else{
