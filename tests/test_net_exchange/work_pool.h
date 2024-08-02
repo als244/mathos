@@ -3,10 +3,17 @@
 
 
 #include "common.h"
+// Contains all the constants that define number of workers and buffer sizes!
 #include "config.h"
 #include "fifo.h"
 
-// THIS corresponds to number of ctrl message classes there are that have work that needs to be handled!
+
+typedef enum worker_type {
+	EXCHANGE_WORKER,
+	EXCHANGE_CLIENT,
+	INVENTORY_WORKER
+} WorkerType;
+
 
 typedef struct Work_Bench {
 	pthread_mutex_t task_cnt_lock;
