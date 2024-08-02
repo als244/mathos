@@ -1,6 +1,7 @@
 #include "function.h"
 
-int encode_function(Function * function, unsigned char * ret_fingerprint) {
+// Assumes memory has been allocated for ret_fingerprint already
+int encode_function(Function * function, uint8_t * ret_fingerprint) {
 
 	SHA256_CTX ctx;
 	SHA256_Init(&ctx);
@@ -11,7 +12,7 @@ int encode_function(Function * function, unsigned char * ret_fingerprint) {
 	// now hash all the argument fingerprints
 	int num_args = function -> metadata -> num_args;
 	uint64_t fingerprint_bytes = (uint64_t) function -> fingerprint_bytes;
-	unsigned char ** argument_fingerprints = function -> argument_fingerprints;
+	uint8_t ** argument_fingerprints = function -> argument_fingerprints;
 
 	for (int i = 0; i < num_args; i++){
 		SHA256_Update(&ctx, argument_fingerprints[i], fingerprint_bytes);
@@ -22,7 +23,7 @@ int encode_function(Function * function, unsigned char * ret_fingerprint) {
 	return 0;
 }
 
-Function * init_function(FunctionType function_type, DataType data_type, int num_args, unsigned char ** argument_fingerprints, uint8_t fingerprint_bytes){
+Function * init_function(FunctionType function_type, DataType data_type, int num_args, uint8_t ** argument_fingerprints, uint8_t fingerprint_bytes){
 
 	Function * f = (Function *) malloc(sizeof(Function));
 	if (f == NULL){
