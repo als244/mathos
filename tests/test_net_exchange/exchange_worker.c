@@ -124,6 +124,8 @@ void * run_exchange_worker(void * _worker_thread_data) {
 					}
 				}
 				else{
+					// NOTE: TODO!
+					//	- this should be better designed for easy routing to all self work-class functionality!
 					printf("\n[Exchange Worker %d] Triggered exchange response for self! Will be routed to appropriate class function handler...\n\tMessage Class: %s\n\n", 
 								worker_thread_id, message_class_to_str(triggered_response_ctrl_messages[i].header.message_class));
 				}

@@ -77,7 +77,7 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 		// within utils.c
 		copy_byte_arr_to_hex_str(fingerprint_as_hex_str, FINGERPRINT_NUM_BYTES, exch_message -> fingerprint);
 
-		printf("\n\n[Exchange Client %d] Posting to self-exchange!\n\tExchange Message Type: %s\n\tFingerprint: %s\n\n", 
+		printf("\n\n[Node %d: Exchange Client] Posting to self-exchange!\n\tExchange Message Type: %s\n\tFingerprint: %s\n\n", 
 							net_world -> self_node_id, exch_message_type_str, fingerprint_as_hex_str);
 
 		
@@ -94,12 +94,22 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 		// this may block depending on size of send queue...
 		for (uint32_t i = 0; i < num_triggered_ctrl_messages; i++){
 
-			ret = post_send_ctrl_net(net_world, &(triggered_ctrl_messages[i]));
-			if (ret != 0){
-				fprintf(stderr, "Error: post_send_ctrl_net failed when sending out triggered ctrl messages from exchange (triggered message #%u)\n", i);
-				// still free the array that was allocated within do_exchange_function
-				free(triggered_ctrl_messages);
-				return -1;
+			// a.) first check if self desination
+			if (triggered_ctrl_messages[i].header.dest_node_id == self_id){
+
+				// NOTE: TODO!
+				//	- this should be better designed for easy routing to all self work-class functionality!
+				printf("\n[Node %d: Exchange Client %d] Triggered exchange response for self! Will be routed to appropriate class function handler...\n\tMessage Class: %s\n\n", 
+								net_world -> self_node_id, message_class_to_str(triggered_ctrl_messages[i].header.message_class));
+			}
+			else{
+				ret = post_send_ctrl_net(net_world, &(triggered_ctrl_messages[i]));
+				if (ret != 0){
+					fprintf(stderr, "Error: post_send_ctrl_net failed when sending out triggered ctrl messages from exchange (triggered message #%u)\n", i);
+					// still free the array that was allocated within do_exchange_function
+					free(triggered_ctrl_messages);
+					return -1;
+				}
 			}
 		}
 		free(triggered_ctrl_messages);
