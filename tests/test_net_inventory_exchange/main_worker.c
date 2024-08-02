@@ -26,7 +26,7 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	printf("\n\nSuccessfully initialized system!\n\n\n");
+	printf("\n\nSuccessfully initialized system!\n\n");
 
 
 	Net_World * net_world = system -> net_world;
@@ -53,11 +53,16 @@ int main(int argc, char * argv[]){
 
 	// Actually start all threads!
 	//	- this call blocks until min_init_nodes (set within master) have been added to the net_world table
+
+	printf("\n\nSTARTING SYSTEM...!\n\n");
+
 	ret = start_system(system);
 	if (ret != 0){
 		fprintf(stderr, "Error: failed to start system\n");
 		return -1;
 	}
+
+	printf("\n\nSuccessfully started system. Everything online and ready to process...!\n\n");
 
 
 	// NOW SEND/RECV MESSAGES!
