@@ -86,8 +86,6 @@ Net_World * init_net_world(Self_Net * self_net, uint32_t node_id, uint32_t max_n
 
 	// setting fixed table size of min_nodes == max_nodes
 
-	// Including +1 for master!
-
 	uint32_t min_nodes = max_nodes;
 	float load_factor = 1.0f;
 	float shrink_factor = 0.0f;

@@ -179,7 +179,7 @@ int insert_item_table(Table * table, void * item) {
 	// should only happen when cnt = max_size
 	uint64_t max_size = table -> max_size;
 	if (unlikely((cnt + 1) > max_size)){
-		printf("Error: insert_item_table failed. Trying to insert when larger than max size\n");
+		printf("Error: insert_item_table failed. Trying to insert when larger than max size. Current Count: %lu, Max Size: %lu\n", cnt, max_size);
 		pthread_mutex_unlock(&(table -> cnt_lock));
 		pthread_mutex_unlock(&(table -> size_lock));
 		return -1;
