@@ -2,6 +2,7 @@
 #include "fingerprint.h"
 #include "exchange_client.h"
 #include "utils.h"
+#include "hsa_memory.h"
 
 int main(int argc, char * argv[]){
 
@@ -18,6 +19,40 @@ int main(int argc, char * argv[]){
 	if (argc == 3){
 		self_ip_addr = argv[2];
 	}
+
+
+	/* QUICK AND DIRTY SPOT TO TEST HSA STUFF! */
+
+	printf("Intializing HSA memory container...\n");
+
+	Hsa_Memory * hsa_memory = hsa_init_memory();
+	if (hsa_memory == NULL){
+		fprintf(stderr, "Error: hsa_init_memory failed\n");
+	}
+
+	printf("Found %d HSA agents each with a mempool!\n", hsa_memory -> n_agents);
+
+	exit(0);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
 

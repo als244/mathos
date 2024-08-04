@@ -1,6 +1,11 @@
 CC = gcc
 CFLAGS = -g -std=c99 -Wall -pedantic 
 
+HSA_CFLAGS = -D__HIP_PLATFORM_AMD__ 
+
+HSA_INCLUDE = /opt/rocm/include
+HSA_LIB = /opt/rocm/lib -lhsa-runtime64
+
 all: testMaster testWorker
 
 ## executables
@@ -8,7 +13,7 @@ all: testMaster testWorker
 
 ## MASTER PROGRAM
 testMaster: main_master.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o master.o utils.o cq_handler.o ctrl_handler.o work_pool.o master_worker.o ctrl_recv_dispatch.o
-	${CC} ${CFLAGS} $^ -o $@ -lm -pthread -libverbs
+	${CC} ${CFLAGS} $^ -o $@ -pthread -libverbs
 
 master.o: master.c
 	${CC} ${CFLAGS} -c $^
@@ -19,8 +24,8 @@ master_worker.o: master_worker.c
 
 ## WORKER PROGRAM
 
-testWorker: main_worker.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o mempool.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o
-	${CC} ${CFLAGS} $^ -o $@ -lm -pthread -libverbs -lcrypto
+testWorker: main_worker.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o mempool.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o hsa_memory.o
+	${CC} ${CFLAGS} ${HSA_CFLAGS} $^ -o $@ -I $(HSA_INCLUDE) -pthread -libverbs -lcrypto -L $(HSA_LIB)
 
 join_net.o: join_net.c
 	${CC} ${CFLAGS} -c $^
@@ -52,6 +57,12 @@ sys.o: sys.c
 exchange_client.o: exchange_client.c
 	${CC} ${CFLAGS} -c $^
 
+
+
+## BACKENDS
+
+hsa_memory.o: hsa_memory.c
+	${CC} ${CFLAGS} -c $^ -I $(HSA_INCLUDE)
 
 
 

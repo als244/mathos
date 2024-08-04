@@ -21,18 +21,7 @@ uint64_t exchange_hash_func(void * exchange_item, uint64_t table_size) {
 	Exchange_Item * item_casted = (Exchange_Item *) exchange_item;
 	unsigned char * fingerprint = item_casted -> fingerprint;
 	uint64_t least_sig_64bits = fingerprint_to_least_sig64(fingerprint, FINGERPRINT_NUM_BYTES);
-	// bitmask should be the lower log(2) lower bits of table size.
-	// i.e. if table_size = 2^12, we should have a bit mask of 12 1's
-	uint64_t bit_mask;
-	uint64_t hash_ind;
-
-	int leading_zeros = __builtin_clzll(table_size);
-	// 64 bits as table_size type
-	// taking ceil of power of 2, then subtracing 1 to get low-order 1's bitmask
-	int num_bits = (64 - leading_zeros) + 1;
-	bit_mask = (1L << num_bits) - 1;
-	hash_ind = (least_sig_64bits & bit_mask) % table_size;
-	return hash_ind;
+	return least_sig_64bits % table_size;
 }
 
 Exchange * init_exchange() {
