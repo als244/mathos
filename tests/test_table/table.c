@@ -201,24 +201,18 @@ int insert_item(Table * table, void * item) {
 		pthread_cond_wait(&(table -> removal_cv), &(table -> op_lock));
 	}
 
+
 	// Now incdicate we are doing an insert
 	// to prevent removals from occurring
 	// or to inform future inserts that
 	// are on boarder of growth region to wait for this
 	table -> num_inserts += 1;
-
+	
 	// we now know there are no pending removals, so we can obtain the count
 	// and (worst-case) assume all inserts are new
 	uint64_t current_cnt = table -> cnt;
 	uint64_t total_cnt = current_cnt + table -> num_inserts;
-	
 	uint64_t max_size = table -> max_size;
-	if (total_cnt == max_size){
-		fprintf(stderr, "Error: couldn't perform insert because table would be at full size\n");
-		pthread_mutex_unlock(&(table -> op_lock));
-		return -1;
-	}
-
 
 	// before releasing op lock we need to determine if the table will need to
 	// grow/shrink before searching through it
@@ -295,6 +289,10 @@ int insert_item(Table * table, void * item) {
 	pthread_mutex_t * slot_locks = table -> slot_locks;
 	bool is_duplicate = false;
 	bool is_inserted = false;
+	
+	// can shortcut the insertion
+
+
 	for (uint64_t i = hash_ind; i < hash_ind + size; i++){
 		table_ind = i % size;
 		pthread_mutex_lock(&(slot_locks[table_ind]));
@@ -427,20 +425,21 @@ void * remove_item(Table * table, void * item) {
 	// to prevent other inserts and finds from going
 	table -> num_removals += 1;
 
-
 	// we now know there are no pending inserts/finds, so we can obtain the count
 	// and (worst-case) assume all removals will purge an existing item
 	uint64_t current_cnt = table -> cnt;
 	uint64_t pending_removals = table -> num_removals;
 
-	// We know there will be 0 items left, so we can break easily here
-	if (current_cnt <= pending_removals){
-		pthread_mutex_unlock(&(table -> op_lock));
-		return NULL;
-	}
+	uint64_t total_cnt;
 
-	// now we now this will not overflow because if statement above
-	uint64_t total_cnt = current_cnt - table -> num_removals;
+	// Assuming all removals will succeed
+	if (current_cnt < pending_removals){
+		// to prevent overflow
+		total_cnt = 0;
+	}
+	else {
+		total_cnt = current_cnt - table -> num_removals;
+	}
 
 
 	bool resized = false;
