@@ -173,8 +173,8 @@ int process_rdma_init_connection(int sockfd, Net_World * net_world, bool * ret_i
 
 	uint32_t min_init_nodes = net_world -> min_init_nodes;
 
-	uint32_t connected_nodes_cnt = (uint32_t) get_count_table(net_world -> nodes, false);
-	if (connected_nodes_cnt == min_init_nodes){
+	uint32_t connected_nodes_cnt = (uint32_t) get_count_table(net_world -> nodes, true);
+	if (connected_nodes_cnt >= min_init_nodes){
 		sem_post(&(net_world -> is_init_ready));
 	}
 
