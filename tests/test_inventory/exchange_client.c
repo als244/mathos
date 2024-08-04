@@ -16,7 +16,7 @@ uint32_t determine_exchange(System * system, uint8_t * fingerprint) {
 	//		- but many clusters are built such that each node is uniform and there isn't special topology 
 	//			or memory-heavy + network-heavy + compute-weak nodes
 
-	uint64_t num_exchanges = get_count_table(net_world -> nodes);
+	uint64_t num_exchanges = get_count_table(net_world -> nodes, false);
 	uint64_t partition_size = UINT64_MAX / num_exchanges;
 	
 
