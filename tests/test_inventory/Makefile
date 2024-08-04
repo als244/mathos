@@ -6,7 +6,7 @@ HSA_CFLAGS = -D__HIP_PLATFORM_AMD__
 HSA_INCLUDE = /opt/rocm/include
 HSA_LIB = /opt/rocm/lib -lhsa-runtime64
 
-all: testMaster testWorker
+all: testMaster testWorker1 testWorker2
 
 ## executables
 
@@ -24,8 +24,11 @@ master_worker.o: master_worker.c
 
 ## WORKER PROGRAM
 
-testWorker: main_worker.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o mempool.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o hsa_memory.o
+testWorker1: main_worker_1.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o mempool.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o hsa_memory.o
 	${CC} ${CFLAGS} ${HSA_CFLAGS} $^ -o $@ -I $(HSA_INCLUDE) -pthread -libverbs -lcrypto -L $(HSA_LIB)
+
+testWorker2: main_worker_2.c table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o mempool.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o
+	${CC} ${CFLAGS} $^ -o $@ -pthread -libverbs -lcrypto
 
 join_net.o: join_net.c
 	${CC} ${CFLAGS} -c $^
@@ -122,4 +125,4 @@ ctrl_recv_dispatch.o: ctrl_recv_dispatch.c
 
 
 clean:
-	rm -f *.o testMaster testWorker
+	rm -f *.o testMaster testWorker1 testWorker2 
