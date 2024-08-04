@@ -13,6 +13,11 @@ Table * init_table(uint64_t min_size, uint64_t max_size, float load_factor, floa
 	tab -> size = min_size;
 	tab -> min_size = min_size;
 	tab -> max_size = max_size;
+	// If the min_size != max_size, then this table may grow/shrink
+	tab -> resizable = min_size != max_size;
+	tab -> resizing = false;
+
+	// This variables only matter if resizable == true
 	tab -> load_factor = load_factor;
 	tab -> shrink_factor = shrink_factor;
 	// initially 0 items in table
@@ -25,18 +30,30 @@ Table * init_table(uint64_t min_size, uint64_t max_size, float load_factor, floa
 	}
 	tab -> table = table;
 
-	ret = pthread_mutex_init(&(tab -> size_lock), NULL);
+
+	// TODO: ADD SYNC VARIABLE TO ENSURE O(1) REMOVALS/FIND (when missing) (instead of current O(N))
+
+	ret = pthread_mutex_init(&(tab -> op_lock), NULL);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not init table lock\n");
+		fprintf(stderr, "Error: could not table op lock\n");
 		return NULL;
 	}
-
-
-	ret = pthread_mutex_init(&(tab -> cnt_lock), NULL);
+	ret = pthread_cond_init(&(tab -> removal_cv), NULL);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not init cnt lock\n");
+		fprintf(stderr, "Error: could not init table removal condition variable\n");
 		return NULL;
 	}
+	tab -> num_removals = 0;
+
+	ret = pthread_cond_init(&(tab -> insert_cv), NULL);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not init table insert condition variable\n");
+		return NULL;
+	}
+	tab -> num_inserts = 0;
+	tab -> num_finds = 0;
+
+	// TODO: ADD LOCK RATIO SO NOT EVERY SLOT NEEDS A LOCK!
 
 	pthread_mutex_t * slot_locks = (pthread_mutex_t *) malloc(min_size * sizeof(pthread_mutex_t));
 	for (uint64_t i = 0; i < min_size; i++){
@@ -58,10 +75,33 @@ void destroy_table(Table * table){
 	fprintf(stderr, "Destroy Table: Unimplemented Error\n");
 }
 
-uint64_t get_count_table(Table * table){
-	pthread_mutex_lock(&(table -> cnt_lock));
-	uint64_t count = table -> cnt;
-	pthread_mutex_unlock(&(table -> cnt_lock));
+
+// Wait for all pending operations to finish
+// for returning count
+
+uint64_t get_count_table(Table * table, bool to_wait_pending){
+
+	uint64_t count;
+	if (to_wait_pending){
+		pthread_mutex_lock(&(table -> op_lock));
+		
+		// Sleep while there are ongoing removals
+		//	- need to wait because a concurrent removal might swap item to a location that we already swept through
+		while (table -> num_removals > 0){
+			pthread_cond_wait(&(table -> removal_cv), &(table -> op_lock));
+		}
+
+		// Sleep while there are ongoing inserts
+		while (table -> num_inserts > 0){
+			pthread_cond_wait(&(table -> insert_cv), &(table -> op_lock));
+		}
+
+		count = table -> cnt;
+		pthread_mutex_unlock(&(table -> op_lock));
+	}
+	else{
+		count = table -> cnt;
+	}
 	return count;
 }
 
@@ -85,8 +125,9 @@ uint64_t get_count_table(Table * table){
 // }
 
 
-// assert(holding tab_lock), 
+// assert(holding op_lock), 
 // everyone else (insert/remove/find) is locked out so don't need to care about locks
+// However, we will 
 int resize_table(Table * table, uint64_t new_size) {
 
 	if (table == NULL){
@@ -106,32 +147,25 @@ int resize_table(Table * table, uint64_t new_size) {
 		pthread_mutex_init(&(new_slot_locks[i]), NULL);
 	}
 
+
 	// re-hash all the items into new table
 	uint64_t hash_ind, table_ind;
 	for (uint64_t i = 0; i < old_size; i++){
-		//pthread_mutex_lock(&(old_slot_locks[i]));
 		if (old_table[i] == NULL){
-			//pthread_mutex_unlock(&(old_slot_locks[i]));
 			continue;
 		}
 		hash_ind = (table -> hash_func)(old_table[i], new_size);
 		// do open addressing insert
 		for (uint64_t j = hash_ind; j < hash_ind + new_size; j++){
 			table_ind = j % new_size;
-			//pthread_mutex_lock(&(new_slot_locks[table_ind]));
-
 			// found empty slot to insert
 			if (new_table[table_ind] == NULL) {
 				new_table[table_ind] = old_table[i];
-				// inserted new item so break from inner loop
-				//pthread_mutex_unlock(&(new_slot_locks[table_ind]));
 				break;
 			}
 			else{
-				//pthread_mutex_unlock(&(new_slot_locks[table_ind]));
 			}
 		}
-		//pthread_mutex_unlock(&(old_slot_locks[i]));
 	}
 
 	// only need to modify the table field and size field
@@ -141,6 +175,8 @@ int resize_table(Table * table, uint64_t new_size) {
 
 	// we know these are unlocked
 	for (uint64_t i = 0; i < old_size; i++){
+		// Practice to hold lock before destorying
+		pthread_mutex_lock(&(old_slot_locks[i]));
 		pthread_mutex_destroy(&(old_slot_locks[i]));
 	}
 
@@ -156,59 +192,99 @@ int resize_table(Table * table, uint64_t new_size) {
 // return -1 upon error
 int insert_item_table(Table * table, void * item) {
 
-	if (table == NULL){
-		fprintf(stderr, "Error in insert_item, item table is null\n");
-		return -1;
-	}
-
-	if (item == NULL){
-		fprintf(stderr, "Error in insert_item, item is null\n");
-		return -1;
-	}
 
 	int ret;
 
+	// Cannot insert during pending removals
+	pthread_mutex_lock(&(table -> op_lock));
+	while ((table -> num_removals > 0) || (table -> resizing)) {
+		pthread_cond_wait(&(table -> removal_cv), &(table -> op_lock));
+	}
 
-	// make sure types are correct when multiplying uint64_t by float
-	pthread_mutex_lock(&(table -> size_lock));
-	uint64_t size = table -> size;
+	// Now incdicate we are doing an insert
+	// to prevent removals from occurring
+	// or to inform future inserts that
+	// are on boarder of growth region to wait for this
+	table -> num_inserts += 1;
+
+	// we now know there are no pending removals, so we can obtain the count
+	// and (worst-case) assume all inserts are new
+	uint64_t current_cnt = table -> cnt;
+	uint64_t total_cnt = current_cnt + table -> num_inserts;
 	
-	pthread_mutex_lock(&(table -> cnt_lock));
-	uint64_t cnt = table -> cnt;
-	
-	// should only happen when cnt = max_size
 	uint64_t max_size = table -> max_size;
-	if ((cnt + 1) > max_size){
-		printf("Error: insert_item_table failed. Trying to insert when larger than max size. Current Count: %lu, Max Size: %lu\n", cnt, max_size);
-		pthread_mutex_unlock(&(table -> cnt_lock));
-		pthread_mutex_unlock(&(table -> size_lock));
+	if (total_cnt == max_size){
+		fprintf(stderr, "Error: couldn't perform insert because table would be at full size\n");
+		pthread_mutex_unlock(&(table -> op_lock));
 		return -1;
 	}
-	pthread_mutex_unlock(&(table -> cnt_lock));
 
 
-	// check if we exceed load and are below max cap
-	// if so, grow
-	float load_factor = table -> load_factor;
-	// make sure types are correct when multiplying uint64_t by float
-	uint64_t load_cap = (uint64_t) (size * load_factor);
-	// optimisitically assume that we would find the item 
-	// (without actually changing cnt)
-	if ((size < max_size) && ((cnt + 1) > load_cap)){
-		size = (uint64_t) (size * round(1 / load_factor));
-		if (size > max_size){
-			size = max_size;
-		}
-		// updates table -> size within function
-		ret = resize_table(table, size);
-		// check if there was an error growing table
-		if (ret == -1){
-			printf("Error: insert_item_table failed. It triggered a resize table that failed\n");
-			pthread_mutex_unlock(&(table -> size_lock));
-			return -1;
-		}
+	// before releasing op lock we need to determine if the table will need to
+	// grow/shrink before searching through it
+
+	// If the table is resizeable then we might have to grow
+	if (table -> resizable){
+			uint64_t cur_size = table -> size;
+			float load_factor = table -> load_factor;
+			// make sure types are correct when multiplying uint64_t by float
+			// This is the total_cnt load that would trigger a growth
+			uint64_t load_cap = (uint64_t) (cur_size * load_factor);
+
+			// We would want to grow before inserting this item
+
+			// Can have multiple concurrent inserts reach this point,
+			//	- because we release the op_lock within the cond_wait below
+			// but they all must have unique total_cnts. 
+			// Only one of these inserts will have total_cnt == cap
+			//		- this one will wait for the others to finish before resizing
+			if ((cur_size < max_size) && (total_cnt == load_cap)){
+
+
+				uint64_t new_size = (uint64_t) ((double) cur_size * (1.0f / load_factor));
+				if (new_size > max_size){
+					new_size = max_size;
+				}
+
+				// Set this variable before releasing lock
+				table -> resizing = true;
+				
+				// wait for all previous inserts & finds to finish
+				//	because we incremented num inserts at the beginning
+				// (to prevent simulateneous removals) we should wait 
+				// until there is 1 insert left (which is this thread's function)
+				while((table -> num_inserts > 1) || (table -> num_finds > 0)){
+					pthread_cond_wait(&(table -> insert_cv), &(table -> op_lock));
+				}
+
+				// We hold the OP-lock while resize is happening
+				// so that means no other functions can occur (as we wanted)
+
+				// now there are no more operations so we can properly resize
+				ret = resize_table(table, new_size);
+				if (ret != 0){
+					fprintf(stderr, "Error: resize table failed when growing from %lu to %lu. Was triggered when current count was %lu and total cnt was %lu\n", 
+											cur_size, new_size, current_cnt, total_cnt);
+					pthread_mutex_unlock(&(table -> op_lock));
+					return -1;
+				}
+
+				// we can wake up the pending functions now
+				table -> resizing = false;
+				
+				// Need allow the "find" functions and other "inserts"
+				// that were blocked by resizing to go through now
+				pthread_cond_broadcast(&(table -> removal_cv));
+			}
 	}
-	pthread_mutex_unlock(&(table -> size_lock));
+
+
+	// ensure size is checked while holding lock
+	uint64_t size = table -> size;
+
+	// we can release the op lock now, but will acquire it again when finished to decrement
+	// the inserts
+	pthread_mutex_unlock(&(table -> op_lock));
 
 	
 	uint64_t hash_ind = (table -> hash_func)(item, size);
@@ -217,21 +293,22 @@ int insert_item_table(Table * table, void * item) {
 	// worst case O(size) insert time
 	void ** tab = table -> table;
 	pthread_mutex_t * slot_locks = table -> slot_locks;
+	bool is_duplicate = false;
+	bool is_inserted = false;
 	for (uint64_t i = hash_ind; i < hash_ind + size; i++){
 		table_ind = i % size;
 		pthread_mutex_lock(&(slot_locks[table_ind]));
-		// there is a free slot to insert
-		if (tab[table_ind] == NULL) {
-			tab[table_ind] = item;
-			pthread_mutex_lock(&(table -> cnt_lock));
-			if ((cnt + 1) > max_size){
-				printf("Error: insert_item_table failed. Trying to insert when larger than max size. Current Count: %lu, Max Size: %lu\n", cnt, max_size);
-				pthread_mutex_unlock(&(table -> cnt_lock));
-				pthread_mutex_unlock(&(slot_locks[table_ind]));
-			}
-			table -> cnt += 1;
-			pthread_mutex_unlock(&(table -> cnt_lock));
+		// if item was already in table
+		if ((tab[table_ind] != NULL) && ((table -> item_cmp)(item, tab[table_ind]) == 0)){
 			pthread_mutex_unlock(&(slot_locks[table_ind]));
+			is_duplicate = true;
+			is_inserted = true;
+			break;
+		}
+		else if (tab[table_ind] == NULL) {
+			tab[table_ind] = item;
+			pthread_mutex_unlock(&(slot_locks[table_ind]));
+			is_inserted = true;
 			break;
 		}
 		else{
@@ -239,69 +316,65 @@ int insert_item_table(Table * table, void * item) {
 		}
 	}
 
+	if (!is_inserted){
+		fprintf(stderr, "Error: item was not inserted into table. Table size was %lu and count value was %lu\n", size, table -> cnt);
+	}
+
+
+	pthread_mutex_lock(&(table -> op_lock));
+	table -> num_inserts -= 1;
+	// If we added a new item to the table
+	if (is_inserted && !is_duplicate){
+		table -> cnt += 1;
+	}
+	// The reason for num_inserts == 1 is because when the table is growing
+	// there will be a pending insert waiting on this insert to finish
+	bool is_insert_notify = ((table -> num_inserts == 0) || (table -> num_inserts == 1));
+	pthread_mutex_unlock(&(table -> op_lock));
+
+	// Indicate to pending finds & removals that they might be able to go
+	if (is_insert_notify){
+		pthread_cond_broadcast(&(table -> insert_cv));
+	}
+
+	if (is_duplicate){
+		return 1;
+	}
+
 	return 0;
 }
 
-// ASSERT(table will not grow/shrink!)
-int insert_item_get_index_table(Table * table, void * item, uint64_t * ret_index) {
 
-	if (table == NULL){
-		fprintf(stderr, "Error in insert_item, item table is null\n");
-		return -1;
-	}
-
-	if (item == NULL){
-		fprintf(stderr, "Error in insert_item, item is null\n");
-		return -1;
-	}
-
-	// might want to assert min_size == max_size
-
-	uint64_t size = table -> size;
-	uint64_t hash_ind = (table -> hash_func)(item, size);
-	uint64_t table_ind;
-	// doing the Linear Probing
-	// worst case O(size) insert time
-	void ** tab = table -> table;
-	pthread_mutex_t * slot_locks = table -> slot_locks;
-	for (uint64_t i = hash_ind; i < hash_ind + size; i++){
-		table_ind = i % size;
-		pthread_mutex_lock(&(slot_locks[table_ind]));
-		// there is a free slot to insert
-		if (tab[table_ind] == NULL) {
-			tab[table_ind] = item;
-			*ret_index = table_ind;
-			pthread_mutex_lock(&(table -> cnt_lock));
-			table -> cnt += 1;
-			pthread_mutex_unlock(&(table -> cnt_lock));
-			pthread_mutex_unlock(&(slot_locks[table_ind]));
-			return 0;
-		}
-		else{
-			pthread_mutex_unlock(&(slot_locks[table_ind]));
-		}
-	}
-
-	return -1;
-}
-
-
+// For "correctness" find_item needs to wait for just pending removals
 void * find_item_table(Table * table, void * item){
 
-	if (table == NULL){
-		fprintf(stderr, "Error in find_item, item table is null\n");
-		return NULL;
+
+	// Cannot do find during pending removals
+	pthread_mutex_lock(&(table -> op_lock));
+	while (table -> num_removals > 0 || table -> resizing){
+		pthread_cond_wait(&(table -> removal_cv), &(table -> op_lock));
 	}
-	
-	// for simplicity we are saying that find_item needs the table lock
-	// (i.e. when there is an on-going find, no inserts/removes can happen because they might trigger a resize)
-	pthread_mutex_lock(&(table -> size_lock));
+
+	// Now incdicate we are doing a find
+	// to prevent removals from occurring
+	table -> num_finds += 1;
+
+	// ensure size is checked while holding lock
 	uint64_t size = table -> size;
+
+	// we can release the op lock now, but will acquire it again when finished to decrement
+	// the inserts
+	pthread_mutex_unlock(&(table -> op_lock));
+
+
+	
 	uint64_t hash_ind = (table -> hash_func)(item, size);
 	void ** tab = table -> table;
-	void * found_item;
+	void * found_item = NULL;
 	pthread_mutex_t * slot_locks = table -> slot_locks;
 	uint64_t table_ind;
+	
+	
 	// do linear scan
 	for (uint64_t i = hash_ind; i < hash_ind + size; i++){
 		table_ind = i % size;
@@ -309,172 +382,131 @@ void * find_item_table(Table * table, void * item){
 		if ((tab[table_ind] != NULL) && ((table -> item_cmp)(item, tab[table_ind]) == 0)){
 			pthread_mutex_unlock(&(slot_locks[table_ind]));
 			found_item = tab[table_ind];
-			pthread_mutex_unlock(&(table -> size_lock));
-			return found_item;
+			break;
+		}
+		// There was an empty slot, so we know item doesn't exist
+		else if (tab[table_ind] == NULL){
+			pthread_mutex_unlock(&(slot_locks[table_ind]));
+			found_item = NULL;
+			break;
 		}
 		else{
+			// continue searching
 			pthread_mutex_unlock(&(slot_locks[table_ind]));
 		}
 	}
-	pthread_mutex_unlock(&(table -> size_lock));
-	// didn't find item
-	return NULL;
-}
 
-// ASSERT(no growing or shrinking)!
-int find_item_index_table(Table * table, void * item, uint64_t * ret_index) {
 
-	if (table == NULL){
-		fprintf(stderr, "Error in find_item, item table is null\n");
-		return -1;
+	pthread_mutex_lock(&(table -> op_lock));
+	table -> num_finds -= 1;
+	// The reason for table inserts == 1 is because when table is growing there will be a pending insert waiting 
+	// on this find to finish
+	bool is_find_notify = (table -> num_finds == 0) && ((table -> num_inserts == 0) || (table -> num_inserts == 1));
+	pthread_mutex_unlock(&(table -> op_lock));
+
+	// Indicate to pending removals that they might be able to go
+	if (is_find_notify){
+		pthread_cond_broadcast(&(table -> insert_cv));
 	}
 
-	// might want to assert min_size == max_size
-	
-	// Assuming no growing or shrinking table calling this, so we don't need size lock
-	uint64_t size = table -> size;
-	uint64_t hash_ind = (table -> hash_func)(item, size);
-	void ** tab = table -> table;
-	pthread_mutex_t * slot_locks = table -> slot_locks;
-	uint64_t table_ind;
-	// do linear scan
-	for (uint64_t i = hash_ind; i < hash_ind + size; i++){
-		table_ind = i % size;
-		pthread_mutex_lock(&(slot_locks[table_ind]));
-		if ((tab[table_ind] != NULL) && ((table -> item_cmp)(item, tab[table_ind]) == 0)){
-			*ret_index = table_ind;
-			pthread_mutex_unlock(&(slot_locks[table_ind]));
-			return 0;
-		}
-		else{
-			pthread_mutex_unlock(&(slot_locks[table_ind]));
-		}
-	}
-	// didn't find item
-	return -1;
-}
-
-// ASSERT(no growing or shrinking)!
-int remove_random_item(Table * table, void ** ret_item, uint64_t * ret_index) {
-	
-	if (table == NULL){
-		fprintf(stderr, "Error in find_item, item table is null\n");
-		return -1;
-	}
-
-	// might want to assert min_size == max_size
-
-	// Assuming no growing or shrinking table calling this, so we don't need size lock
-	uint64_t size = table -> size;
-	void ** tab = table -> table;
-	pthread_mutex_t * slot_locks = table -> slot_locks;
-	uint64_t table_ind;
-
-	// do linear scan starting at random location
-	uint64_t rand_start = rand() % size;
-
-	for (uint64_t i = rand_start; i < rand_start + size; i++){
-		table_ind = i % size;
-		pthread_mutex_lock(&(slot_locks[table_ind]));
-		if (tab[table_ind] != NULL){
-			*ret_item = tab[table_ind];
-			*ret_index = table_ind;
-			tab[table_ind] = NULL;
-			pthread_mutex_unlock(&(slot_locks[table_ind]));
-			return 0;
-		}
-		else{
-			pthread_mutex_unlock(&(slot_locks[table_ind]));
-		}
-	}
-	*ret_item = NULL;
-	// didn't find item
-	return -1;
-}
-
-// ASSERT(no growing or shrinking)!
-int remove_item_at_index_table(Table * table, void * item, uint64_t index){
-
-	if (table == NULL){
-		fprintf(stderr, "Error: in remove_item, item table is null\n");
-		return -1;
-	}
-
-	// might want to assert min_size == max_size
-	void ** tab = table -> table;
-	uint64_t size = table -> size;
-
-	if (index >= size){
-		fprintf(stderr, "Error: trying to remove at an index > table size\n");
-		return -1;
-	}
-
-	pthread_mutex_t * slot_locks = table -> slot_locks;
-	
-	// acquire lock and confirm correct item
-	pthread_mutex_lock(&(table -> cnt_lock));
-	pthread_mutex_lock(&(slot_locks[index]));
-	if ((tab[index] == NULL) || ((table -> item_cmp)(item, tab[index]) != 0)){
-		fprintf(stderr, "Error: trying to remove at an index that doesn't contain correct item\n");
-		pthread_mutex_unlock(&(slot_locks[index]));
-		pthread_mutex_unlock(&(table -> cnt_lock));
-		return -1;
-	}
-	tab[index] = NULL;
-	table -> cnt -= 1;
-	pthread_mutex_unlock(&(slot_locks[index]));
-	pthread_mutex_unlock(&(table -> cnt_lock));
-
-	return 0;
+	return found_item;
 }
 
 // remove from table and return pointer to item (can be used later for destroying)
 void * remove_item_table(Table * table, void * item) {
 	
-	if (table == NULL){
-		fprintf(stderr, "Error in remove_item, item table is null\n");
-		return NULL;
-	}
-
 	int ret;
 
+	// Cannot remove during pending insert/find
+	pthread_mutex_lock(&(table -> op_lock));
+	while (((table -> num_inserts > 0) || (table -> num_finds > 0)) || (table -> resizing)){
+		pthread_cond_wait(&(table -> insert_cv), &(table -> op_lock));
+	}
 
-	float shrink_factor = table -> shrink_factor;
-	uint64_t min_size = table -> min_size;
+	// Now incdicate we are doing a removal
+	// to prevent other inserts and finds from going
+	table -> num_removals += 1;
 
-	// check if we should shrink if we would have removed item
-	// make sure types are correct when multiplying uint64_t by float
-	pthread_mutex_lock(&(table -> size_lock));
-	uint64_t size = table -> size;
 
-	pthread_mutex_lock(&(table -> cnt_lock));
-	uint64_t cnt = table -> cnt;
-	
-	// if there are no items then we can shortcut everything
-	if (cnt == 0){
-		pthread_mutex_unlock(&(table -> cnt_lock));
-		pthread_mutex_unlock(&(table -> size_lock));
+	// we now know there are no pending inserts/finds, so we can obtain the count
+	// and (worst-case) assume all removals will purge an existing item
+	uint64_t current_cnt = table -> cnt;
+	uint64_t pending_removals = table -> num_removals;
+
+	// We know there will be 0 items left, so we can break easily here
+	if (current_cnt <= pending_removals){
+		pthread_mutex_unlock(&(table -> op_lock));
 		return NULL;
 	}
-	pthread_mutex_unlock(&(table -> cnt_lock));
 
-	uint64_t shrink_cap = (uint64_t) (size * shrink_factor);
-	// optimisitically assume that we would find the item 
-	// (without actually changing cnt)
-	if ((size > min_size) && ((cnt - 1) < shrink_cap)) {
-		size = (uint64_t) (round((float) size * (1 - shrink_factor)));
-		if (size < min_size){
-			size = min_size;
-		}
-		ret = resize_table(table, size);
-		// check if there was an error growing table
-		if (ret == -1){
-			pthread_mutex_unlock(&(table -> size_lock));
-			return NULL;
+	// now we now this will not overflow because if statement above
+	uint64_t total_cnt = current_cnt - table -> num_removals;
+
+
+	bool resized = false;
+
+	// If the table is resizeable then we might have to shrink
+	if (table -> resizable){
+		uint64_t cur_size = table -> size;
+		float shrink_factor = table -> shrink_factor;
+		uint64_t min_size = table -> min_size;
+		// This is the total_cnt that would be needed in order to cause a shrink
+		uint64_t shrink_cap = (uint64_t) (cur_size * shrink_factor);
+
+
+		// Can have multiple concurrent removes reach this point,
+		//	- because we release the op_lock within the cond_wait below
+		// but they all must have unique total_cnts. 
+		// Only one of these inserts will have total_cnt == cap
+		//		- this one will wait for the others to finish before resizing
+		if ((cur_size > min_size) && (total_cnt == shrink_cap)) {
+			uint64_t new_size = (uint64_t) ((double) cur_size * (1.0f - shrink_factor));
+			if (new_size < min_size){
+				new_size = min_size;
+			}
+
+
+			// Ensure to set this before releasing lock to prevent new functions from starting
+			table -> resizing = true;
+
+			// wait for all previous removals to finish
+			// The > 1 is because this thread incremented num_removals at the beginning so 
+			// we want all other to finish
+			while(table -> num_removals > 1){
+				pthread_cond_wait(&(table -> removal_cv), &(table -> op_lock));
+			}
+
+
+			// We hold the OP-lock while resize is happening
+			// so that means no other functions can occur (as we wanted)
+
+			// now there are no more operations so we can properly resize
+			ret = resize_table(table, new_size);
+			if (ret != 0){
+				fprintf(stderr, "Error: resize table failed when shrinking from %lu to %lu. Was triggered when current count was %lu and total cnt was %lu\n", 
+										cur_size, new_size, current_cnt, total_cnt);
+				pthread_mutex_unlock(&(table -> op_lock));
+				return NULL;
+			}
+
+
+			// we can wake up the pending functions now
+			table -> resizing = false;
+
+			resized = true;
+
+			// Need allow the other "remove" functions that
+			// were blocked by resizing to go through now
+			// that were blocked by resizing to go through now
+			pthread_cond_broadcast(&(table -> insert_cv));
 		}
 	}
-	pthread_mutex_unlock(&(table -> size_lock));
 
+
+	// ensure to get size while still holding lock
+	uint64_t size = table -> size;
+
+	pthread_mutex_unlock(&(table -> op_lock));
 		
 	uint64_t hash_ind = (table -> hash_func)(item, size);
 
@@ -485,6 +517,9 @@ void * remove_item_table(Table * table, void * item) {
 	// do linear scan
 	void ** tab = table -> table;
 	pthread_mutex_t * slot_locks = table -> slot_locks;
+
+	bool is_exists = false;
+
 	for (uint64_t i = hash_ind; i < hash_ind + size; i++){
 		table_ind = i % size;
 		// check if we found item, remember its contents and make room in table
@@ -493,53 +528,137 @@ void * remove_item_table(Table * table, void * item) {
 		if ((tab[table_ind] != NULL) && ((table -> item_cmp)(item, tab[table_ind]) == 0)){
 			// set item to be the item removed so we can return it
 			ret_item = tab[table_ind];
-			// remove reference from table
-			tab[table_ind] = NULL;
-			pthread_mutex_lock(&(table -> cnt_lock));
-			table -> cnt -= 1;
-			pthread_mutex_unlock(&(table -> cnt_lock));
+			// Now need to find a replacement for this NULL to maintain invariant for insert/finds
+			uint64_t replacement_ind;
+			
+		
+
+			// Advance to the next non-null. Find first item that could
+			// be found again by swapping it to the table_ind 
+
+			// If none of items were able to be found again before non-null
+			// that means we can just set table_ind to null and everything will be ok
+
+			// Because j started at 1, we know maximum value for replacement_ind will be table_ind - 1
+			//	(and won't run into double locking problems)
+
+			// Start at next index
+			uint64_t j = 1;
+			uint64_t rehash_ind;
+
+			while (j < size){
+				replacement_ind = (table_ind + j) % size;
+				pthread_mutex_lock(&(slot_locks[replacement_ind]));
+				if (tab[replacement_ind] != NULL){
+					rehash_ind = (table -> hash_func)(tab[replacement_ind], size);
+					// Now check conditions to ensure a valid replacement (need to still be able to find
+					//	the replacement item after swapping)
+
+					// There are 3 conditions in which we wouldn't be able to find it again,
+					//	so we check that none of these are true
+					if (!((rehash_ind > table_ind && rehash_ind < replacement_ind) || 
+							(table_ind > replacement_ind && table_ind < replacement_ind) || 
+								(replacement_ind >= rehash_ind && replacement_ind < table_ind))){
+						break;
+					}
+					else{
+						// This element wouldn't be able to be found again at table_ind spot
+						// so keep it where it is and try the next element
+						pthread_mutex_unlock(&(slot_locks[replacement_ind]));
+					}
+					
+				}
+				else{
+					// We encounerted a NULL spot without any problems refinding
+					// elements so we should just remove the table ind
+					replacement_ind = table_ind;
+					break;
+				}
+				j++;
+			}
+
+			if (replacement_ind != table_ind){
+				tab[table_ind] = tab[replacement_ind];
+				tab[replacement_ind] = NULL;
+				pthread_mutex_unlock(&(slot_locks[replacement_ind]));
+			}
+			else{
+				tab[table_ind] = NULL;
+			}
 			// found item so break
 			pthread_mutex_unlock(&(slot_locks[table_ind]));
+			is_exists = true;
+			break;
+		}
+		// There was an empty slot, so we know item doesn't exist
+		else if (tab[table_ind] == NULL){
+			pthread_mutex_unlock(&(slot_locks[table_ind]));
+			ret_item = NULL;
 			break;
 		}
 		else{
+			// continue searching
 			pthread_mutex_unlock(&(slot_locks[table_ind]));
 		}
 		
 	}
 
+	// Indicate to pending inserts/finds that they might be able to go
+	pthread_mutex_lock(&(table -> op_lock));
+	table -> num_removals -= 1;
+	// If we actually removed the item
+	if (is_exists){
+		table -> cnt -= 1;
+	}
+
+	// When shrinking final removal is actually when there is 1 left
+	// if we resized then we need to notify pending "finds" that they can go through
+	bool is_removal_notify = (table -> num_removals == 0) || (table -> num_removals == 1) || (resized);
+	pthread_mutex_unlock(&(table -> op_lock));
+
+	if (is_removal_notify){
+		pthread_cond_broadcast(&(table -> removal_cv));
+	}
+	
 	// if found is pointer to item, otherwise null
 	return ret_item;
 }
 
 
-
-
 // Notes: 
-//	- Returns 0 on success, -1 on error
-//		- DO NOT FREE THE ITEMS WITHIN THIS ARRAY, BUT SHOULD FREE THE RETURNED ARRAY!
-// 	- These functions acquire size & count locks for duration 
-//		- (i.e. completely block out other functions until completition)
+//		- Needs to wait for all pending functions to finish
+//		- Locks out all functions from starting while processing
+//			- holds op_lock the whole time
 int get_all_items_table(Table * table, bool to_start_rand, bool to_sort, uint64_t * ret_cnt, void *** ret_all_items) {
 
-	if (table == NULL){
-		fprintf(stderr, "Error in get_all_items_table, item table is null\n");
-		return 0;
+
+	pthread_mutex_lock(&(table -> op_lock));
+	
+	// Sleep while there are ongoing removals
+	//	- need to wait because a concurrent removal might swap item to a location that we already swept through
+	while (table -> num_removals > 0){
+		pthread_cond_wait(&(table -> removal_cv), &(table -> op_lock));
 	}
 
-	// 1.) Acquire size & cnt lock to ensure table doesn't get modified while this function is running
-	
-	// Only need the size lock if min_size != max_size, but keeping it here anyways
-	pthread_mutex_lock(&(table -> size_lock));
-	uint64_t size = table -> size;
+	// Sleep while there are ongoing inserts
+	while (table -> num_inserts > 0){
+		pthread_cond_wait(&(table -> insert_cv), &(table -> op_lock));
+	}
 
-	pthread_mutex_lock(&(table -> cnt_lock));
+	// Don't release this mutex until completely finished
+	// 	(i.e. don't allow inserts/finds/removals to occur during this)
+
+
+	// 1.) Acquire size & cnt 
+
+	uint64_t size = table -> size;
 	uint64_t cnt = table -> cnt;
 
 	// 2.) Allocate container for all the items
 	void ** all_items = (void **) malloc(cnt * sizeof(void *));
 	if (all_items == NULL){
 		fprintf(stderr, "Error: malloc failed to allocate all_items container\n");
+		pthread_mutex_unlock(&(table -> op_lock));
 		return -1;
 	}
 
@@ -580,13 +699,11 @@ int get_all_items_table(Table * table, bool to_start_rand, bool to_sort, uint64_
 
 	if (num_added != cnt){
 		fprintf(stderr, "Error: in get_all_items_table(). The table count (%lu) differs from items added (%lu)\n", cnt, num_added);
-		return -1;
 	}
 
 
-	// 4.) Release the locks so the table can be modified again
-	pthread_mutex_unlock(&(table -> cnt_lock));
-	pthread_mutex_unlock(&(table -> size_lock));
+	// 4.) Release the lock so the table can be modified again
+	pthread_mutex_unlock(&(table -> op_lock));
 
 	// 5.) If to_sort is set then call qsort on all items
 	if (to_sort){

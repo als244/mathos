@@ -21,8 +21,7 @@ uint64_t my_hash_func(void * my_item, uint64_t table_size){
 	My_Item * item_casted = (My_Item *) my_item;
 	unsigned char * digest = item_casted -> hash_digest;
 	uint64_t least_sig_64bits = sha256_to_least_sig64(digest);
-	// compares the least significant log(table_size) bits in the hash
-	return least_sig_64bits & (table_size - 1); 
+	return least_sig_64bits % table_size;
 }
 
 
