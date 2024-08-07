@@ -107,9 +107,6 @@ int main(int argc, char * argv[]){
 	}
 
 	Hsa_User_Page_Table * user_page_table = hsa_memory -> user_page_table;
-	printf("\nSuccessfully added device memory!\n\tDmabuf_fd for first chunk: %d\n\tDmabuf_offset for first chunk: %lu\n\n", 
-				user_page_table -> dmabuf_fds[device_id][0], user_page_table -> dmabuf_offsets[device_id][0]);
-	
 
 	unsigned int cu_count = 82;
 	hipStream_t stream;
@@ -129,8 +126,8 @@ int main(int argc, char * argv[]){
 	int mr_access = IBV_ACCESS_LOCAL_WRITE;
 
 
-
-	void * dptr = hsa_reserve_memory(hsa_memory, device_id, chunk_size);
+	// TEMPORARY SOLUTION OF SPECIFIYING CHUNK_ID (for testing)
+	void * dptr = hsa_reserve_memory(hsa_memory, device_id, 0);
 	if (dptr == NULL){
 		fprintf(stderr, "Error: failed to reserve memory on device %d of size %lu\n", device_id, chunk_size);
 	}
@@ -189,7 +186,8 @@ int main(int argc, char * argv[]){
 	printf("\n\nDOING GPU MATMUL ON RECEIVED DATA!\n\n");
 
 
-	void * out_dptr = hsa_reserve_memory(hsa_memory, device_id, chunk_size);
+	// TEMPORARY SOLUTION OF SPECIFIYING CHUNK_ID (for testing)
+	void * out_dptr = hsa_reserve_memory(hsa_memory, device_id, 1);
 	if (dptr == NULL){
 		fprintf(stderr, "Error: failed to reserve memory on device %d of size %lu\n", device_id, chunk_size);
 	}
@@ -233,7 +231,7 @@ int main(int argc, char * argv[]){
 
 
 
-	
+
 
 	// NOW SEND/RECV MESSAGES!
 

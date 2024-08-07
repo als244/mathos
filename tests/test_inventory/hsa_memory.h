@@ -21,24 +21,10 @@ typedef struct hsa_user_page_table {
 	// Each of these are array of length num_devices
 	uint64_t * num_chunks;
 	uint64_t * chunk_size;
-	// This is an array where outer index is number of devices
-	// Inner index is number of chunks
-	hsa_amd_vmem_alloc_handle_t ** phys_chunks;
-
 	// outer index is the device number (length num_devices)
-	// inner index is the starting VA for the fully mapped
-	// of all phys chunks
-	void *** virt_memories;
-	// Per device dma bufs
-	//	They are exports of the phys chunks which have been mapped
-	//	to a contiguous va space
-	int ** dmabuf_fds;
-	// array of length num_devices 
-	//indicated offset within dmabuf of each
-	// starting VA per 
-	uint64_t ** dmabuf_offsets;
-
-
+	// inner index is the starting VA for entire device allocation
+	// 	- can reference individual chunks by multiplying chunk_id * chunk_size for device
+	void ** virt_memories;
 } Hsa_User_Page_Table;
 
 
@@ -66,7 +52,8 @@ int hsa_add_device_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t num_c
 
 int hsa_copy_to_host_memory(Hsa_Memory * hsa_memory, int src_device_id, void * src_addr, uint64_t length, void ** ret_contents);
 
-void * hsa_reserve_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t size_bytes);
+// TEMPORARY SOLUTION FOR TESTING!!!!
+void * hsa_reserve_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t chunk_id);
 
 
 

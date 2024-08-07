@@ -33,15 +33,12 @@ Hsa_User_Page_Table * hsa_init_user_page_table(int num_devices){
 
 	hsa_user_page_table -> num_chunks = (uint64_t *) calloc(num_devices, sizeof(uint64_t));
 	hsa_user_page_table -> chunk_size = (uint64_t *) calloc(num_devices, sizeof(uint64_t));
-	hsa_user_page_table -> phys_chunks = (hsa_amd_vmem_alloc_handle_t **) calloc(num_devices, sizeof(hsa_amd_vmem_alloc_handle_t *));
-	hsa_user_page_table -> virt_memories = (void ***) calloc(num_devices, sizeof(void **));
-	hsa_user_page_table -> dmabuf_fds = (int **) calloc(num_devices, sizeof(int));
-	hsa_user_page_table -> dmabuf_offsets = (uint64_t **) calloc(num_devices, sizeof(uint64_t *));
+	hsa_user_page_table -> virt_memories = (void **) calloc(num_devices, sizeof(void *));
 
 	if ((!hsa_user_page_table -> num_chunks) || (!hsa_user_page_table -> chunk_size)
-			|| (!hsa_user_page_table -> phys_chunks) || (!hsa_user_page_table -> virt_memories)
-			|| (!hsa_user_page_table -> dmabuf_fds) || (!hsa_user_page_table -> dmabuf_offsets)){
+			|| (!hsa_user_page_table -> virt_memories)){
 		fprintf(stderr, "Error: malloc failed to allocate containers within hsa_user_page_table\n");
+		return NULL;
 	}
 
 	return hsa_user_page_table;
@@ -144,19 +141,46 @@ int hsa_add_device_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t num_c
 
 	Hsa_User_Page_Table * hsa_user_page_table = hsa_memory -> user_page_table;
 
-	hsa_user_page_table -> num_chunks[device_id] = num_chunks;
-	hsa_user_page_table -> chunk_size[device_id] = chunk_size;
+	(hsa_user_page_table -> num_chunks)[device_id] = num_chunks;
+	(hsa_user_page_table -> chunk_size)[device_id] = chunk_size;
 
 
 
-	// 1.) Create physical chunks
+	// 1.) Allocate device memory
 
-	printf("Creating physical chunks...\n");
+	printf("Allocating device memory.\n\tDevice ID: %d\n\tNum Chunks %lu\n\tChunk Size: %lu\n\n",
+				device_id, num_chunks, chunk_size);
 
-	hsa_amd_vmem_alloc_handle_t * phys_chunks = (hsa_amd_vmem_alloc_handle_t *) calloc(num_chunks, sizeof(hsa_amd_vmem_alloc_handle_t));
-	if (phys_chunks == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate phys_chunks container for device %d\n", device_id);
-		return -1;
+
+	// MUST BE A MULTIPLE OF ALLOC SIZE (either 4KB, 64KB, or 2MB)!!
+	uint64_t total_mem_size_bytes = num_chunks * chunk_size;
+
+	void * device_memory;
+
+
+	// Flag options: 
+
+	// Ref: https://github.com/ROCm/ROCR-Runtime/blob/master/src/inc/hsa_ext_amd.h
+
+	//	- HSA_AMD_MEMORY_POOL_STANDARD: 
+	//		standard HSA memory consistency model
+	//	- HSA_AMD_MEMORY_POOL_PCIE_FLAG:
+	//		fine grain memory type where ordering is per point-to-point connection
+	//		atomic memory operations on these memory buffers are not guaranteed to be visible at system scope
+	//	- HSA_AMD_MEMORY_POOL_CONTIGUOUS
+	//		allocates physically contiguous memory
+
+
+	// Use rocminfo CLI to see details easily
+
+
+	uint32_t mempool_alloc_flags = HSA_AMD_MEMORY_POOL_PCIE_FLAG | HSA_AMD_MEMORY_POOL_CONTIGUOUS_FLAG;
+
+	hsa_status = hsa_amd_memory_pool_allocate(hsa_mempool, total_mem_size_bytes, mempool_alloc_flags, &device_memory);
+	if (hsa_status != HSA_STATUS_SUCCESS){
+		hsa_status_string(hsa_status, &err);
+		fprintf(stderr, "Error allocating device memory: %s\n", err);
+		return NULL;
 	}
 
 
@@ -165,125 +189,23 @@ int hsa_add_device_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t num_c
 	uint64_t create_flags = 0;
 	
 
+	// 2.) Allow access to this memory for all other agents
 
-	for (uint64_t i = 0; i < num_chunks; i++){
-		hsa_status = hsa_amd_vmem_handle_create(hsa_mempool, chunk_size, mem_type, create_flags, &(phys_chunks[i]));
-		if (hsa_status != HSA_STATUS_SUCCESS){
-			hsa_status_string(hsa_status, &err);
-			fprintf(stderr, "Error creating phys mem chunk on chunk #%lu: %s\n", i, err);
-			return -1;
-		}
-	}
-
-
-	hsa_user_page_table -> phys_chunks[device_id] = phys_chunks;
-
-
-	// 2.) Reserve virtual address space for entire device
-
-	printf("Reserving VA space...\n");
-
-	uint64_t va_range_size = num_chunks * chunk_size;
-
-	void * virt_memory;
-	uint64_t addr_req = 0;
-	uint64_t va_req_flags = 0;
-	hsa_status = hsa_amd_vmem_address_reserve(&virt_memory, va_range_size, addr_req, va_req_flags);
-	if (hsa_status != HSA_STATUS_SUCCESS){
-		hsa_status_string(hsa_status, &err);
-		fprintf(stderr, "Error reserving virtual address range of size %lu: %s\n", va_range_size, err);
-		return -1;
-	}
-
-	hsa_user_page_table -> virt_memories[device_id] = virt_memory;
-
-
-
-	// 3.) Map all of the physical chunks into the virtual address range
-
-	printf("Mapping chunks to VA space...\n");
-
-	void * cur_virt_mem_loc = virt_memory;
-	hsa_amd_vmem_alloc_handle_t cur_phys_mem_handle;
-	for (uint64_t i = 0; i < num_chunks; i++){
-		cur_phys_mem_handle = phys_chunks[i];
-		hsa_status = hsa_amd_vmem_map(cur_virt_mem_loc, chunk_size, 0, cur_phys_mem_handle, 0);
-		if (hsa_status != HSA_STATUS_SUCCESS){
-			hsa_status_string(hsa_status, &err);
-			fprintf(stderr, "Error doing memory mapping for chunk #%lu: %s\n", i, err);
-			return -1;
-		}
-		cur_virt_mem_loc = (void *) ((uint64_t) cur_virt_mem_loc + chunk_size);
-	}
-
-
-
-	// 4.) Set access for this range
-	//		- give all agents access
-
-	printf("Setting access for VA space...\n");
-
-	int total_agents = hsa_memory -> n_agents;
+	uint32_t num_agents = hsa_memory -> n_agents;
 	hsa_agent_t * agents = hsa_memory -> agents;
-	hsa_amd_memory_access_desc_t accessDescriptors[total_agents];
-	for (int i = 0; i < total_agents; i++){
-		accessDescriptors[i].permissions = HSA_ACCESS_PERMISSION_RW;
-		accessDescriptors[i].agent_handle = agents[i];
-	}
 
-	hsa_status = hsa_amd_vmem_set_access(virt_memory, va_range_size, accessDescriptors, total_agents);
+	// currently reserved and must be null
+	uint32_t * allow_agent_flags = NULL;
+
+	hsa_status = hsa_amd_agents_allow_access(num_agents, agents, allow_agent_flags, device_memory);
 	if (hsa_status != HSA_STATUS_SUCCESS){
 		hsa_status_string(hsa_status, &err);
-		fprintf(stderr, "Error setting access: %s\n", err);
-		return -1;
+		fprintf(stderr, "Error allowing access: %s\n", err);
+		return NULL;
 	}
 
 
-
-	// 5.) Export the virt range to a dmabuf
-
-	printf("Exporting All Phys Chunks to dmabuf...\n");
-
-	int * dmabuf_fds = (int *) calloc(num_chunks, sizeof(int));
-	uint64_t * dmabuf_offsets = (uint64_t *) calloc(num_chunks, sizeof(uint64_t));
-
-	if ((!dmabuf_fds) || (!dmabuf_offsets)){
-		fprintf(stderr, "Error: malloc failed to allocate dmabuf_fds or dmabuf_offsets container\n");
-		return -1;
-	}
-
-
-	// CURRENTLY UNSUPPORTED
-	uint64_t export_flags = 0;
-	
-	// if we wanted to do discontiguous VA ranges
-	cur_virt_mem_loc = virt_memory;
-	
-	for (uint64_t i = 0; i < num_chunks; i++){
-		
-		/* VERSION THAT RETURNS OFFSET */
-		//hsa_status = hsa_amd_portable_export_dmabuf(cur_virt_mem_loc, chunk_size, &(dmabuf_fds[i]), &(dmabuf_offsets[i]));
-		//cur_virt_mem_loc = (void *) ((uint64_t) cur_virt_mem_loc + chunk_size);
-
-		/* SHAREABLE VERSION (doesn't give offset) */
-		//	- hsa_amd_portable_export_dmabuf() is only valid when va range size == phys chunk size
-		//		- could instead do many discontiguous va mappings as well, but a bit less clean...
-
-		hsa_status = hsa_amd_vmem_export_shareable_handle(&(dmabuf_fds[i]), phys_chunks[i], export_flags);
-		if (hsa_status != HSA_STATUS_SUCCESS){
-			hsa_status_string(hsa_status, &err);
-			fprintf(stderr, "Error exporting to dmabuf on phys chunk #%lu: %s\n", i, err);
-			return -1;
-		}
-	}
-	
-
-	hsa_user_page_table -> dmabuf_fds[device_id] = dmabuf_fds;
-	
-	// Unknown offset value...?
-	// Used calloc to intialize to 0 for everything
-	hsa_user_page_table -> dmabuf_offsets[device_id] = dmabuf_offsets;
-
+	(hsa_user_page_table -> virt_memories)[device_id] = device_memory;
 
 	return 0;
 
@@ -375,6 +297,17 @@ int hsa_copy_to_host_memory(Hsa_Memory * hsa_memory, int src_device_id, void * s
 
 
 
-void * hsa_reserve_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t size_bytes) {
-	return NULL;
+// TEMPORARY SOLUTION FOR TESTING!!!!
+
+void * hsa_reserve_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t chunk_id) {
+		
+	Hsa_User_Page_Table * hsa_user_page_table = hsa_memory -> user_page_table;
+
+	uint64_t chunk_size = (hsa_user_page_table -> chunk_size)[device_id];
+
+	void * starting_va = (hsa_user_page_table -> virt_memories)[device_id];
+
+	void * chunk_va = (void *) ((uint64_t) starting_va + chunk_size * chunk_id);
+
+	return chunk_va;
 }
