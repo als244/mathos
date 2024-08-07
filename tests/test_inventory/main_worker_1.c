@@ -198,8 +198,8 @@ int main(int argc, char * argv[]){
 
 
 	int m = 2;
-	int k = 2;
-	int n = 2;
+	int k = 3;
+	int n = 4;
 
 	ret = do_rocblas_matmul(stream, m, k, n, dptr_real, dptr_real, out_dptr, &elapsed_ns);
 	if (ret != 0){
@@ -217,13 +217,17 @@ int main(int argc, char * argv[]){
 	float * out_ptr_casted = (float *) out_buffer;
 	for (int i = 0; i < m; i++){
 		for (int j = 0; j < n; j++){
-			printf("%f ", out_ptr_casted[i]);
+			printf("%f ", out_ptr_casted[i * n + j]);
 		}
 		printf("\n");
 	}
 
 
 	exit(0);
+
+
+
+
 
 
 

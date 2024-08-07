@@ -106,6 +106,7 @@ int initialize_stream(int device_id, unsigned int cu_count, hipStream_t * ret_st
 	return 0;
 }
 
+// PASSING IN ROW-MAJOR matrices!
 int do_rocblas_matmul(hipStream_t cu_mask_stream, size_t M, size_t K, size_t N, void * d_A, void * d_B, void * d_C, uint64_t * ret_elapsed_ns){
 
 	const char * err;
@@ -137,27 +138,20 @@ int do_rocblas_matmul(hipStream_t cu_mask_stream, size_t M, size_t K, size_t N, 
     // prepare the matmul
 
     // Assumes Column Major storing!
-    // So if we have Row-Major we can transpose both
-    // or tranpose the output
-    rocblas_operation trans_a = rocblas_operation_transpose;
-    rocblas_operation trans_b = rocblas_operation_transpose;
+    // thus if we feed in row-major, that is equivalent to 
+    // to the matrices already being transposed
 
-    // if trans_a == none 
-    //	=> lda = M, stride_1 = 1, stride_2 = M
-    // if trans_a == transpose
-    //	=> lda = K, stride_1 = K, stride_2 = 1
+    // AB = C is equivalent to B^T * A^T = C^T
+    // now because rocBlas is doing computations within col-major
+    // ordering we can compute C^T and reinterpret it in row-major as just C!
+    rocblas_operation trans_a = rocblas_operation_none;
+    rocblas_operation trans_b = rocblas_operation_none;
 
+    // Assuming row-major ordering 
+    //  - (where leading dimension is number of columns)
     int lda = K;
-
-    // if trans_b == none 
-    //	=> ldb = K, stride_1 = 1, stride_2 = K
-    // if trans_b == transpose
-    //	=> ldb = N, stride_1 = N, stride_2 = 1
-    
     int ldb = N;
-
-    // ldc is always m...?
-    int ldc = M;
+    int ldc = N;
 
     float alpha = 1.0, beta = 0.0;
 
@@ -173,22 +167,36 @@ int do_rocblas_matmul(hipStream_t cu_mask_stream, size_t M, size_t K, size_t N, 
     }
 
     clock_gettime(CLOCK_REALTIME, &start);
-    timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
+    
 
     // ACUTALLY PERFORM MATRIX MULTIPLY!
-    status = rocblas_sgemm(handle, trans_a, trans_b, M, N, K, &alpha, d_A, lda, d_B, ldb, &beta, d_C, ldc);
+    
+    // here M, N, K are the values after doing op(A)/op(B)
+
+    // we will pass in row-major then do not do any transposes
+    // (which rocblas will interpret as transposed) and then 
+    // reorder such that A = B^T and B = A^T
+    // This also means that M = original N, and N = orignal M
+
+    // But now we are computing B^T * A^T = C^T and interpreting the results in row-major
+    // so we need to re-arrange
+    status = rocblas_sgemm(handle, trans_b, trans_a, N, M, K, &alpha, d_B, ldb, d_A, lda, &beta, d_C, ldc);
     
     result = hipStreamSynchronize(cu_mask_stream);
-    if (result != hipSuccess){
-    	err = hipGetErrorString(result);
-    	fprintf(stderr, "Could not sync stream: %s\n", err);
-    	return -1;
-    }
+  
 
     clock_gettime(CLOCK_REALTIME, &stop);
+
+    timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
     timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
 
 	elapsed_ns = timestamp_stop - timestamp_start;
+
+    if (result != hipSuccess){
+        err = hipGetErrorString(result);
+        fprintf(stderr, "Could not sync stream: %s\n", err);
+        return -1;
+    }
 
 	/* RETURN RESULT */
 	*ret_elapsed_ns = elapsed_ns;
