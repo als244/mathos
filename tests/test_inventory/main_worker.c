@@ -21,39 +21,6 @@ int main(int argc, char * argv[]){
 	}
 
 
-	/* QUICK AND DIRTY SPOT TO TEST HSA STUFF! */
-
-	printf("Intializing HSA memory container...\n");
-
-	Hsa_Memory * hsa_memory = hsa_init_memory();
-	if (hsa_memory == NULL){
-		fprintf(stderr, "Error: hsa_init_memory failed\n");
-	}
-
-	printf("Found %d HSA agents each with a mempool!\n", hsa_memory -> n_agents);
-
-	exit(0);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
 
 	System * system = init_system(master_ip_addr, self_ip_addr);
@@ -85,7 +52,6 @@ int main(int argc, char * argv[]){
 		fprintf(stderr, "Error: failed to add benchmark to track work class throughput\n");
 		return -1;
 	}
-
 
 
 	// Actually start all threads!

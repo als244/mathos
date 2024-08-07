@@ -7,12 +7,15 @@
 #define  _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <math.h>
 #include <time.h>
 #include <pthread.h>
+#include <sys/mman.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 // System V semaphores (can increment/decrement other than one)
@@ -55,6 +58,9 @@ union semun {
 	struct seminfo *__buf; /* Buffer for IPC_INFO
 	(Linux specific) */
 };
+
+
+#define MY_CEIL(a, b) ((a + b - 1) / b)
 
 
 #endif

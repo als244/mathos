@@ -55,6 +55,8 @@ int main(int argc, char * argv[]){
 
 
 
+	/*
+
 	// Actually start all threads!
 	//	- this call blocks until min_init_nodes (set within master) have been added to the net_world table
 	printf("\n\nSpawning all worker threads & waiting until the minimum number of nodes (%u) have joined the net...\n\n", net_world -> min_init_nodes);
@@ -65,10 +67,11 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
+
 	printf("\n\nSuccessfully started system. Everything online and ready to process...!\n\n");
+	*/
 
-
-	int num_ints = 100;
+	int num_floats = 100;
 
 
 	struct ibv_pd * pd = (system -> net_world -> self_net -> dev_pds)[0];
@@ -76,16 +79,16 @@ int main(int argc, char * argv[]){
 	struct ibv_mr * mr;
 
 	// Wait for other node to prepare memory and post recv
-	sleep(10);
+	sleep(3);
 
 
-	int * int_buffer = (int *) malloc(num_ints * sizeof(int));
-	for (int i = 0; i < num_ints; i++){
-		int_buffer[i] = i;
+	float * float_buffer = (float *) malloc(num_floats * sizeof(int));
+	for (int i = 0; i < num_floats; i++){
+		float_buffer[i] = i;
 	}
 
 	 
-	ret = register_virt_memory(pd, (void *) int_buffer, num_ints * sizeof(int), &mr);
+	ret = register_virt_memory(pd, (void *) float_buffer, num_floats * sizeof(int), &mr);
 	if (ret != 0){
 		fprintf(stderr, "Error: failed to register int buffer region in system mem on sender side\n");
 		return -1;
@@ -113,7 +116,7 @@ int main(int argc, char * argv[]){
 
 	printf("Sending int buffer to other node...!\n");
 
-	ret = post_send_work_request(qp, (uint64_t) int_buffer, num_ints * sizeof(int), mr -> lkey, 0, ah, remote_qp_num, remote_qkey);
+	ret = post_send_work_request(qp, (uint64_t) float_buffer, num_floats * sizeof(int), mr -> lkey, 0, ah, remote_qp_num, remote_qkey);
 	if (ret != 0){
 		fprintf(stderr, "Error: failure to send work reqeust of int buffer\n");
 		return -1;

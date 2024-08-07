@@ -1,111 +1,5 @@
 #include "ctrl_handler.h"
 
-void * run_send_ctrl_handler(void * _cq_thread_data){
-
-	int ret;
-
-	// 1.) determine what cq this thread is working on
-
-	// IN REALITY THIS WILL CONTAIN MORE THAN JUST NET_WORLD
-	// IT SHOULD CONNECT TO WORKER POOL
-	// (THAT CONNECTS TO EXCHANGE AND SCHED AS WELL!)
-	// GOING TO PASS ALL CONTROL MESSAGES TO APPROPRIATE WORKER!
-	Cq_Thread_Data * cq_thread_data = (Cq_Thread_Data *) _cq_thread_data;
-
-	// needed to find the CQ this thread is supposed to work on! 
-	struct ibv_cq_ex * cq_ex = cq_thread_data -> cq;
-	Net_World * net_world = cq_thread_data -> net_world;
-	Self_Net * self_net = net_world -> self_net;
-
-	struct ibv_cq * cq = ibv_cq_ex_to_cq(cq_ex);
-
-	enum ibv_wc_status status;
-	uint64_t wr_id;
-
-	
-		
-	// these will get populated upon extracting an item from channel
-	
-
-	// For now doing an infnite loop unless error....
-	// Burns a lot of cpu....
-	//	- but want low latency!!!
-	//	- many, many exchange requests per sec
-
-
-	int num_comp;
-
-	int max_poll_entries = SEND_CTRL_MAX_POLL_ENTRIES;
-
-	struct ibv_wc * work_completions = (struct ibv_wc *) malloc(max_poll_entries * sizeof(struct ibv_wc));
-	if (work_completions == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate space for work_completions\n");
-		return NULL;
-	}
-
-	
-
-	Ctrl_Channel * ctrl_channel;
-
-	Ctrl_Message ctrl_message;
-	Ctrl_Message_H ctrl_message_header;
-
-
-	while (1){
-
-		// wait for an entry
-		do {
-			num_comp = ibv_poll_cq(cq, max_poll_entries, work_completions);
-		} while (num_comp == 0);
-
-
-		// Iterate over all sends, and see which QP's send control channel needs to be consumed
-		
-		for (int i = 0; i < num_comp; i++){
-
-			// Consume the completed work request
-			wr_id = work_completions[i].wr_id;
-			status = work_completions[i].status;
-				
-			// This message is kinda ugly. Can be helpful with errors
-			// printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
-
-			if (status != IBV_WC_SUCCESS){
-				fprintf(stderr, "Error: work request id %lu had error. Status: %d\n", wr_id, status);
-				// DO ERROR HANDLING HERE!
-			}
-
-
-			// 1.) get channel
-
-			// Defined within self_net.c
-			ctrl_channel = get_send_ctrl_channel(self_net, wr_id);
-			if (unlikely(ctrl_channel == NULL)){
-				fprintf(stderr, "Error: control completion handler failed. Couldn't get channel. For wr_id = %lu\n", wr_id);
-				return NULL;
-			}
-
-			
-			// 2.) Extract Item
-
-			// Defined within ctrl_channel.
-			//	- will refresh posting a receive if was on recv/shared recv channel
-			ret = extract_ctrl_channel(ctrl_channel, &ctrl_message);
-			if (unlikely(ret != 0)){
-				fprintf(stderr, "Error: control completion handler failed. Couldn't extract channel item. For wr_id = %lu\n", wr_id);
-				return NULL;
-			}
-
-			ctrl_message_header = ctrl_message.header;
-
-			// printf("\n\n[Node %u] Sent message work completion!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
-			// 			net_world -> self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
-		}	
-	}
-
-	return 0;
-}
-
 void * run_recv_ctrl_handler(void * _cq_thread_data) {
 
 	int ret;
@@ -235,6 +129,113 @@ void * run_recv_ctrl_handler(void * _cq_thread_data) {
 
 
 		produce_batch_fifo(recv_dispatcher_fifo, num_comp, recv_ctrl_messages);
+	}
+
+	return 0;
+}
+
+
+void * run_send_ctrl_handler(void * _cq_thread_data){
+
+	int ret;
+
+	// 1.) determine what cq this thread is working on
+
+	// IN REALITY THIS WILL CONTAIN MORE THAN JUST NET_WORLD
+	// IT SHOULD CONNECT TO WORKER POOL
+	// (THAT CONNECTS TO EXCHANGE AND SCHED AS WELL!)
+	// GOING TO PASS ALL CONTROL MESSAGES TO APPROPRIATE WORKER!
+	Cq_Thread_Data * cq_thread_data = (Cq_Thread_Data *) _cq_thread_data;
+
+	// needed to find the CQ this thread is supposed to work on! 
+	struct ibv_cq_ex * cq_ex = cq_thread_data -> cq;
+	Net_World * net_world = cq_thread_data -> net_world;
+	Self_Net * self_net = net_world -> self_net;
+
+	struct ibv_cq * cq = ibv_cq_ex_to_cq(cq_ex);
+
+	enum ibv_wc_status status;
+	uint64_t wr_id;
+
+	
+		
+	// these will get populated upon extracting an item from channel
+	
+
+	// For now doing an infnite loop unless error....
+	// Burns a lot of cpu....
+	//	- but want low latency!!!
+	//	- many, many exchange requests per sec
+
+
+	int num_comp;
+
+	int max_poll_entries = SEND_CTRL_MAX_POLL_ENTRIES;
+
+	struct ibv_wc * work_completions = (struct ibv_wc *) malloc(max_poll_entries * sizeof(struct ibv_wc));
+	if (work_completions == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate space for work_completions\n");
+		return NULL;
+	}
+
+	
+
+	Ctrl_Channel * ctrl_channel;
+
+	Ctrl_Message ctrl_message;
+	Ctrl_Message_H ctrl_message_header;
+
+
+	while (1){
+
+		// wait for an entry
+		do {
+			num_comp = ibv_poll_cq(cq, max_poll_entries, work_completions);
+		} while (num_comp == 0);
+
+
+		// Iterate over all sends, and see which QP's send control channel needs to be consumed
+		
+		for (int i = 0; i < num_comp; i++){
+
+			// Consume the completed work request
+			wr_id = work_completions[i].wr_id;
+			status = work_completions[i].status;
+				
+			// This message is kinda ugly. Can be helpful with errors
+			// printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
+
+			if (status != IBV_WC_SUCCESS){
+				fprintf(stderr, "Error: work request id %lu had error. Status: %d\n", wr_id, status);
+				// DO ERROR HANDLING HERE!
+			}
+
+
+			// 1.) get channel
+
+			// Defined within self_net.c
+			ctrl_channel = get_send_ctrl_channel(self_net, wr_id);
+			if (unlikely(ctrl_channel == NULL)){
+				fprintf(stderr, "Error: control completion handler failed. Couldn't get channel. For wr_id = %lu\n", wr_id);
+				return NULL;
+			}
+
+			
+			// 2.) Extract Item
+
+			// Defined within ctrl_channel.
+			//	- will refresh posting a receive if was on recv/shared recv channel
+			ret = extract_ctrl_channel(ctrl_channel, &ctrl_message);
+			if (unlikely(ret != 0)){
+				fprintf(stderr, "Error: control completion handler failed. Couldn't extract channel item. For wr_id = %lu\n", wr_id);
+				return NULL;
+			}
+
+			ctrl_message_header = ctrl_message.header;
+
+			// printf("\n\n[Node %u] Sent message work completion!\n\tSource Node ID: %u\n\tMessage Class: %s\n\t\tContents: %s\n\n", 
+			// 			net_world -> self_node_id, ctrl_message_header.source_node_id, message_class_to_str(ctrl_message_header.message_class), ctrl_message.contents);
+		}	
 	}
 
 	return 0;

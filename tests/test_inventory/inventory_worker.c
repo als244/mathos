@@ -33,6 +33,8 @@ void * run_inventory_worker(void * _worker_thread_data) {
 	Work_Bench * work_bench = *(worker_thread_data -> work_bench);
 
 
+	uint64_t size = tasks -> max_items * sizeof(Ctrl_Message);
+	printf("Inventory worker allocating size: %lu\n", size);
 
 	Ctrl_Message * ctrl_messages = (Ctrl_Message *) malloc(tasks -> max_items * sizeof(Ctrl_Message));
 	if (ctrl_messages == NULL){

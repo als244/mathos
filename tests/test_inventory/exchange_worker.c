@@ -39,6 +39,8 @@ void * run_exchange_worker(void * _worker_thread_data) {
 	//	- ensures the "post_send_ctrl_net" response messages are low-latency
 	//		- these are the match notifications that the exchange sends out
 
+	uint64_t size = tasks -> max_items * sizeof(Ctrl_Message);
+	printf("Exchange worker allocating size: %lu\n", size);
 
 	Ctrl_Message * ctrl_messages = (Ctrl_Message *) malloc(tasks -> max_items * sizeof(Ctrl_Message));
 	if (ctrl_messages == NULL){

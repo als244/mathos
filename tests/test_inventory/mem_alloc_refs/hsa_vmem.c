@@ -376,5 +376,5 @@ int hsa_copy_to_host_memory(Hsa_Memory * hsa_memory, int src_device_id, void * s
 
 
 void * hsa_reserve_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t size_bytes) {
-	return NULL;
+	
 }

@@ -5,6 +5,10 @@
 #include "hsa_memory.h"
 #include "self_net.h"
 
+
+// Temporary
+#include "rocblas_funcs.h"
+
 int main(int argc, char * argv[]){
 
 	int ret;
@@ -24,38 +28,7 @@ int main(int argc, char * argv[]){
 
 	/* QUICK AND DIRTY SPOT TO TEST HSA STUFF! */
 
-	// 1.) Initialize HSA memory
-
-	printf("Intializing HSA memory container...\n");
-
-	Hsa_Memory * hsa_memory = hsa_init_memory();
-	if (hsa_memory == NULL){
-		fprintf(stderr, "Error: hsa_init_memory failed\n");
-	}
-
-	printf("Found %d HSA agents each with a mempool!\n\n\n", hsa_memory -> n_agents);
-
-
-	printf("Adding Device Memory and Preparing it for Verbs region...\n");
-
-
-	// 2 MB Chunk Size
-	int device_id = 0;
-	uint64_t chunk_size = 1U << 21;
-	uint64_t num_chunks = 1000;
-
-	// should return a 2GB region
-	ret = hsa_add_device_memory(hsa_memory, device_id, num_chunks, chunk_size);
-	if (ret != 0){
-		fprintf(stderr, "Error: failed to add device memory\n");
-		return -1;
-	}
-
-	Hsa_User_Page_Table * user_page_table = hsa_memory -> user_page_table;
-	printf("\nSuccessfully added device memory!\n\tDmabuf_fd for first chunk: %d\n\tDmabuf_offset for first chunk: %lu\n\n", 
-				user_page_table -> dmabuf_fds[device_id][0], user_page_table -> dmabuf_offsets[device_id][0]);
-
-
+	
 
 	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
 
@@ -101,34 +74,77 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
+
+
 	printf("\n\nSuccessfully started system. Everything online and ready to process...!\n\n");
 
 
-	int num_ints = 100;
+	// 1.) Initialize HSA memory
+
+	printf("Intializing HSA memory container...\n");
+
+	Hsa_Memory * hsa_memory = hsa_init_memory();
+	if (hsa_memory == NULL){
+		fprintf(stderr, "Error: hsa_init_memory failed\n");
+	}
+
+	printf("Found %d HSA agents each with a mempool!\n\n\n", hsa_memory -> n_agents);
 
 
+	printf("Adding Device Memory and Preparing it for Verbs region...\n");
+
+
+	// 2 MB Chunk Size
+	int device_id = 0;
+	uint64_t chunk_size = 1U << 16;
+	uint64_t num_chunks = 1000;
+
+	// should return a 2GB region
+	ret = hsa_add_device_memory(hsa_memory, device_id, num_chunks, chunk_size);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to add device memory\n");
+		return -1;
+	}
+
+	Hsa_User_Page_Table * user_page_table = hsa_memory -> user_page_table;
+	printf("\nSuccessfully added device memory!\n\tDmabuf_fd for first chunk: %d\n\tDmabuf_offset for first chunk: %lu\n\n", 
+				user_page_table -> dmabuf_fds[device_id][0], user_page_table -> dmabuf_offsets[device_id][0]);
+	
+
+	unsigned int cu_count = 82;
+	hipStream_t stream;
+	ret = initialize_stream(device_id, cu_count, &stream);
+	if (ret != 0){
+		fprintf(stderr, "Error: failure to initialize hip stream\n");
+		return -1;
+	}
+
+
+	int num_floats = 100;
+	
 	struct ibv_pd * pd = (system -> net_world -> self_net -> dev_pds)[0];
 	struct ibv_qp * qp;
 	struct ibv_mr * mr;
 
+	int mr_access = IBV_ACCESS_LOCAL_WRITE;
 
-	// Post receive request in GPU memory
 
-	
-	printf("Attempting to register DMA buf with verbs...\n");
 
-	int mr_access = IBV_ACCESS_LOCAL_WRITE; 
-
-	uint64_t iova = (uint64_t) user_page_table -> virt_memories[device_id];
-
-	mr = ibv_reg_dmabuf_mr(pd, user_page_table -> dmabuf_offsets[device_id][0], chunk_size, iova, user_page_table -> dmabuf_fds[device_id][0], mr_access);
-	if (mr == NULL){
-		fprintf(stderr, "Error: ibv_reg_dmabuf_mr failed\n");
+	void * dptr = hsa_reserve_memory(hsa_memory, device_id, chunk_size);
+	if (dptr == NULL){
+		fprintf(stderr, "Error: failed to reserve memory on device %d of size %lu\n", device_id, chunk_size);
 	}
 
 
-	printf("Succeeded! Details:\n\tMR address: %p\n\tMR Lkey: %u\n\tDevice Virt Address: %p\n\n", 
-				mr -> addr, mr -> lkey, user_page_table -> virt_memories[device_id]);
+	mr = ibv_reg_mr(pd, dptr, chunk_size, mr_access);
+	if (mr == NULL){
+		fprintf(stderr, "Error: ibv_reg_mr failed\n");
+		return -1;
+	}
+
+
+	printf("Succeeded! Details:\n\tMR address: %p\n\tMR Lkey: %u\n\tDevice GEM Address: %p\n\n", 
+				mr -> addr, mr -> lkey, (void *)(uintptr_t) dptr);
 
 
 	
@@ -136,7 +152,7 @@ int main(int argc, char * argv[]){
 
 	qp = (net_world -> self_net -> self_node -> endpoints)[1].ibv_qp;
 
-	ret = post_recv_work_request(qp, iova, chunk_size, mr -> lkey, 0);
+	ret = post_recv_work_request(qp, (uint64_t) dptr, chunk_size, mr -> lkey, 0);
 	if (ret != 0){
 		fprintf(stderr, "Error: unable to post recv request to the registered dma buf region\n");
 		return -1;
@@ -145,23 +161,69 @@ int main(int argc, char * argv[]){
 	printf("Successfully posted receive request waiting at GPU memory!\n");
 
 	
-	printf("Waiting to read the contents of sender from GPU memory...\n");
+	printf("Waiting to read the contents of sender from GPU memory. Blocking until work completion..\n");
 
-	sleep(5);
+	ret = block_for_wr_comp((net_world -> self_net -> cq_recv_collection)[0][1], 0);
+	if (ret != 0){
+		fprintf(stderr, "Error: unable to block for wr completion\n");
+	}
 
-	int * int_buffer;
 
-	ret = hsa_copy_to_host_memory(hsa_memory, device_id, (void *) (iova + sizeof(struct ibv_grh)), num_ints * sizeof(int), (void **) &int_buffer);
+	printf("Attempting to copy contents from GPU to CPU...\n");
+	
+	
+	void * dptr_real = (void *) ((uint64_t) dptr + sizeof(struct ibv_grh));
+	void * buffer;
+	ret = hsa_copy_to_host_memory(hsa_memory, device_id, dptr_real, num_floats * sizeof(float), (void **) &buffer);
+	if (ret != 0){
+		fprintf(stderr, "Error failed to copy contents from device to host\n");
+	}
+	
+
+	float * float_buffer = (float *) buffer;
+
+	for (int i = 0; i < num_floats; i++){
+		printf("%f\n", float_buffer[i]);
+	}
+
+	printf("\n\nDOING GPU MATMUL ON RECEIVED DATA!\n\n");
+
+
+	void * out_dptr = hsa_reserve_memory(hsa_memory, device_id, chunk_size);
+	if (dptr == NULL){
+		fprintf(stderr, "Error: failed to reserve memory on device %d of size %lu\n", device_id, chunk_size);
+	}
+
+
+
+	uint64_t elapsed_ns;
+
+
+	int m = 10;
+	int k = 10;
+	int n = 10;
+
+	ret = do_rocblas_matmul(stream, m, k, n, dptr_real, dptr_real, out_dptr, &elapsed_ns);
+	if (ret != 0){
+		fprintf(stderr, "Error: doing matmul failed\n");
+		return -1;
+	}
+
+	void * out_buffer;
+	ret = hsa_copy_to_host_memory(hsa_memory, device_id, out_dptr, m * n * sizeof(float), (void **) &out_buffer);
 	if (ret != 0){
 		fprintf(stderr, "Error failed to copy contents from device to host\n");
 	}
 
-	for (int i = 0; i < num_ints; i++){
-		printf("%d\n", int_buffer[i]);
+
+	float * out_ptr_casted = (float *) out_buffer;
+	for (int i = 0; i < 10; i++){
+		for (int j = 0; j < 10; j++){
+			printf("%f ", out_ptr_casted[i]);
+		}
+		printf("\n");
 	}
 
-
-	exit(0);
 
 
 	// NOW SEND/RECV MESSAGES!
