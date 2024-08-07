@@ -174,7 +174,7 @@ int hsa_add_device_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t num_c
 	// Use rocminfo CLI to see details easily
 
 
-	uint32_t mempool_alloc_flags = HSA_AMD_MEMORY_POOL_PCIE_FLAG | HSA_AMD_MEMORY_POOL_CONTIGUOUS_FLAG;
+	uint32_t mempool_alloc_flags = HSA_AMD_MEMORY_POOL_STANDARD_FLAG;
 
 	hsa_status = hsa_amd_memory_pool_allocate(hsa_mempool, total_mem_size_bytes, mempool_alloc_flags, &device_memory);
 	if (hsa_status != HSA_STATUS_SUCCESS){

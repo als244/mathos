@@ -136,10 +136,11 @@ int do_rocblas_matmul(hipStream_t cu_mask_stream, size_t M, size_t K, size_t N, 
 
     // prepare the matmul
 
-    // doing AB = C as matmul(A^T, B)
-    //	- same as in cuda version
+    // Assumes Column Major storing!
+    // So if we have Row-Major we can transpose both
+    // or tranpose the output
     rocblas_operation trans_a = rocblas_operation_transpose;
-    rocblas_operation trans_b = rocblas_operation_none;
+    rocblas_operation trans_b = rocblas_operation_transpose;
 
     // if trans_a == none 
     //	=> lda = M, stride_1 = 1, stride_2 = M
@@ -153,9 +154,9 @@ int do_rocblas_matmul(hipStream_t cu_mask_stream, size_t M, size_t K, size_t N, 
     // if trans_b == transpose
     //	=> ldb = N, stride_1 = N, stride_2 = 1
     
-    int ldb = K;
+    int ldb = N;
 
-    // ldc is always m
+    // ldc is always m...?
     int ldc = M;
 
     float alpha = 1.0, beta = 0.0;

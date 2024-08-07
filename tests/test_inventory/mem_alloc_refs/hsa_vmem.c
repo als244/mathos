@@ -375,6 +375,15 @@ int hsa_copy_to_host_memory(Hsa_Memory * hsa_memory, int src_device_id, void * s
 
 
 
-void * hsa_reserve_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t size_bytes) {
+void * hsa_reserve_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t chunk_id) {
 	
+	Hsa_User_Page_Table * hsa_user_page_table = hsa_memory -> user_page_table;
+
+	uint64_t chunk_size = (hsa_user_page_table -> chunk_size)[device_id];
+
+	void * starting_va = (hsa_user_page_table -> virt_memories)[device_id];
+
+	void * chunk_va = (void *) ((uint64_t) starting_va + chunk_size * chunk_id);
+
+	return chunk_va;
 }
