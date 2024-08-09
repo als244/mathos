@@ -26,6 +26,8 @@ typedef struct deque {
 	Deque_Item * head;
 	Deque_Item * tail;
 	Item_Cmp item_cmp;
+	// TODO: Can make more efficient by having
+	// a head lock and tail lock!!
 	pthread_mutex_t list_lock;
 } Deque;
 
