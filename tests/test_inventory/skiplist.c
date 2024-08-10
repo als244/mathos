@@ -335,7 +335,7 @@ int insert_item_skiplist(Skiplist * skiplist, void * key, void * value) {
 		// if the there were no elements less than key at the previous level, 
 		// start at the head (minimum) of this level
 		if ((cur_skiplist_item != NULL) && 
-			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) < 0)){
+			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) <= 0)){
 			cur_skiplist_item = (skiplist -> level_lists)[cur_level];
 		}
 
@@ -352,7 +352,7 @@ int insert_item_skiplist(Skiplist * skiplist, void * key, void * value) {
 
 		// if there are no elements smaller at this level set prev to null
 		if ((cur_skiplist_item != NULL) && 
-			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) < 0)){
+			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) <= 0)){
 			prev_items_per_level[cur_level] = NULL;
 		}
 		else{
@@ -585,7 +585,7 @@ void reap_skiplist_item(Skiplist * skiplist, Skiplist_Item * zombie){
 		// if the there were no elements less than key at the previous level, 
 		// start at the head (minimum) of this level
 		if ((cur_skiplist_item != NULL) && 
-			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) < 0)){
+			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) <= 0)){
 			cur_skiplist_item = (skiplist -> level_lists)[cur_level];
 		}
 
@@ -601,7 +601,7 @@ void reap_skiplist_item(Skiplist * skiplist, Skiplist_Item * zombie){
 
 		// if there are no elements smaller at this level set prev to null
 		if ((cur_skiplist_item != NULL) && 
-			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) < 0)){
+			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) <= 0)){
 			prev_items_per_level[cur_level] = NULL;
 		}
 		else{
@@ -685,7 +685,7 @@ void * take_item_skiplist(Skiplist * skiplist, SkiplistTakeType take_type, void 
 		// if the there were no elements less than key at the previous level, 
 		// start at the head (minimum) of this level
 		if ((cur_skiplist_item != NULL) && 
-			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) < 0)){
+			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) <= 0)){
 			cur_skiplist_item = (skiplist -> level_lists)[cur_level];
 		}
 
@@ -701,7 +701,7 @@ void * take_item_skiplist(Skiplist * skiplist, SkiplistTakeType take_type, void 
 
 		// if there are no elements smaller at this level set prev to null
 		if ((cur_skiplist_item != NULL) && 
-			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) < 0)){
+			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) <= 0)){
 			prev_items_per_level[cur_level] = NULL;
 		}
 		else{
@@ -900,7 +900,7 @@ void * take_item_skiplist(Skiplist * skiplist, SkiplistTakeType take_type, void 
 		while (zombies -> head != NULL){
 			// shouldn't be an error because this thread has exclusive access to this deque
 			// (no other ops are ongoing)
-			take_lockless_deque(zombies, FRONT_DEQUE, &zombie_to_reap);
+			take_lockless_deque(zombies, FRONT_DEQUE, (void **) &zombie_to_reap);
 
 			// confirm that the zombie was not revived
 			if (!(zombie_to_reap -> is_zombie)){

@@ -95,13 +95,13 @@ int main(int argc, char * argv[]){
 
 
 	Range_Item target_range;
-	target_range.num_chunks = 86;
+	target_range.num_chunks = 1000;
 
 
 
 	printf("Taking items...\n\n");
 
-	Range_Item * ret_range_item = (Range_Item *) take_item_skiplist(skiplist, GREATER_OR_EQ_SKIPLIST, &target_range, NULL);
+	Range_Item * ret_range_item = (Range_Item *) take_item_skiplist(skiplist, EQ_SKIPLIST, &target_range, NULL);
 	if (ret_range_item == NULL){
 		fprintf(stderr, "Error: could not take closest item\n");
 		return -1;
@@ -109,7 +109,8 @@ int main(int argc, char * argv[]){
 
 	printf("Start chunk id for returned val: %lu\n\n", ret_range_item -> start_chunk_id);
 	
-
+	target_range.num_chunks = 99;
+	
 	ret_range_item = (Range_Item *) take_item_skiplist(skiplist, GREATER_OR_EQ_SKIPLIST, &target_range, NULL);
 	if (ret_range_item == NULL){
 		fprintf(stderr, "Error: could not take closest item\n");
