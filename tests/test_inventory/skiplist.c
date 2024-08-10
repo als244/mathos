@@ -322,32 +322,6 @@ int insert_item_skiplist(Skiplist * skiplist, void * key, void * value) {
 	int cur_max_level = (int) cur_max_level_hint;
 	Skiplist_Item * cur_skiplist_item = (skiplist -> level_lists)[cur_max_level];
 	
-
-	/*
-
-	// This part might not be needed...
-	//	- keeping it here for readability and soundness
-	// OK to be off with max level, just a performance detail not correctness
-	// 	- (because all items are held within level 0)
-	if (cur_skiplist_item == NULL){
-		// hint was too high
-		while ((cur_max_level > 0) && (cur_skiplist_item == NULL)){
-			cur_max_level -= 1;
-			cur_skiplist_item = (skiplist -> level_lists)[cur_max_level];
-		}
-	}
-	else{
-		// hint was too low
-		while ((cur_max_level < max_levels) &&
-					((skiplist -> level_lists[cur_max_level + 1]) != NULL)){
-			cur_max_level += 1;
-			cur_skiplist_item = (skiplist -> level_lists[cur_max_level]);
-		}
-	}
-
-	*/
-	
-
 	// Search
 	// find the rightmost elements at each level that are less than key
 	// no locking needed
@@ -691,33 +665,6 @@ void * take_closest_item_skiplist(Skiplist * skiplist, void * key) {
 
 	int cur_max_level = (int) cur_max_level_hint;
 	Skiplist_Item * cur_skiplist_item = (skiplist -> level_lists)[cur_max_level];
-	
-
-	/*
-
-	// This part might not be needed...
-	//	- keeping it here for readability and soundness
-	// OK to be off with max level, just a performance detail not correctness
-	// 	- (because all items are held within level 0)
-	if (cur_skiplist_item == NULL){
-		// hint was too high
-		while ((cur_max_level > 0) && (cur_skiplist_item == NULL)){
-			cur_max_level -= 1;
-			cur_skiplist_item = (skiplist -> level_lists)[cur_max_level];
-		}
-	}
-	else{
-		// hint was too low
-		while ((cur_max_level < max_levels) &&
-					((skiplist -> level_lists[cur_max_level + 1]) != NULL)){
-			cur_max_level += 1;
-			cur_skiplist_item = (skiplist -> level_lists[cur_max_level]);
-		}
-	}
-	
-	*/
-	
-	
 
 	// Search
 	// find the rightmost elements at each level that are less than key
@@ -778,8 +725,6 @@ void * take_closest_item_skiplist(Skiplist * skiplist, void * key) {
 		closest_item = (rightmost_base_level -> forward)[0];
 	}
 
-
-	
 
 
 	// THE ACTUAL VALUE TO RETURNED
