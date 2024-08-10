@@ -462,3 +462,46 @@ uint64_t get_item_count_deque(Deque * deque, void * item) {
 	return seen_cnt;
 }
 
+
+
+int insert_lockless_deque(Deque * deque, DequeEnd insert_end, void * item){
+
+	int ret;
+
+	if (insert_end == FRONT_DEQUE){
+		ret = enqueue_front(deque, item);
+	}
+	else{
+		ret = enqueue(deque, item);
+	}
+
+	if (ret != 0){
+		fprintf(stderr, "Inserting to deque failed because out of memory to create new deque_item\n");
+	}
+
+	return ret;
+}
+
+
+int take_lockless_deque(Deque * deque, DequeEnd take_end, void ** ret_item){
+
+	if (deque -> cnt == 0){
+		*ret_item = NULL;
+		return -1;
+	}
+
+	void * item;
+
+	if (take_end == FRONT_DEQUE){
+		dequeue(deque, &item);
+	}
+	else{
+		dequeue_rear(deque, &item);
+	}
+
+	*ret_item = item;
+
+	return 0;
+}
+
+

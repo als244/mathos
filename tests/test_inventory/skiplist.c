@@ -1,7 +1,7 @@
 #include "skiplist.h"
 
 
-Skiplist * init_skiplist(Item_Cmp key_cmp, uint8_t max_levels, float level_factor, uint64_t gc_cap) {
+Skiplist * init_skiplist(Item_Cmp key_cmp, uint8_t max_levels, float level_factor, uint64_t min_items_to_check_reap, float max_zombie_ratio) {
 
 	Skiplist * skiplist = (Skiplist *) malloc(sizeof(Skiplist));
 	if (skiplist == NULL){
@@ -74,38 +74,33 @@ Skiplist * init_skiplist(Item_Cmp key_cmp, uint8_t max_levels, float level_facto
 
 	skiplist -> rand_level_upper_bound = cur_start;
 
-
-	skiplist -> num_active_ops = 0;
-
-	skiplist -> gc_cap = gc_cap;
-	skiplist -> cur_gc_cnt = 0;
-
-	ret = pthread_mutex_init(&(skiplist -> gc_cnt_lock), NULL);
+	ret = pthread_mutex_init(&(skiplist -> cnt_lock), NULL);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not init gc cnt lock\n");
 		return NULL;
 	}
 
+	skiplist -> total_item_cnt = 0;
+	skiplist -> min_items_to_check_reap = min_items_to_check_reap;
+	skiplist -> max_zombie_ratio = max_zombie_ratio;
+	skiplist -> zombie_cnt = 0;
+	skiplist -> is_reaping = false;
+	skiplist -> at_zombie_cap = false;
 
-	ret = pthread_mutex_init(&(skiplist ->  num_active_ops_lock), NULL);
-	if (ret != 0){
-		fprintf(stderr, "Error: could not init num_active_ops lock\n");
-		return NULL;
-	}
-
-
-	ret = pthread_cond_init(&(skiplist -> gc_cv), NULL);
+	ret = pthread_cond_init(&(skiplist -> reaping_cv), NULL);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not init gc_cv\n");
 	}
 
-	void ** delete_bin = (void **) malloc(gc_cap * sizeof(void *));
-	if (delete_bin == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate delete_bin\n");
+	Deque * zombies = init_deque(NULL);
+	skiplist -> zombies = zombies;
+
+	skiplist -> num_active_ops = 0;
+	ret = pthread_mutex_init(&(skiplist ->  op_lock), NULL);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not init num_active_ops lock\n");
 		return NULL;
 	}
-
-	skiplist -> delete_bin = delete_bin;
 
 	return skiplist;
 }
@@ -142,7 +137,7 @@ Skiplist_Item * init_skiplist_item(Skiplist * skiplist, void * key, void * value
 	// no need for comparing items in this deque
 	Deque * value_list = init_deque(NULL);
 
-	int ret = insert_deque(value_list, BACK_DEQUE, value);
+	int ret = insert_lockless_deque(value_list, BACK_DEQUE, value);
 	if (ret != 0){
 		fprintf(stderr, "Error: could not insert item into newly intialized deque\n");
 		return NULL;
@@ -179,11 +174,7 @@ Skiplist_Item * init_skiplist_item(Skiplist * skiplist, void * key, void * value
 
 	skiplist_item -> level = level;
 
-	ret = pthread_mutex_init(&(skiplist_item -> level_lock), NULL);
-	if (ret != 0){
-		fprintf(stderr, "Error: could not init skiplist_item level lock\n");
-		return NULL;
-	}
+
 
 	Skiplist_Item ** forward = (Skiplist_Item **) malloc((level + 1) * sizeof(Skiplist_Item *));
 	if (forward == NULL){
@@ -213,7 +204,9 @@ Skiplist_Item * init_skiplist_item(Skiplist * skiplist, void * key, void * value
 
 	skiplist_item -> forward_locks = forward_locks;
 
-	skiplist_item -> is_deleted = false;
+	// for readability
+	//	- makes clear the zombie aspects seperate from value_cnt (even though they are the same)
+	skiplist_item -> is_zombie = false;
 
 	return skiplist_item;
 }
@@ -227,7 +220,6 @@ void destroy_skiplist_item(Skiplist_Item * skiplist_item){
 
 	// good practice to acquire lock before destroying
 	pthread_mutex_destroy(&(skiplist_item -> value_cnt_lock));
-	pthread_mutex_destroy(&(skiplist_item -> level_lock));
 
 	free(skiplist_item -> forward);
 
@@ -308,17 +300,21 @@ int insert_item_skiplist(Skiplist * skiplist, void * key, void * value) {
 	Skiplist_Item target_item;
 	target_item.key = key;
 
-	// indicate that we are doing an operation
-	// this is blocked during a clean
-	pthread_mutex_lock(&(skiplist -> num_active_ops_lock));
+	// Cannot insert during a reap
+	pthread_mutex_lock(&(skiplist -> op_lock));
+	while (skiplist -> is_reaping) {
+		pthread_cond_wait(&(skiplist -> reaping_cv), &(skiplist -> op_lock));
+	}
+
+	// The reapling completed so increment active ops and release lock
 	skiplist -> num_active_ops += 1;
-	pthread_mutex_unlock(&(skiplist -> num_active_ops_lock));
+	pthread_mutex_unlock(&(skiplist -> op_lock));
 
 	uint8_t max_levels = skiplist -> max_levels;
+
+	// we know max levels < 256, so no stack overflow here...
 	void * prev_items_per_level[max_levels];
-	for (uint8_t i = 0; i < max_levels; i++){
-		prev_items_per_level[i] = NULL;
-	}
+	memset(prev_items_per_level, 0, max_levels * sizeof(void *));
 
 	// use the level hint to quickly guess the correct starting level
 	uint8_t cur_max_level_hint = skiplist -> cur_max_level_hint;
@@ -326,6 +322,8 @@ int insert_item_skiplist(Skiplist * skiplist, void * key, void * value) {
 	int cur_max_level = (int) cur_max_level_hint;
 	Skiplist_Item * cur_skiplist_item = (skiplist -> level_lists)[cur_max_level];
 	
+
+	/*
 
 	// This part might not be needed...
 	//	- keeping it here for readability and soundness
@@ -346,6 +344,8 @@ int insert_item_skiplist(Skiplist * skiplist, void * key, void * value) {
 			cur_skiplist_item = (skiplist -> level_lists[cur_max_level]);
 		}
 	}
+
+	*/
 	
 
 	// Search
@@ -390,10 +390,16 @@ int insert_item_skiplist(Skiplist * skiplist, void * key, void * value) {
 	// If it is in the skiplist then 
 	
 	// Use the unlocked search as guide for rightmost
-	Skiplist_Item * rightmost_base_level_hint = prev_items_per_level[0];
+	Skiplist_Item * rightmost_pred_base_level_hint = prev_items_per_level[0];
 
 	// Actually determine the current rightmost smaller than key and acquire lock
-	Skiplist_Item * rightmost_base_level = get_forward_lock(skiplist, rightmost_base_level_hint, key, 0);
+	// (other inserts may have occurred concurrently)
+	
+	// The prevents a duplicate skiplist_item (with the same key) from being inserted
+	// because the first insert will not release this lock until after it has linked, 
+	// to it's pred (which would be the same as this for a concurrent insert)
+	//	=> meaning that when the 2nd insert comes this pred's forward will match
+	Skiplist_Item * rightmost_pred_base_level = get_forward_lock(skiplist, rightmost_pred_base_level_hint, key, 0);
 
 	int ret;
 
@@ -402,68 +408,84 @@ int insert_item_skiplist(Skiplist * skiplist, void * key, void * value) {
 
 	// if there are no smaller elements then possibly the inserted element is smallest
 	// which is the head of the list
-	if (rightmost_base_level == NULL){
+	if (rightmost_pred_base_level == NULL){
 		found_item = (skiplist -> level_lists)[0];
 	}
 	else{
-		found_item = (rightmost_base_level -> forward)[0];
+		found_item = (rightmost_pred_base_level -> forward)[0];
 	}
 
+	
 
 	// if this item already exists, just add value to the deque 
 	//	(which is thread safe)
-	if (found_item != NULL &&
-			((skiplist -> key_cmp)(&target_item, found_item) == 0)){
+	if ((found_item != NULL) && ((skiplist -> key_cmp)(&target_item, found_item) == 0)){
 
-		pthread_mutex_lock(&(found_item -> level_lock));
+		// Prevent concurrent insertations that alter the global zombie count
+		// incorrectly.
+		pthread_mutex_lock(&(found_item -> value_cnt_lock));
 
-		// now add the value to the value_list deque
-		// can only fail on OOM 
-		ret = insert_deque(found_item -> value_list, BACK_DEQUE, value);
-		// upon successful insert
-		if (ret == 0){
-			pthread_mutex_lock(&(found_item -> value_cnt_lock));
-			found_item -> value_cnt += 1;
-			pthread_mutex_unlock(&(found_item -> value_cnt_lock));
+		// Determine if this item was a zombie that is being revived 
+		if (found_item -> value_cnt == 0){
+
+			// Decrease the zombie count
+			pthread_mutex_lock(&(skiplist -> cnt_lock));
+			skiplist -> zombie_cnt -= 1;
+
+			// Set the value in the zombies deque to NULL
+			// so this will not be deleted
+			found_item -> is_zombie = false;
+			pthread_mutex_unlock(&(skiplist -> cnt_lock));
 		}
 
-		if (rightmost_base_level == NULL){
+		// now add the value to the value_list deque
+		// we are holding the value count lock so can use lockless variant
+		// can only fail on OOM 
+		ret = insert_lockless_deque(found_item -> value_list, BACK_DEQUE, value);
+		// upon successful insert
+		if (ret == 0){
+			found_item -> value_cnt += 1;
+		}
+
+		if (rightmost_pred_base_level == NULL){
 			pthread_mutex_unlock(&((skiplist -> list_head_locks)[0]));
 		}
 		else{
-			pthread_mutex_unlock(&((rightmost_base_level -> forward_locks)[0]));
+			pthread_mutex_unlock(&((rightmost_pred_base_level -> forward_locks)[0]));
 		}
 		
-
 		// ensure to reduce active ops
-		pthread_mutex_lock(&(skiplist -> num_active_ops_lock));
+		pthread_mutex_lock(&(skiplist -> op_lock));
 		skiplist -> num_active_ops -= 1;
-		// can signal to gc condition variable in case the only
-		// active op is the deleted tied to garbage collection
-		if (skiplist -> num_active_ops == 0){
-			pthread_cond_signal(&(skiplist -> gc_cv));
+		// if this was the last pending operation before reap can occur
+		// the remaining active op is the reap thread
+		if ((skiplist -> num_active_ops == 1) && (skiplist -> at_zombie_cap)) {
+			pthread_cond_signal(&(skiplist -> reaping_cv));
 		}
-		pthread_mutex_unlock(&(skiplist -> num_active_ops_lock));
+		pthread_mutex_unlock(&(skiplist -> op_lock));
 
-		pthread_mutex_unlock(&(found_item -> level_lock));
+		pthread_mutex_unlock(&(found_item -> value_cnt_lock));
 		return ret;
 	}
 
+	// Key not found, so we need to create a new item
 
 	// Otherwise we need to create a skiplist_item
+	//	- optimistically allocating new memory
+	// 		even though a concurrent insertion may exist
 	Skiplist_Item * new_item = init_skiplist_item(skiplist, key, value);
 	if (new_item == NULL){
 		fprintf(stderr, "Error: failure to init new skiplist_item\n");
 
 		// ensure to reduce active ops
-		pthread_mutex_lock(&(skiplist -> num_active_ops_lock));
+		pthread_mutex_lock(&(skiplist -> op_lock));
 		skiplist -> num_active_ops -= 1;
-		// can signal to gc condition variable in case the only
-		// active op is the deleted tied to garbage collection
-		if (skiplist -> num_active_ops == 0){
-			pthread_cond_signal(&(skiplist -> gc_cv));
+		// if this was the last pending operation before reap can occur
+		// the remaining active op is the reap thread
+		if ((skiplist -> num_active_ops == 1) && (skiplist -> at_zombie_cap)) {
+			pthread_cond_signal(&(skiplist -> reaping_cv));
 		}
-		pthread_mutex_unlock(&(skiplist -> num_active_ops_lock));
+		pthread_mutex_unlock(&(skiplist -> op_lock));
 
 		return -1;
 	}
@@ -471,40 +493,45 @@ int insert_item_skiplist(Skiplist * skiplist, void * key, void * value) {
 	// now need to add this item!
 	uint8_t item_level = new_item -> level;
 
-	// start by locking the level at which the item is being inserted
-	pthread_mutex_lock(&(new_item -> level_lock));
-
 	// now insert y into all levels (possible exceeding cur_max_level)
-	Skiplist_Item * rightmost_at_level = rightmost_base_level;
+	Skiplist_Item * rightmost_pred_at_level;
 	for (uint8_t cur_insert_level = 0; cur_insert_level <= item_level; cur_insert_level++){
 
 		// we already grabbed the forward lock for level 0 at line 276 above
 		// use the prev items per level as a hint to advance to correct position to grab forward lock
-		//	if this was null then get_forward_lock will confirm that the head of the list is null
+		// if this was null then get_forward_lock will confirm that the head of the list is null and
+		// it will grab the head lock assoicated with this level
 		if (cur_insert_level != 0){
-			rightmost_at_level = get_forward_lock(skiplist, prev_items_per_level[cur_insert_level], key, cur_insert_level);
+			rightmost_pred_at_level = get_forward_lock(skiplist, prev_items_per_level[cur_insert_level], key, cur_insert_level);
+		}
+		else{
+			// we already grabbed the lock for this before checking if the item was already in skiplist
+			rightmost_pred_at_level = rightmost_pred_base_level;
 		}
 
-		// Insert after the rightmost before key
-		if (rightmost_at_level != NULL){
-			rightmost_at_level = rightmost_base_level;
+		// If there was an item with a smaller key, then insert in between
+		if (rightmost_pred_at_level != NULL){
 			// this item's next value was the previous' next
-			(new_item -> forward)[cur_insert_level] = (rightmost_at_level -> forward)[cur_insert_level];
+			(new_item -> forward)[cur_insert_level] = (rightmost_pred_at_level -> forward)[cur_insert_level];
 			// the previous items next is now this
-			(rightmost_at_level -> forward)[cur_insert_level] = new_item;
+			(rightmost_pred_at_level -> forward)[cur_insert_level] = new_item;
 			// can unlock the rightmost before new element now
-			pthread_mutex_unlock(&((rightmost_at_level -> forward_locks)[cur_insert_level]));
+			pthread_mutex_unlock(&((rightmost_pred_at_level -> forward_locks)[cur_insert_level]));
 		}
 		// if there were no elements smaller than we put this element at head of list
 		else{
 			// point to the previous head of the list (could be null)
 			(new_item -> forward)[cur_insert_level] = (skiplist -> level_lists)[cur_insert_level];
 			(skiplist -> level_lists)[cur_insert_level] = new_item;
+			// get_forward_lock takes a list head lock if there are no smaller elements
 			pthread_mutex_unlock(&((skiplist -> list_head_locks)[cur_insert_level]));
 		}
 	}
-	// can unlock the level at which item was inserted now
-	pthread_mutex_unlock(&(new_item -> level_lock));
+
+	// update the total cnt because we inserted a new item
+	pthread_mutex_lock(&(skiplist -> cnt_lock));
+	skiplist -> total_item_cnt += 1;
+	pthread_mutex_unlock(&(skiplist -> cnt_lock));
 
 
 	// Updating cur max level just leads to performance differences, not correctness!
@@ -541,36 +568,123 @@ int insert_item_skiplist(Skiplist * skiplist, void * key, void * value) {
 	}
 
 	// ensure to reduce active ops
-	//	in case we need to garbage collect and pause
-	pthread_mutex_lock(&(skiplist -> num_active_ops_lock));
+	pthread_mutex_lock(&(skiplist -> op_lock));
 	skiplist -> num_active_ops -= 1;
-	// can signal to gc condition variable in case the only
-	// active op is the deleted tied to garbage collection
-	if (skiplist -> num_active_ops == 0){
-		pthread_cond_signal(&(skiplist -> gc_cv));
+	// if this was the last pending operation before reap can occur
+	// the remaining active op is the reap thread
+	if ((skiplist -> num_active_ops == 1) && (skiplist -> at_zombie_cap)) {
+		pthread_cond_signal(&(skiplist -> reaping_cv));
 	}
-	pthread_mutex_unlock(&(skiplist -> num_active_ops_lock));
+	pthread_mutex_unlock(&(skiplist -> op_lock));
 
 	return 0;
 }
+
+
+// NOTE: This reap function will run when no other operations are occurring
+// and it is single threaded. Thus no need to acquire any locks
+
+// This will unlink the item and then free it's memory
+void reap_skiplist_item(Skiplist * skiplist, Skiplist_Item * zombie){
+
+	Skiplist_Item target_item;
+	target_item.key = zombie -> key;
+
+	uint8_t zombie_level = zombie -> level;
+	// we know max levels < 256, so no stack overflow here...
+	void * prev_items_per_level[zombie_level];
+	memset(prev_items_per_level, 0, zombie_level * sizeof(void *));
+
+
+	Skiplist_Item * cur_skiplist_item = (skiplist -> level_lists)[zombie_level];
+	
+
+	// Search
+	// find the rightmost elements at each level that are less than key
+	// no locking needed
+	for (int cur_level = zombie_level; cur_level >= 0; cur_level--){
+
+		// Start at the higher-level's maximum element less than key
+		// 	- (which by construction also exists at lower levels)
+
+		// if the there were no elements less than key at the previous level, 
+		// start at the head (minimum) of this level
+		if ((cur_skiplist_item != NULL) && 
+			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) < 0)){
+			cur_skiplist_item = (skiplist -> level_lists)[cur_level];
+		}
+
+		// Advancing to the maximum element less than key at this level
+		while (cur_skiplist_item != NULL && 
+				((skiplist -> key_cmp)(&target_item, (void *) ((cur_skiplist_item -> forward)[cur_level])) > 0)) {
+			// we know this will be non-null because the key_cmp predicate would return false if comparing (key, NULL) < 0 which is not > 0
+			cur_skiplist_item = (cur_skiplist_item -> forward)[cur_level];
+		}
+
+		// set the previous item at this level
+		// ensure that the current item is actually smaller
+
+		// if there are no elements smaller at this level set prev to null
+		if ((cur_skiplist_item != NULL) && 
+			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) < 0)){
+			prev_items_per_level[cur_level] = NULL;
+		}
+		else{
+			prev_items_per_level[cur_level] = cur_skiplist_item;
+		}
+
+		// decrease level and repeat
+	}
+
+
+	// Now we need to reset the forward link for predecessors
+
+	// Because this function stops the world and is single-threaded
+	// we don't need to acquire any locks
+	Skiplist_Item * prev_at_level;
+	for (int cur_delete_level = zombie_level; cur_delete_level >= 0; cur_delete_level--){
+
+		prev_at_level = prev_items_per_level[cur_delete_level];
+		// if there were no items smaller then that means this was the head of the list
+		// and so we should set the head of the list to be this item's next
+		if (prev_at_level == NULL){
+			(skiplist -> level_lists)[cur_delete_level] = (zombie -> forward)[cur_delete_level];
+		}
+		else{
+			(prev_at_level -> forward)[cur_delete_level] = (zombie -> forward)[cur_delete_level];
+		}
+	}
+
+
+	// Now we can destory the skiplist item and free up memory
+	destroy_skiplist_item(zombie);
+
+	return;
+}
+
 
 
 // Removes element from skiplist_item -> value_list where the item is the minimum key >= key
 // if no skiplist item (== value_list is NULL) then return NULL
 void * take_closest_item_skiplist(Skiplist * skiplist, void * key) {
 
+	// Cannot insert during a reap
+	pthread_mutex_lock(&(skiplist -> op_lock));
+	while (skiplist -> is_reaping) {
+		pthread_cond_wait(&(skiplist -> reaping_cv), &(skiplist -> op_lock));
+	}
+
+	// The reapling completed so increment active ops and release lock
+	skiplist -> num_active_ops += 1;
+	pthread_mutex_unlock(&(skiplist -> op_lock));
+
 	Skiplist_Item target_item;
 	target_item.key = key;
 
-	pthread_mutex_lock(&(skiplist -> num_active_ops_lock));
-	skiplist -> num_active_ops += 1;
-	pthread_mutex_unlock(&(skiplist -> num_active_ops_lock));
-
 	uint8_t max_levels = skiplist -> max_levels;
+	// we know max levels < 256, so no stack overflow here...
 	void * prev_items_per_level[max_levels];
-	for (uint8_t i = 0; i < max_levels; i++){
-		prev_items_per_level[i] = NULL;
-	}
+	memset(prev_items_per_level, 0, max_levels * sizeof(void *));
 
 	// use the level hint to quickly guess the correct starting level
 	uint8_t cur_max_level_hint = skiplist -> cur_max_level_hint;
@@ -578,6 +692,8 @@ void * take_closest_item_skiplist(Skiplist * skiplist, void * key) {
 	int cur_max_level = (int) cur_max_level_hint;
 	Skiplist_Item * cur_skiplist_item = (skiplist -> level_lists)[cur_max_level];
 	
+
+	/*
 
 	// This part might not be needed...
 	//	- keeping it here for readability and soundness
@@ -599,7 +715,8 @@ void * take_closest_item_skiplist(Skiplist * skiplist, void * key) {
 		}
 	}
 	
-
+	*/
+	
 	
 
 	// Search
@@ -662,8 +779,7 @@ void * take_closest_item_skiplist(Skiplist * skiplist, void * key) {
 	}
 
 
-	// skip past elements with 0 values in their deque (returns -1)
-	//		- these
+	
 
 
 	// THE ACTUAL VALUE TO RETURNED
@@ -671,10 +787,14 @@ void * take_closest_item_skiplist(Skiplist * skiplist, void * key) {
 	void * val = NULL;
 
 
-	bool to_delete_skiplist_item = false;
+	// skip past elements with 0 values in their deque
+	// If we remove from a skiplist that still has at least
+	// 1 value then we can immediately return without 
+	// changing anything about skiplist
+	bool to_create_zombie = false;
 	while (closest_item != NULL)  {
 		pthread_mutex_lock(&(closest_item -> value_cnt_lock));
-		// If closest_item is in GC-bin but not yet deleted
+		// If closest_item is in zombie deque but not yet deleted
 		if (closest_item -> value_cnt == 0){
 			pthread_mutex_unlock(&(closest_item -> value_cnt_lock));
 			closest_item = (closest_item -> forward)[0];
@@ -682,139 +802,125 @@ void * take_closest_item_skiplist(Skiplist * skiplist, void * key) {
 		else{
 			// guaranteed to succeed because we hold lock for value count
 			// and we know > 0 items
-			take_deque(closest_item -> value_list, FRONT_DEQUE, &val);
+			take_lockless_deque(closest_item -> value_list, FRONT_DEQUE, &val);
 			closest_item -> value_cnt -= 1;
 			if (closest_item -> value_cnt == 0){
-				to_delete_skiplist_item = true;
+				to_create_zombie = true;
+				closest_item -> is_zombie = true;
 			}
 			pthread_mutex_unlock(&(closest_item -> value_cnt_lock));
 			break;
 		}
 	}
 
-	// If we didn't take a value, or we took a value but there are still
-	// more values tied to a specific key (so we don't need to delete)
-	if (!to_delete_skiplist_item){
-		pthread_mutex_lock(&(skiplist -> num_active_ops_lock));
+	// If we didn't take a value (no matching items), or we took a value but there are still
+	// more values tied to a specific key (so we don't need to create zombie)
+	if (!to_create_zombie){
+		// ensure to reduce active ops
+		pthread_mutex_lock(&(skiplist -> op_lock));
 		skiplist -> num_active_ops -= 1;
-		// can signal to gc condition variable in case the only
-		// active op is the deleted tied to garbage collection
-		if (skiplist -> num_active_ops == 0){
-			pthread_cond_signal(&(skiplist -> gc_cv));
+		// if this was the last pending operation before reap can occur
+		// the remaining active op is the reap thread
+		if ((skiplist -> num_active_ops == 1) && (skiplist -> at_zombie_cap)) {
+			pthread_cond_signal(&(skiplist -> reaping_cv));
 		}
-		pthread_mutex_unlock(&(skiplist -> num_active_ops_lock));
+		pthread_mutex_unlock(&(skiplist -> op_lock));
 		return val;
 	}
 
 
-	// Other node's cannot delete while this is being deleted
-	pthread_mutex_lock(&(closest_item -> level_lock));
+	// Now we will create a zombie and see if this triggers a reap
 
-	// cannot delete an already deleted item
-	if (closest_item -> is_deleted){
-		pthread_mutex_unlock(&(closest_item -> level_lock));
-		pthread_mutex_lock(&(skiplist -> num_active_ops_lock));
-		skiplist -> num_active_ops -= 1;
-		// can signal to gc condition variable in case the only
-		// active op is the deleted tied to garbage collection
-		if (skiplist -> num_active_ops == 0){
-			pthread_cond_signal(&(skiplist -> gc_cv));
-		}
-		pthread_mutex_unlock(&(skiplist -> num_active_ops_lock));
-		return val;
+	// indicator if this thread will be reaping
+	bool to_reap = false;
+
+	// if two threads reached this point (on the boundary of a reaping condition)
+	// and there is a race, we want one thread to complete adding a zombie and decrement it's 
+	// active op (without checking if it needs to reap), and the other to wait until there are no more active ops
+
+	// In the case there is a reap, we will use the cnt lock
+	// as a serialization point
+	pthread_mutex_lock(&(skiplist -> cnt_lock));
+
+	skiplist -> zombie_cnt += 1;
+
+	// Initiate a reap if:
+	//	a.) The total number of items is high enough to warrant a potential reap
+	//	b.) The number of zombies exceeds the ratio
+	// 	c.) Another thread hasn't started to intiate a reap
+	if ((skiplist -> total_item_cnt >= skiplist -> min_items_to_check_reap) &&
+		(skiplist -> zombie_cnt > skiplist -> total_item_cnt * skiplist -> max_zombie_ratio) &&
+		!(skiplist -> is_reaping)){
+		// set this thread to be responsible for waiting for all other operations to complete
+		// and then reap
+		to_reap = true;
+		// Now other operations will not be able to begin
+		skiplist -> is_reaping = true;
+	}
+
+	pthread_mutex_unlock(&(skiplist -> cnt_lock));
+
+	Deque * zombies = skiplist -> zombies;
+
+	// Insert the item into the zombie deque
+	Skiplist_Item * zombie = closest_item;
+	// only errors on OOM
+	// inserting the deque is thread safe
+	int ret = insert_deque(zombies, BACK_DEQUE, zombie);
+	if (ret != 0){
+		fprintf(stderr, "Error: inserting zombie into deque failed\n");
+		return NULL;
 	}
 
 
-	// Now we have removed the last value in deque, so we need to
-	// reassign pointers and add to gc bin
+	// if we are reaping then we need to wait for all other operations
+	// to complete
+	if (to_reap){
 
-	Skiplist_Item * prev_at_level;
+		// set the at_zombie_cap = true under protection of op lock
+		// so then when the other operations complete and acquire the 
+		// lock they will see if they need to signal this thread
+		pthread_mutex_lock(&(skiplist -> op_lock));
+		skiplist -> at_zombie_cap = true;
+
+		while(skiplist -> num_active_ops > 1){
+			pthread_cond_wait(&(skiplist -> reaping_cv), &(skiplist -> op_lock));
+		}
+
+		// we are the only operation and all others are blocked, so we can begin
+		// reaping without worrying about locks
+
+		Skiplist_Item * zombie_to_reap;
+
+
+		while (zombies -> head != NULL){
+			// shouldn't be an error because this thread has exclusive access to this deque
+			// (no other ops are ongoing)
+			take_lockless_deque(zombies, FRONT_DEQUE, &zombie_to_reap);
+
+			// confirm that the zombie was not revived
+			if (!(zombie_to_reap -> is_zombie)){
+				// assert(value_cnt == 0) === get_count_deque(zombie -> value_list == 0)
+				continue;
+			}
+
+			// otherwise call the reap function which will unlink this skiplist_item
+			// from all lists and free the memory for zombie
+			reap_skiplist_item(skiplist, zombie);
+
+			skiplist -> total_item_cnt -= 1;
+			skiplist -> zombie_cnt -= 1;
+		}
+
+		// assert(skiplist -> zombie_cnt == 0)
+
+		// we will hold on to the op_lock until after we update the 
+		// the max level count and will then broadcast to the reaping_cv
+		// there we are not reaping anymore
+		skiplist -> is_reaping = false;
+		skiplist -> at_zombie_cap = false;
+	}
 	
-	int closest_item_level = (int) closest_item -> level;
-	void * closest_item_key = closest_item -> key;
-	for (int cur_delete_level = closest_item_level; cur_delete_level >= 0; cur_delete_level--){
-
-		prev_at_level = get_forward_lock(skiplist, prev_items_per_level[cur_delete_level], closest_item_key, cur_delete_level);
-
-		// lock this item's forward pointer so others can't go through it while it is being updated
-		pthread_mutex_lock(&((closest_item -> forward_locks)[cur_delete_level]));
-
-		// if there were no items smaller then that means this was the head of the list
-		// and so we should set the head of the list to be this item's next
-		if (prev_at_level == NULL){
-			(skiplist -> level_lists)[cur_delete_level] = (closest_item -> forward)[cur_delete_level];
-		}
-		else{
-			(prev_at_level -> forward)[cur_delete_level] = (closest_item -> forward)[cur_delete_level];
-		}
-
-
-		// Enable passing through y by swapping with x
-		(closest_item -> forward)[cur_delete_level] = prev_at_level;
-
-		if (prev_at_level == NULL){
-			pthread_mutex_unlock(&((skiplist -> list_head_locks)[cur_delete_level]));
-		}
-		else{
-			pthread_mutex_unlock(&((prev_at_level -> forward_locks)[cur_delete_level]));
-		}
-
-		pthread_mutex_unlock(&((closest_item -> forward_locks)[cur_delete_level]));
-	}
-
-
-	closest_item -> is_deleted = true;
-
-	pthread_mutex_lock(&(skiplist -> gc_cnt_lock));
-	uint64_t cur_gc_cnt = skiplist -> cur_gc_cnt;
-	(skiplist -> delete_bin)[cur_gc_cnt] = closest_item;
-	skiplist -> cur_gc_cnt = cur_gc_cnt + 1;
-
-	// got placed in garbage bin so we can unlock 
-	pthread_mutex_unlock(&(closest_item -> level_lock));
-
-
-	
-
-	// we need to clean out the bin
-	// this means waiting for all ongoing operations to complete
-	if (skiplist -> cur_gc_cnt == skiplist -> gc_cap){
-
-		pthread_mutex_lock(&(skiplist -> num_active_ops_lock));
-
-		// count self as done
-		skiplist -> num_active_ops -= 1;
-		
-		while(skiplist -> num_active_ops > 0){
-			pthread_cond_wait(&(skiplist -> gc_cv), &(skiplist -> num_active_ops_lock));
-		}
-
-		// now no ongoing operations so we can clear out the garbage bin
-		
-		for (uint64_t i = 0; i < skiplist -> gc_cap; i++){
-			destroy_skiplist_item((Skiplist_Item *) ((skiplist -> delete_bin)[i]));
-			(skiplist -> delete_bin)[i] = NULL;
-		}
-
-		// reset gc count back to 0
-		skiplist -> cur_gc_cnt = 0;
-
-		// now the operations can continue that were blocked at the beginning
-		pthread_mutex_unlock(&(skiplist -> num_active_ops_lock));
-	}
-	else{
-		pthread_mutex_lock(&(skiplist -> num_active_ops_lock));
-		skiplist -> num_active_ops -= 1;
-		if (skiplist -> num_active_ops == 0){
-			pthread_cond_signal(&(skiplist -> gc_cv));
-		}
-		pthread_mutex_unlock(&(skiplist -> num_active_ops_lock));
-	}
-
-	pthread_mutex_unlock(&(skiplist -> gc_cnt_lock));
-	
-
-
 	// now potentially decrease level int
 	cur_max_level_hint = skiplist -> cur_max_level_hint;
 	cur_max_level = cur_max_level_hint;
@@ -832,5 +938,31 @@ void * take_closest_item_skiplist(Skiplist * skiplist, void * key) {
 		pthread_mutex_unlock(&(skiplist -> level_hint_lock));
 	}
 
+
+	// if this thread did reaping
+	if (to_reap){
+		// we are already holding on to the op lock in this case
+		skiplist -> num_active_ops -= 1;
+		// assert (skiplist -> num_active_ops == 0)
+		pthread_mutex_unlock(&(skiplist -> op_lock));
+		// if there were functions that were blocked during the reap
+		// now skiplist -> is_reaping has been set to false, so when
+		// these threads wake up they can advance
+		pthread_cond_broadcast(&(skiplist -> reaping_cv));
+	}
+	else{
+		// ensure to reduce active ops
+		pthread_mutex_lock(&(skiplist -> op_lock));
+		skiplist -> num_active_ops -= 1;
+		// if this was the last pending operation before reap can occur
+		// the remaining active op is the reap thread
+		if ((skiplist -> num_active_ops == 1) && (skiplist -> at_zombie_cap)) {
+			pthread_cond_signal(&(skiplist -> reaping_cv));
+		}
+		pthread_mutex_unlock(&(skiplist -> op_lock));
+	}
+
 	return val;
 }
+
+

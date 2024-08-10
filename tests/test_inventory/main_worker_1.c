@@ -61,7 +61,7 @@ int main(int argc, char * argv[]){
 	/* QUICK AND DIRTY SPOT TO TEST STUFF! */
 
 	
-	Skiplist * skiplist = init_skiplist(&range_item_skiplist_cmp, 8, 0.5, 1U << 16);
+	Skiplist * skiplist = init_skiplist(&range_item_skiplist_cmp, 8, 0.5, 1024, 0.2);
 	if (skiplist == NULL){
 		fprintf(stderr, "Error: could not initialize skiplist\n");
 		return -1;

@@ -39,8 +39,11 @@ void destroy_deque(Deque * deque, bool to_free_items);
 
 // THESE ARE THREAD SAFE!
 uint64_t get_count_deque(Deque * deque);
-int take_deque(Deque * deque, DequeEnd take_end, void ** ret_item);
+
 int insert_deque(Deque * deque, DequeEnd insert_end, void * item);
+int take_deque(Deque * deque, DequeEnd take_end, void ** ret_item);
+
+
 // Obtains the lock, dequeues, and then enqueues before relesing lock
 int take_and_replace_deque(Deque * deque, DequeEnd take_end, DequeEnd replace_end, void ** ret_item);
 
@@ -61,5 +64,14 @@ uint64_t remove_if_eq_accel_deque(Deque * deque, void * item, uint64_t max_remov
 
 
 uint64_t get_item_count_deque(Deque * deque, void * item);
+
+
+// Non-locked variants
+//	- USE WITH CAUTION!
+//		- either single-threaded or high-level lock protecting the deque
+int insert_lockless_deque(Deque * deque, DequeEnd insert_end, void * item);
+int take_lockless_deque(Deque * deque, DequeEnd take_end, void ** ret_item);
+
+
 
 #endif
