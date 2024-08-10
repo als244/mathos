@@ -1,7 +1,7 @@
 #include "skiplist.h"
 
 
-Skiplist * init_skiplist(Item_Cmp key_cmp, uint8_t max_levels, float level_factor, uint64_t min_items_to_check_reap, float max_zombie_ratio) {
+Skiplist * init_skiplist(Item_Cmp key_cmp, Item_Cmp val_cmp, uint8_t max_levels, float level_factor, uint64_t min_items_to_check_reap, float max_zombie_ratio) {
 
 	Skiplist * skiplist = (Skiplist *) malloc(sizeof(Skiplist));
 	if (skiplist == NULL){
@@ -12,6 +12,7 @@ Skiplist * init_skiplist(Item_Cmp key_cmp, uint8_t max_levels, float level_facto
 	skiplist -> max_levels = max_levels;
 	skiplist -> level_factor = level_factor;
 	skiplist -> key_cmp = key_cmp;
+	skiplist -> val_cmp = val_cmp;
 
 
 	Skiplist_Item ** level_lists = (Skiplist_Item **) malloc(max_levels * sizeof(Skiplist_Item *));
@@ -134,8 +135,9 @@ Skiplist_Item * init_skiplist_item(Skiplist * skiplist, void * key, void * value
 
 	skiplist_item -> key = key;
 
-	// no need for comparing items in this deque
-	Deque * value_list = init_deque(NULL);
+	// Can use the skiplist -> val_cmp to retrieve a specific
+	// value from this deque. If null then will just take the front value
+	Deque * value_list = init_deque(skiplist -> val_cmp);
 
 	int ret = insert_lockless_deque(value_list, BACK_DEQUE, value);
 	if (ret != 0){
@@ -215,7 +217,7 @@ Skiplist_Item * init_skiplist_item(Skiplist * skiplist, void * key, void * value
 // with locks
 void destroy_skiplist_item(Skiplist_Item * skiplist_item){
 
-	// assert(value_ctn == 0) === assert(get_count_deque(skiplist_item -> value_list) == 0)
+	// assert(value_cntn == 0) === assert(get_count_deque(skiplist_item -> value_list) == 0)
 	destroy_deque(skiplist_item -> value_list, false);
 
 	// good practice to acquire lock before destroying
@@ -444,9 +446,6 @@ int insert_item_skiplist(Skiplist * skiplist, void * key, void * value) {
 
 	// Key not found, so we need to create a new item
 
-	// Otherwise we need to create a skiplist_item
-	//	- optimistically allocating new memory
-	// 		even though a concurrent insertion may exist
 	Skiplist_Item * new_item = init_skiplist_item(skiplist, key, value);
 	if (new_item == NULL){
 		fprintf(stderr, "Error: failure to init new skiplist_item\n");
@@ -467,7 +466,9 @@ int insert_item_skiplist(Skiplist * skiplist, void * key, void * value) {
 	// now need to add this item!
 	uint8_t item_level = new_item -> level;
 
-	// now insert y into all levels (possible exceeding cur_max_level)
+	// Now insert new item into all its levels 
+	//	(possibly exceeding cur_max_level, but that is OK because we
+	//	intialized prev_items_per_level to NULL for all levels)
 	Skiplist_Item * rightmost_pred_at_level;
 	for (uint8_t cur_insert_level = 0; cur_insert_level <= item_level; cur_insert_level++){
 
@@ -638,9 +639,16 @@ void reap_skiplist_item(Skiplist * skiplist, Skiplist_Item * zombie){
 
 
 
-// Removes element from skiplist_item -> value_list where the item is the minimum key >= key
-// if no skiplist item (== value_list is NULL) then return NULL
-void * take_closest_item_skiplist(Skiplist * skiplist, void * key) {
+// Removes an item from a skiplist_item -> value_list deque
+
+// The skiplist take_type determines what skiplist_item to try and take from relative to key
+
+// If val_match is NULL, the first item will be removed. If it is non-null, then will take the first item
+// to match based on skiplist -> val_cmp. When val_match is set, its purpose is for removal (not search)
+
+// Search val is secondary to the take type (meaning only removes the value from a given key), thus
+// will almost always be used with EQ_SKIPLIST type. If val_cmp was initialized as NULL, then search val has no effect
+void * take_item_skiplist(Skiplist * skiplist, SkiplistTakeType take_type, void * key, void * search_val) {
 
 	// Cannot insert during a reap
 	pthread_mutex_lock(&(skiplist -> op_lock));
@@ -727,34 +735,85 @@ void * take_closest_item_skiplist(Skiplist * skiplist, void * key) {
 
 
 
+
 	// THE ACTUAL VALUE TO RETURNED
 	// EXTRACTED FROM TAKE_DEQUE!
 	void * val = NULL;
+	bool to_create_zombie = false;
 
-
+	// if the take type is equal then closest_item needs to equal key
+	// otherwise not found
+	if (take_type == EQ_SKIPLIST && 
+			((skiplist -> key_cmp)(&target_item, closest_item) == 0)){
+		pthread_mutex_lock(&(closest_item -> value_cnt_lock));
+		// only try taking if there are items
+		if (closest_item -> value_cnt != 0){
+			// take any item
+			if ((search_val == NULL) || (skiplist -> val_cmp == NULL)){
+				// guaranteed to succeed because we hold lock for value count
+				// and we know > 0 items
+				take_lockless_deque(closest_item -> value_list, FRONT_DEQUE, &val);
+				closest_item -> value_cnt -= 1;
+				if (closest_item -> value_cnt == 0){
+					to_create_zombie = true;
+					closest_item -> is_zombie = true;
+				}
+			}
+			// only taking first matching item
+			else{
+				// returns 0 on success, -1 if failure
+				// the comparison within deque list be using skiplist -> val_cmp
+				if (take_first_matching_lockless_deque(closest_item -> value_list, FRONT_DEQUE, search_val, &val) == 0){
+					closest_item -> value_cnt -= 1;
+					if (closest_item -> value_cnt == 0){
+						to_create_zombie = true;
+						closest_item -> is_zombie = true;
+					}
+				}
+			}
+		}
+		pthread_mutex_unlock(&(closest_item -> value_cnt_lock));
+	}
 	// skip past elements with 0 values in their deque
 	// If we remove from a skiplist that still has at least
 	// 1 value then we can immediately return without 
 	// changing anything about skiplist
-	bool to_create_zombie = false;
-	while (closest_item != NULL)  {
-		pthread_mutex_lock(&(closest_item -> value_cnt_lock));
-		// If closest_item is in zombie deque but not yet deleted
-		if (closest_item -> value_cnt == 0){
-			pthread_mutex_unlock(&(closest_item -> value_cnt_lock));
-			closest_item = (closest_item -> forward)[0];
-		}
-		else{
-			// guaranteed to succeed because we hold lock for value count
-			// and we know > 0 items
-			take_lockless_deque(closest_item -> value_list, FRONT_DEQUE, &val);
-			closest_item -> value_cnt -= 1;
+	else if (take_type == GREATER_OR_EQ_SKIPLIST){
+		while (closest_item != NULL)  {
+			pthread_mutex_lock(&(closest_item -> value_cnt_lock));
+			// If closest_item is in zombie deque but not yet deleted
 			if (closest_item -> value_cnt == 0){
-				to_create_zombie = true;
-				closest_item -> is_zombie = true;
+				pthread_mutex_unlock(&(closest_item -> value_cnt_lock));
+				closest_item = (closest_item -> forward)[0];
 			}
-			pthread_mutex_unlock(&(closest_item -> value_cnt_lock));
-			break;
+			// There are values within this skiplist_item
+			else{
+				// take any item
+				if ((search_val == NULL) || (skiplist -> val_cmp == NULL)){
+					// guaranteed to succeed because we hold lock for value count
+					// and we know > 0 items
+					take_lockless_deque(closest_item -> value_list, FRONT_DEQUE, &val);
+					closest_item -> value_cnt -= 1;
+					if (closest_item -> value_cnt == 0){
+						to_create_zombie = true;
+						closest_item -> is_zombie = true;
+					}
+				}
+				// only taking first matching item
+				else{
+					// returns 0 on success, -1 if failure
+					// the comparison within deque list be using skiplist -> val_cmp
+					if (take_first_matching_lockless_deque(closest_item -> value_list, FRONT_DEQUE, search_val, &val) == 0){
+						closest_item -> value_cnt -= 1;
+						if (closest_item -> value_cnt == 0){
+							to_create_zombie = true;
+							closest_item -> is_zombie = true;
+						}
+					}
+				}
+				pthread_mutex_unlock(&(closest_item -> value_cnt_lock));
+				break;
+			}
 		}
 	}
 

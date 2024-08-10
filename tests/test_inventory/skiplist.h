@@ -8,6 +8,14 @@
 // Implementation from "Concurrent Maintenance of Skip Lists, Pugh 1990"
 //	- https://15721.courses.cs.cmu.edu/spring2016/papers/pugh-skiplists1990.pdf
 
+
+typedef enum skiplist_take_type {
+	GREATER_OR_EQ_SKIPLIST,
+	EQ_SKIPLIST,
+	MIN_SKIPLIST,
+	MAX_SKIPLIST
+} SkiplistTakeType;
+
 typedef struct skiplist_item Skiplist_Item;
 
 struct skiplist_item {
@@ -60,6 +68,10 @@ typedef struct skiplist {
 	Level_Range * level_ranges;
 	float rand_level_upper_bound;
 	Item_Cmp key_cmp;
+	// This can be used to take a specific
+	// item from a given skiplist_item's value_list
+	// If null then will just take the first item
+	Item_Cmp val_cmp;
 	// Of size max_levels
 	// Points the head of the list
 	// if item exists at that level,
@@ -149,7 +161,7 @@ typedef struct skiplist {
 } Skiplist;
 
 
-Skiplist * init_skiplist(Item_Cmp key_cmp, uint8_t max_levels, float level_factor, uint64_t min_items_to_check_reap, float max_zombie_ratio);
+Skiplist * init_skiplist(Item_Cmp key_cmp, Item_Cmp val_cmp, uint8_t max_levels, float level_factor, uint64_t min_items_to_check_reap, float max_zombie_ratio);
 
 // Appends value to the skiplist_item -> value_list that matches key. If no key exists, creates a skiplist_item
 // and intializes a deque with value
@@ -157,9 +169,17 @@ Skiplist * init_skiplist(Item_Cmp key_cmp, uint8_t max_levels, float level_facto
 // only error is OOM
 int insert_item_skiplist(Skiplist * skiplist, void * key, void * value);
 
-// Removes element from skiplist_item -> value_list where the item is the minimum key >= key
-// if no skiplist item (== value_list is NULL) then return NULL
-void * take_closest_item_skiplist(Skiplist * skiplist, void * key);
+
+// Removes an item from a skiplist_item -> value_list deque
+
+// The skiplist take_type determines what skiplist_item to try and take from relative to key
+
+// If val_match is NULL, the first item will be removed. If it is non-null, then will take the first item
+// to match based on skiplist -> val_cmp. When val_match is set, its purpose is for removal (not search)
+
+// Search val is secondary to the take type (meaning only removes the value from a given key), thus
+// will almost always be used with EQ_SKIPLIST type. If val_cmp was initialized as NULL, then search val has no effect
+void * take_item_skiplist(Skiplist * skiplist, SkiplistTakeType take_type, void * key, void * search_val);
 
 
 #endif

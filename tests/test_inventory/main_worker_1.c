@@ -61,7 +61,7 @@ int main(int argc, char * argv[]){
 	/* QUICK AND DIRTY SPOT TO TEST STUFF! */
 
 	
-	Skiplist * skiplist = init_skiplist(&range_item_skiplist_cmp, 8, 0.5, 1024, 0.2);
+	Skiplist * skiplist = init_skiplist(&range_item_skiplist_cmp, NULL, 8, 0.5, 1024, 0.2);
 	if (skiplist == NULL){
 		fprintf(stderr, "Error: could not initialize skiplist\n");
 		return -1;
@@ -101,7 +101,7 @@ int main(int argc, char * argv[]){
 
 	printf("Taking items...\n\n");
 
-	Range_Item * ret_range_item = (Range_Item *) take_closest_item_skiplist(skiplist, &target_range);
+	Range_Item * ret_range_item = (Range_Item *) take_item_skiplist(skiplist, GREATER_OR_EQ_SKIPLIST, &target_range, NULL);
 	if (ret_range_item == NULL){
 		fprintf(stderr, "Error: could not take closest item\n");
 		return -1;
@@ -110,7 +110,7 @@ int main(int argc, char * argv[]){
 	printf("Start chunk id for returned val: %lu\n\n", ret_range_item -> start_chunk_id);
 	
 
-	ret_range_item = (Range_Item *) take_closest_item_skiplist(skiplist, &target_range);
+	ret_range_item = (Range_Item *) take_item_skiplist(skiplist, GREATER_OR_EQ_SKIPLIST, &target_range, NULL);
 	if (ret_range_item == NULL){
 		fprintf(stderr, "Error: could not take closest item\n");
 		return -1;

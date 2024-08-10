@@ -66,11 +66,14 @@ uint64_t remove_if_eq_accel_deque(Deque * deque, void * item, uint64_t max_remov
 uint64_t get_item_count_deque(Deque * deque, void * item);
 
 
+// USING THESE FUNCTIONS WITHIN SKIPLIST!
+
 // Non-locked variants
 //	- USE WITH CAUTION!
 //		- either single-threaded or high-level lock protecting the deque
 int insert_lockless_deque(Deque * deque, DequeEnd insert_end, void * item);
 int take_lockless_deque(Deque * deque, DequeEnd take_end, void ** ret_item);
+int take_first_matching_lockless_deque(Deque * deque, DequeEnd search_end, void * search_item, void ** ret_item);
 
 
 

@@ -505,3 +505,84 @@ int take_lockless_deque(Deque * deque, DequeEnd take_end, void ** ret_item){
 }
 
 
+int take_first_matching_lockless_deque(Deque * deque, DequeEnd search_end, void * search_item, void ** ret_item) {
+
+	// assert(deque -> item_cmp != NULL)
+
+	Deque_Item * cur_deque_item;
+	if (search_end == FRONT_DEQUE){
+		cur_deque_item = deque -> head;
+	}
+	else{
+		cur_deque_item = deque -> tail;
+	}
+
+	Deque_Item * prev_deque_item;
+	Deque_Item * next_deque_item;
+
+	void * cur_item;
+	void * item = NULL;
+	bool found_item = false;
+	while(cur_deque_item != NULL){
+
+		cur_item = cur_deque_item -> item;
+		prev_deque_item = cur_deque_item -> prev;
+		next_deque_item = cur_deque_item -> next;
+		// the items are the same so remove
+		if ((deque -> item_cmp)(search_item, cur_item) == 0) {
+			
+			// set the matching item
+			item = cur_item;
+			found_item = true;
+
+			// now need to remove the current deque item
+
+			// we removed the only item in deque
+			// set head and tail to be null, free item and decrement count
+			if (prev_deque_item == NULL && next_deque_item == NULL){
+				deque -> head = NULL;
+				deque -> tail = NULL;
+			}
+			// we removed head
+			else if (prev_deque_item == NULL){
+				deque -> head = next_deque_item;
+				next_deque_item -> prev = NULL;
+			}
+			// we removed tail
+			else if (next_deque_item == NULL){
+				deque -> tail = prev_deque_item;
+				prev_deque_item -> next = NULL;
+			}
+			// we removed middle element
+			else{
+				prev_deque_item -> next = next_deque_item;
+				next_deque_item -> prev = prev_deque_item;
+			}
+
+			// update values now that we have removed an element
+			deque -> cnt -= 1;
+
+			// free the deque_item
+			free(cur_deque_item);
+			break;
+		}
+		// going forwards means use next, backwards means prev
+		if (search_end == FRONT_DEQUE){
+			cur_deque_item = next_deque_item;
+		}
+		else{
+			cur_deque_item = prev_deque_item;
+		}
+
+
+	}
+
+	*ret_item = item;
+
+	if (!found_item){
+		return -1;
+	}
+	return 0;
+}
+
+

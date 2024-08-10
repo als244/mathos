@@ -2,28 +2,20 @@
 #define MEMPOOL_H
 
 #include "common.h"
-#include "deque.h"
-
-typedef struct phys_chunk {
-	// BACKEND-SPECFIC
-	void * phys_mem_handle;
-} Phys_Chunk;
+#include "skiplist.h"
 
 
 typedef struct mempool {
 	uint64_t pool_id;
-	// equal to chunk_size * num_chunks
 	uint64_t capacity_bytes;
 	uint64_t chunk_size;
 	uint64_t num_chunks;
-	// should be an array of size num_chunks 
-	// each entry refers to a chunk that was allocated with physical memory
-	// and then mapped to a single large virtual address range
-	// The entries into this array are populated by the memory backend upon intialization!
-	Phys_Chunk ** phys_chunks;
-	// upon initialization the entire mempool is mapped
-	// and registered with ib_reg_mr or ib_reg_dmabuf_mr
 	uint64_t va_start_addr;
+	
+	Skiplist * free_ranges;
+
+
+
 	// contains the number
 	pthread_mutex_t free_lock;
 	uint64_t free_cnt;
