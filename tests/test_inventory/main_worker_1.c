@@ -16,7 +16,8 @@ typedef struct range_item {
 } Range_Item;
 
 
-int range_item_skiplist_cmp(void * skiplist_item, void * other_skiplist_item) {
+// Skiplist key comparisons
+int range_item_skiplist_key_cmp(void * skiplist_item, void * other_skiplist_item) {
 	if ((skiplist_item == NULL) && (other_skiplist_item == NULL)){
 		return 0;
 	}
@@ -33,6 +34,21 @@ int range_item_skiplist_cmp(void * skiplist_item, void * other_skiplist_item) {
 		return 0;
 	}
 	else if (num_chunks > other_num_chunks){
+		return 1;
+	}
+	else{
+		return -1;
+	}
+}
+
+// Skiplist_Item -> value_list deque comparisons
+int range_item_skiplist_val_cmp(void * val_item, void * other_val_item) {
+	uint64_t start_chunk_id = ((Range_Item *) val_item) -> start_chunk_id;
+	uint64_t other_start_chunk_id = ((Range_Item *) other_val_item) -> start_chunk_id;
+	if (start_chunk_id == other_start_chunk_id){
+		return 0;
+	}
+	else if (start_chunk_id > other_start_chunk_id){
 		return 1;
 	}
 	else{
@@ -61,7 +77,7 @@ int main(int argc, char * argv[]){
 	/* QUICK AND DIRTY SPOT TO TEST STUFF! */
 
 	
-	Skiplist * skiplist = init_skiplist(&range_item_skiplist_cmp, NULL, 8, 0.5, 1024, 0.2);
+	Skiplist * skiplist = init_skiplist(&range_item_skiplist_key_cmp, &range_item_skiplist_val_cmp, 8, 0.5, 1024, 0.2);
 	if (skiplist == NULL){
 		fprintf(stderr, "Error: could not initialize skiplist\n");
 		return -1;
@@ -69,8 +85,8 @@ int main(int argc, char * argv[]){
 
 
 	Range_Item * range_item = malloc(sizeof(Range_Item));
-	range_item -> num_chunks = 1000;
-	range_item -> start_chunk_id = 7;
+	range_item -> num_chunks = 50;
+	range_item -> start_chunk_id = 0;
 
 	printf("Inserting items...\n\n");
 
@@ -83,7 +99,7 @@ int main(int argc, char * argv[]){
 
 	Range_Item * range_item_2 = malloc(sizeof(Range_Item));
 	range_item_2 -> num_chunks = 100;
-	range_item_2 -> start_chunk_id = 76;
+	range_item_2 -> start_chunk_id = 150;
 
 
 	ret = insert_item_skiplist(skiplist, range_item_2, range_item_2);
@@ -94,23 +110,73 @@ int main(int argc, char * argv[]){
 	}
 
 
+	Range_Item * range_item_3 = malloc(sizeof(Range_Item));
+	range_item_3 -> num_chunks = 100;
+	range_item_3 -> start_chunk_id = 50;
+
+
+	ret = insert_item_skiplist(skiplist, range_item_3, range_item_3);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: could not insert item to skiplist\n");
+		return -1;
+	}
+
+
+	Range_Item * range_item_4 = malloc(sizeof(Range_Item));
+	range_item_4 -> num_chunks = 100;
+	range_item_4 -> start_chunk_id = 250;
+
+
+	ret = insert_item_skiplist(skiplist, range_item_4, range_item_4);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: could not insert item to skiplist\n");
+		return -1;
+	}
+
+
+	// Mimicking reserving memory (taking greater_or_eq) 
+	// and then trying release memory and merge (which requires removing the exisiting free range with a specified
+	// start chunk_id. External data needs to maintain mapping from chunk_id endpoint -> free range_size, so
+	// we can know what key (num_chunks) to search for within skiplist
 	Range_Item target_range;
-	target_range.num_chunks = 1000;
+	target_range.num_chunks = 40;
 
 
-
-	printf("Taking items...\n\n");
-
-	Range_Item * ret_range_item = (Range_Item *) take_item_skiplist(skiplist, EQ_SKIPLIST, &target_range, NULL);
+	Range_Item * ret_range_item = (Range_Item *) take_item_skiplist(skiplist, GREATER_OR_EQ_SKIPLIST, &target_range, NULL);
 	if (ret_range_item == NULL){
 		fprintf(stderr, "Error: could not take closest item\n");
 		return -1;
 	}
 
+
 	printf("Start chunk id for returned val: %lu\n\n", ret_range_item -> start_chunk_id);
+
+
+
+	// Mimicking relesase memory
+
+	// Out reservation ended at chunk_id 50, so we look up chunk 50 in the endpoint array
+	// and it indicates it is associated to a range of size num_chunks = 100 and we use this as the skiplist key
+	// We are removing this from skiplist in preperation to insert a larger, merged range
+
+	// Need to get num_chunks from endpoint array. Assume we have it
+	target_range.num_chunks = 100;
+
+	target_range.start_chunk_id = 50;
+
+	ret_range_item = (Range_Item *) take_item_skiplist(skiplist, EQ_SKIPLIST, &target_range, &target_range);
+	if (ret_range_item == NULL){
+		fprintf(stderr, "Error: could not take closest item\n");
+		return -1;
+	}
+
 	
-	target_range.num_chunks = 99;
-	
+	printf("Start chunk id for returned val: %lu\n\n", ret_range_item -> start_chunk_id);
+
+
+	// Ensure that there are two other values with num chunks == 100
 	ret_range_item = (Range_Item *) take_item_skiplist(skiplist, GREATER_OR_EQ_SKIPLIST, &target_range, NULL);
 	if (ret_range_item == NULL){
 		fprintf(stderr, "Error: could not take closest item\n");
@@ -118,6 +184,26 @@ int main(int argc, char * argv[]){
 	}
 
 	printf("Start chunk id for returned val: %lu\n\n", ret_range_item -> start_chunk_id);
+
+
+
+	ret_range_item = (Range_Item *) take_item_skiplist(skiplist, GREATER_OR_EQ_SKIPLIST, &target_range, NULL);
+	if (ret_range_item == NULL){
+		fprintf(stderr, "Error: could not take closest item\n");
+		return -1;
+	}
+
+	printf("Start chunk id for returned val: %lu\n\n", ret_range_item -> start_chunk_id);
+
+
+	// Should be NULL 
+	ret_range_item = (Range_Item *) take_item_skiplist(skiplist, GREATER_OR_EQ_SKIPLIST, &target_range, NULL);
+	if (ret_range_item != NULL){
+		fprintf(stderr, "Error: taking item from null deque returned value\n");
+		return -1;
+	}
+
+	printf("\n\nSimple single-threaded skiplist test successful!\n\n");
 
 
 
