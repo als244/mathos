@@ -10,16 +10,22 @@
 
 typedef struct skiplist_item Skiplist_Item;
 
-typedef struct skiplist_item {
+struct skiplist_item {
 	void * key;
 	// can have multiple values for same key
 	Deque * value_list;
+	// Somewhat redundant (same as value_list -> cnt)
+	// but cleaner for readability here
+	uint64_t value_cnt;
+	pthread_mutex_t value_cnt_lock;
 	uint8_t level;
+	pthread_mutex_t level_lock;
 	// array of size level_num
 	Skiplist_Item ** forward;
 	// array of size level_num
 	pthread_mutex_t * forward_locks;
-} Skiplist_Item;
+	bool is_deleted;
+};
 
 
 typedef struct level_range {
@@ -52,14 +58,12 @@ typedef struct skiplist {
 	// the starting point case (needs to be handled
 	// manually, i.e. ensuring that the list has an item)
 	Skiplist_Item ** level_lists;
-	// When doing an insert/delete
-	// the level at which the insert/delete
-	// is occurring (skiplist_item -> level)
-	// needs to be locked
-	pthread_mutex_t * level_locks;
+	// Locks when reassigning the head of the list
+	pthread_mutex_t * list_head_locks;
 	// Used to maintain a hint for the maximum current
 	// level (the highest non-null level)
 	uint8_t cur_max_level_hint;
+	pthread_mutex_t level_hint_lock;
 	uint64_t gc_cap;
 	uint64_t cur_gc_cnt;
 	pthread_mutex_t gc_cnt_lock;

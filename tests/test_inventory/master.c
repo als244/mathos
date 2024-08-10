@@ -28,7 +28,15 @@ uint64_t node_config_hash_func(void * node_config, uint64_t table_size){
 int node_config_cmp(void * node_config, void * other_node_config){
 	uint32_t id_a = ((Node_Config *) node_config) -> node_id;
 	uint32_t id_b = ((Node_Config *) other_node_config) -> node_id;
-	return id_a - id_b;
+	if (id_a == id_b){
+		return 0;
+	}
+	else if (id_a > id_b){
+		return 1;
+	}
+	else{
+		return -1;
+	}
 }
 
 

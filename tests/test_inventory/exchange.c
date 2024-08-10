@@ -5,9 +5,16 @@
 int participant_item_cmp(void * participant, void * other_participant){
 	uint32_t node_id = ((Participant *) participant) -> node_id;
 	uint32_t other_node_id = ((Participant *) other_participant) -> node_id;
-	return node_id - other_node_id;
+	if (node_id == other_node_id){
+		return 0;
+	}
+	else if (node_id > other_node_id){
+		return 1;
+	}
+	else{
+		return -1;
+	}
 }
-
 
 int exchange_item_cmp(void * exchange_item, void * other_item) {
 	uint8_t * item_fingerprint = ((Exchange_Item *) exchange_item) -> fingerprint;

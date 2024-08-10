@@ -7,7 +7,15 @@
 int remote_active_ctrl_endpoint_cmp(void * net_endpoint, void * other_net_endpoint){
 	uint32_t remote_node_port_ind = ((Net_Endpoint *) net_endpoint) -> remote_node_port_ind;
 	uint32_t other_remote_node_port_ind = ((Net_Endpoint *) other_net_endpoint) -> remote_node_port_ind;
-	return remote_node_port_ind - other_remote_node_port_ind;
+	if (remote_node_port_ind == other_remote_node_port_ind){
+		return 0;
+	}
+	else if (remote_node_port_ind > other_remote_node_port_ind){
+		return 1;
+	}
+	else{
+		return -1;
+	}
 }
 
 // Generic Table Structure expects uint64_t values
@@ -27,7 +35,15 @@ uint64_t net_node_hash_func(void * net_node, uint64_t table_size) {
 int net_node_cmp(void * net_node, void * other_net_node) {
 	uint32_t id_a = ((Net_Node *) net_node) -> node_id;
 	uint32_t id_b = ((Net_Node *) other_net_node) -> node_id;
-	return id_a - id_b;
+	if (id_a == id_b){
+		return 0;
+	}
+	else if (id_a > id_b){
+		return 1;
+	}
+	else{
+		return -1;
+	}
 }
 
 

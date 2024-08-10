@@ -1,16 +1,20 @@
 #include "self_net.h"
 
-
-
-
-
 // Will only use this compare function upon seeing a port go down
 // and need to remove all items tied to that port
 // Thus will use node_port_ind as the comparison
 int self_active_ctrl_endpoint_cmp(void * self_endpoint, void * other_self_endpoint){
 	uint32_t node_port_ind = ((Self_Endpoint *) self_endpoint) -> qp_port -> node_port_ind;
 	uint32_t other_node_port_ind = ((Self_Endpoint *) other_self_endpoint) -> qp_port -> node_port_ind;
-	return node_port_ind - other_node_port_ind;
+	if (node_port_ind == other_node_port_ind){
+		return 0;
+	}
+	else if (node_port_ind > other_node_port_ind){
+		return 1;
+	}
+	else{
+		return -1;
+	}
 }
 
 

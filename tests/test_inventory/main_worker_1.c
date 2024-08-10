@@ -7,7 +7,39 @@
 
 
 // Temporary
+#include "skiplist.h"
 #include "rocblas_funcs.h"
+
+typedef struct range_item {
+	uint64_t num_chunks;
+	uint64_t start_chunk_id;
+} Range_Item;
+
+
+int range_item_skiplist_cmp(void * skiplist_item, void * other_skiplist_item) {
+	if ((skiplist_item == NULL) && (other_skiplist_item == NULL)){
+		return 0;
+	}
+	else if (skiplist_item == NULL){
+		return 1;
+	}
+	else if (other_skiplist_item == NULL){
+		return -1;
+	}
+	
+	uint64_t num_chunks = ((Range_Item *) (((Skiplist_Item *) skiplist_item) -> key)) -> num_chunks;
+	uint64_t other_num_chunks = ((Range_Item *) (((Skiplist_Item *) other_skiplist_item) -> key)) -> num_chunks;
+	if (num_chunks == other_num_chunks){
+		return 0;
+	}
+	else if (num_chunks > other_num_chunks){
+		return 1;
+	}
+	else{
+		return -1;
+	}
+}
+
 
 int main(int argc, char * argv[]){
 
@@ -26,9 +58,103 @@ int main(int argc, char * argv[]){
 	}
 
 
-	/* QUICK AND DIRTY SPOT TO TEST HSA STUFF! */
+	/* QUICK AND DIRTY SPOT TO TEST STUFF! */
 
 	
+	Skiplist * skiplist = init_skiplist(&range_item_skiplist_cmp, 8, 0.5, 1U << 16);
+	if (skiplist == NULL){
+		fprintf(stderr, "Error: could not initialize skiplist\n");
+		return -1;
+	}
+
+
+	Range_Item * range_item = malloc(sizeof(Range_Item));
+	range_item -> num_chunks = 1000;
+	range_item -> start_chunk_id = 7;
+
+	printf("Inserting items...\n\n");
+
+	ret = insert_item_skiplist(skiplist, range_item, range_item);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: could not insert item to skiplist\n");
+		return -1;
+	}
+
+	Range_Item * range_item_2 = malloc(sizeof(Range_Item));
+	range_item_2 -> num_chunks = 100;
+	range_item_2 -> start_chunk_id = 76;
+
+
+	ret = insert_item_skiplist(skiplist, range_item_2, range_item_2);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: could not insert item to skiplist\n");
+		return -1;
+	}
+
+
+	Range_Item target_range;
+	target_range.num_chunks = 86;
+
+
+
+	printf("Taking items...\n\n");
+
+	Range_Item * ret_range_item = (Range_Item *) take_closest_item_skiplist(skiplist, &target_range);
+	if (ret_range_item == NULL){
+		fprintf(stderr, "Error: could not take closest item\n");
+		return -1;
+	}
+
+	printf("Start chunk id for returned val: %lu\n\n", ret_range_item -> start_chunk_id);
+	
+
+	ret_range_item = (Range_Item *) take_closest_item_skiplist(skiplist, &target_range);
+	if (ret_range_item == NULL){
+		fprintf(stderr, "Error: could not take closest item\n");
+		return -1;
+	}
+
+	printf("Start chunk id for returned val: %lu\n\n", ret_range_item -> start_chunk_id);
+
+
+
+
+	/*
+	printf("Re-inserting range after deletion...\n");
+
+
+	ret = insert_item_skiplist(skiplist, range_item, range_item);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: could not insert item to skiplist\n");
+		return -1;
+	}
+	*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	exit(0);
+
+
+
 
 	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
 
