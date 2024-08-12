@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "deque.h"
+#include "fifo.h"
 
 
 // Implementation from "Concurrent Maintenance of Skip Lists, Pugh 1990"
@@ -158,10 +159,13 @@ typedef struct skiplist {
 	uint64_t num_active_ops;
 	// lock upon num_active_ops
 	pthread_mutex_t op_lock;
+
+	// Should have this on a per-thread basis so we can do lockless variants
+	Fifo * skiplist_item_slab;
 } Skiplist;
 
 
-Skiplist * init_skiplist(Item_Cmp key_cmp, Item_Cmp val_cmp, uint8_t max_levels, float level_factor, uint64_t min_items_to_check_reap, float max_zombie_ratio);
+Skiplist * init_skiplist(Item_Cmp key_cmp, Item_Cmp val_cmp, uint8_t max_levels, float level_factor, uint64_t min_items_to_check_reap, float max_zombie_ratio, uint64_t skiplist_item_prealloc_cnt);
 
 // Appends value to the skiplist_item -> value_list that matches key. If no key exists, creates a skiplist_item
 // and intializes a deque with value

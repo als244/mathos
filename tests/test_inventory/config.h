@@ -17,6 +17,8 @@
 #define MEMORY_SKIPLIST_MAX_ZOMBIE_RATIO 0.25
 // max levels will be set to log (num_chunks)
 
+#define MEMORY_SKIPLIST_ITEM_SLAB_CAPACITY 1U << 16
+
 // there may be race conditions (particularly at system startup time)
 // where an excess reservation is taken and another thread tries to reserve
 // but the excess as been re-inserted. Having a lock is too degredating for performance

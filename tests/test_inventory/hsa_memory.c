@@ -356,11 +356,19 @@ Memory * init_backend_memory(Hsa_Memory * hsa_memory) {
 		// determine max levels
 
 		// there are only num_chunks possible unique keys (because each key is the num_chunks of a range)
-		max_levels = log_uint64_base_2(num_chunks);
+		// ensure at least 1 level
+		max_levels = MY_MAX(1, log_uint64_base_2(num_chunks));
 
 		// use the constants defined in config.h for other parameters
+
+		// TODO: Need to decide initial slab size
+
+		// We know the maximum number of entries is num_chunks but this would be a huge waste of memory to preallocate everything
+		// for now, keeping simple and doing this...
+
 		mempools[i].free_mem_ranges = init_skiplist(&mem_range_skiplist_item_key_cmp, &mem_range_val_cmp, max_levels, 
-											MEMORY_SKIPLIST_LEVEL_FACTOR, MEMORY_SKIPLIST_MIN_ITEMS_TO_CHECK_REAP, MEMORY_SKIPLIST_MAX_ZOMBIE_RATIO);
+											MEMORY_SKIPLIST_LEVEL_FACTOR, MEMORY_SKIPLIST_MIN_ITEMS_TO_CHECK_REAP, MEMORY_SKIPLIST_MAX_ZOMBIE_RATIO, 
+											MEMORY_SKIPLIST_ITEM_SLAB_CAPACITY);
 
 		if (mempools[i].free_mem_ranges == NULL){
 			fprintf(stderr, "Error: failure to initialize memory skiplist for device #%d\n", i);

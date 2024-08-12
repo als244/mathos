@@ -49,17 +49,24 @@
 typedef int (*Item_Cmp)(void * item, void * other_item);
 
 
+
+/*
+
+// This is used for sys v IPC
 // Per man semctl, calling progrma must define this union as follows
 // For LINUX!
 union semun {
-	int val; /* Value for SETVAL */
-	struct semid_ds *buf; /* Buffer for IPC_STAT, IPC_SET */
-	unsigned short *array; /* Array for GETALL, SETALL */
-	struct seminfo *__buf; /* Buffer for IPC_INFO
-	(Linux specific) */
+	int val; // Value for SETVAL
+	struct semid_ds *buf; // Buffer for IPC_STAT, IPC_SET
+	unsigned short *array; // Array for GETALL, SETALL
+	struct seminfo *__buf; // Buffer for IPC_INFO
+	// (Linux specific)
 };
 
+*/
 
+#define MY_MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+#define MY_MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 #define MY_CEIL(a, b) ((a + b - 1) / b)
 
 

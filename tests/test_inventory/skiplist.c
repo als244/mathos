@@ -1,7 +1,120 @@
 #include "skiplist.h"
 
+int level_range_cmp(const void * range_a, const void * range_b){
 
-Skiplist * init_skiplist(Item_Cmp key_cmp, Item_Cmp val_cmp, uint8_t max_levels, float level_factor, uint64_t min_items_to_check_reap, float max_zombie_ratio) {
+	float val = ((Level_Range *) range_a) -> start;
+	float range_val_start = ((Level_Range *) range_b) -> start;
+	float range_val_stop = ((Level_Range *) range_b) -> stop;
+
+	if ((val >= range_val_start) && (val <= range_val_stop)){
+		return 0;
+	}
+	else if (val < range_val_start){
+		return -1;
+	}
+	else{
+		return 1;
+	}
+}
+
+
+// Can optionally allocate with key and value
+
+// Will have a slab of skiplist items at intiialization time
+Skiplist_Item * init_skiplist_item(Skiplist * skiplist, void * key, void * value){
+
+	int ret;
+
+	Skiplist_Item * skiplist_item = (Skiplist_Item *) malloc(sizeof(Skiplist_Item));
+	if (skiplist_item == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate skiplist item\n");
+		return NULL;
+	}
+
+	skiplist_item -> key = key;
+
+	// Can use the skiplist -> val_cmp to retrieve a specific
+	// value from this deque. If null then will just take the front value
+	Deque * value_list = init_deque(skiplist -> val_cmp);
+
+	if (value != NULL){
+		ret = insert_lockless_deque(value_list, BACK_DEQUE, value);
+		if (ret != 0){
+			fprintf(stderr, "Error: could not insert item into newly intialized deque\n");
+			return NULL;
+		}
+	}
+
+	skiplist_item -> value_list = value_list;
+	skiplist_item -> value_cnt = 1;
+
+
+	ret = pthread_mutex_init(&(skiplist_item -> value_cnt_lock), NULL);
+	if (ret != 0){
+		fprintf(stderr, "Error: could not init skiplist_item val cnt lock\n");
+		return NULL;
+	}
+
+	// Determine level for item
+
+	// between 0 and 1
+	float rand_val = (float)rand() / (float)RAND_MAX;
+	// now force between 0 and skiplist -> rand_level_upper_bound
+	float rand_level_val = rand_val * skiplist -> rand_level_upper_bound;
+
+	Level_Range dummy_range;
+	dummy_range.start = rand_level_val;
+	dummy_range.stop = rand_level_val;
+
+	Level_Range * chosen_level = bsearch(&dummy_range, skiplist -> level_ranges, skiplist -> max_levels, sizeof(Level_Range), level_range_cmp);
+	if (chosen_level == NULL){
+		fprintf(stderr, "Error: could not find chosen level\n");
+		return NULL;
+	}
+
+	uint8_t level = chosen_level -> level;
+
+	skiplist_item -> level = level;
+
+
+
+	Skiplist_Item ** forward = (Skiplist_Item **) malloc((level + 1) * sizeof(Skiplist_Item *));
+	if (forward == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate forward array for skiplist_item\n");
+		return NULL;
+	}
+	for (uint8_t i = 0; i < level + 1; i++){
+		forward[i] = NULL;
+	}
+
+
+	skiplist_item -> forward = forward;
+
+	pthread_mutex_t * forward_locks = (pthread_mutex_t *) malloc((level + 1) * sizeof(pthread_mutex_t));
+	if (forward_locks == NULL){
+		fprintf(stderr, "Error: failure to allocate forward_locks\n");
+		return NULL;
+	}
+
+	for (uint8_t i = 0; i < level + 1; i++){
+		ret = pthread_mutex_init(&(forward_locks[i]), NULL);
+		if (ret != 0){
+			fprintf(stderr, "Error: could not init forward lock\n");
+			return NULL;
+		}
+	}
+
+	skiplist_item -> forward_locks = forward_locks;
+
+	// for readability
+	//	- makes clear the zombie aspects seperate from value_cnt (even though they are the same)
+	skiplist_item -> is_zombie = false;
+
+	return skiplist_item;
+}
+
+
+Skiplist * init_skiplist(Item_Cmp key_cmp, Item_Cmp val_cmp, uint8_t max_levels, float level_factor, uint64_t min_items_to_check_reap, float max_zombie_ratio, uint64_t skiplist_item_slab_capacity) {
 
 	Skiplist * skiplist = (Skiplist *) malloc(sizeof(Skiplist));
 	if (skiplist == NULL){
@@ -9,7 +122,10 @@ Skiplist * init_skiplist(Item_Cmp key_cmp, Item_Cmp val_cmp, uint8_t max_levels,
 		return NULL;
 	}
 
-	skiplist -> max_levels = max_levels;
+	// ensure that there is at least 1 level
+	skiplist -> max_levels = MY_MAX(1, max_levels);
+
+
 	skiplist -> level_factor = level_factor;
 	skiplist -> key_cmp = key_cmp;
 	skiplist -> val_cmp = val_cmp;
@@ -103,135 +219,85 @@ Skiplist * init_skiplist(Item_Cmp key_cmp, Item_Cmp val_cmp, uint8_t max_levels,
 		return NULL;
 	}
 
+	Fifo * skiplist_item_slab = init_fifo(skiplist_item_slab_capacity, sizeof(uintptr_t));
+	if (skiplist_item_slab == NULL){
+		fprintf(stderr, "Error: failure to initialize skiplsit_item_slab\n");
+		return NULL;
+	}
+
+	Skiplist_Item * blank_skiplist_item;
+	uintptr_t skiplist_item_ptr;
+	for (uint64_t i = 0; i < skiplist_item_slab_capacity; i++){
+		blank_skiplist_item = init_skiplist_item(skiplist, NULL, NULL);
+		if (blank_skiplist_item == NULL){
+			fprintf(stderr, "Error: failure to initialize blank skiplist item for slab\n");
+			return NULL;
+		}
+		skiplist_item_ptr = (uintptr_t) blank_skiplist_item;
+		// we know this won't fail because we already allocated capacity
+		// and this intialization is single threaded
+		produce_fifo(skiplist_item_slab, &skiplist_item_ptr);
+	}
+
+	skiplist -> skiplist_item_slab = skiplist_item_slab;
+
 	return skiplist;
 }
 
 
 
-int level_range_cmp(const void * range_a, const void * range_b){
+Skiplist_Item * create_skiplist_item(Skiplist * skiplist, void * key, void * value){
 
-	float val = ((Level_Range *) range_a) -> start;
-	float range_val_start = ((Level_Range *) range_b) -> start;
-	float range_val_stop = ((Level_Range *) range_b) -> stop;
-
-	if ((val >= range_val_start) && (val <= range_val_stop)){
-		return 0;
-	}
-	else if (val < range_val_start){
-		return -1;
-	}
-	else{
-		return 1;
-	}
-}
-
-Skiplist_Item * init_skiplist_item(Skiplist * skiplist, void * key, void * value){
-
-	Skiplist_Item * skiplist_item = (Skiplist_Item *) malloc(sizeof(Skiplist_Item));
-	if (skiplist_item == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate skiplist item\n");
-		return NULL;
-	}
-
-	skiplist_item -> key = key;
-
-	// Can use the skiplist -> val_cmp to retrieve a specific
-	// value from this deque. If null then will just take the front value
-	Deque * value_list = init_deque(skiplist -> val_cmp);
-
-	int ret = insert_lockless_deque(value_list, BACK_DEQUE, value);
-	if (ret != 0){
-		fprintf(stderr, "Error: could not insert item into newly intialized deque\n");
-		return NULL;
-	}
-
-	skiplist_item -> value_list = value_list;
-	skiplist_item -> value_cnt = 1;
-
-
-	ret = pthread_mutex_init(&(skiplist_item -> value_cnt_lock), NULL);
-	if (ret != 0){
-		fprintf(stderr, "Error: could not init skiplist_item val cnt lock\n");
-		return NULL;
-	}
-
-	// Determine level for item
-
-	// between 0 and 1
-	float rand_val = (float)rand() / (float)RAND_MAX;
-	// now force between 0 and skiplist -> rand_level_upper_bound
-	float rand_level_val = rand_val * skiplist -> rand_level_upper_bound;
-
-	Level_Range dummy_range;
-	dummy_range.start = rand_level_val;
-	dummy_range.stop = rand_level_val;
-
-	Level_Range * chosen_level = bsearch(&dummy_range, skiplist -> level_ranges, skiplist -> max_levels, sizeof(Level_Range), level_range_cmp);
-	if (chosen_level == NULL){
-		fprintf(stderr, "Error: could not find chosen level\n");
-		return NULL;
-	}
-
-	uint8_t level = chosen_level -> level;
-
-	skiplist_item -> level = level;
-
-
-
-	Skiplist_Item ** forward = (Skiplist_Item **) malloc((level + 1) * sizeof(Skiplist_Item *));
-	if (forward == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate forward array for skiplist_item\n");
-		return NULL;
-	}
-	for (uint8_t i = 0; i < level + 1; i++){
-		forward[i] = NULL;
-	}
-
-
-	skiplist_item -> forward = forward;
-
-	pthread_mutex_t * forward_locks = (pthread_mutex_t *) malloc((level + 1) * sizeof(pthread_mutex_t));
-	if (forward_locks == NULL){
-		fprintf(stderr, "Error: failure to allocate forward_locks\n");
-		return NULL;
-	}
-
-	for (uint8_t i = 0; i < level + 1; i++){
-		ret = pthread_mutex_init(&(forward_locks[i]), NULL);
-		if (ret != 0){
-			fprintf(stderr, "Error: could not init forward lock\n");
+	int ret;
+	Skiplist_Item * skiplist_item;
+	// 1.) try taking from slab and setting key and inserting value to the empty value_list deque
+	uintptr_t skiplist_item_ptr;
+	// copies the pointer from within fifo
+	ret = consume_nonblock_fifo(skiplist -> skiplist_item_slab, &skiplist_item_ptr, false);
+	// if we actually consumed an item
+	if (ret == 0){
+		skiplist_item = (Skiplist_Item *) skiplist_item_ptr;
+		skiplist_item -> key = key;
+		ret = insert_lockless_deque(skiplist_item -> value_list, BACK_DEQUE, value);
+		// would be fatal
+		if (unlikely(ret != 0)) {
+			fprintf(stderr, "Error: failure to insert initial value into skiplist_item value_list deque\n");
 			return NULL;
 		}
 	}
-
-	skiplist_item -> forward_locks = forward_locks;
-
-	// for readability
-	//	- makes clear the zombie aspects seperate from value_cnt (even though they are the same)
-	skiplist_item -> is_zombie = false;
-
+	// otherwise there were no more items in slab, so allocate
+	else{
+		skiplist_item = init_skiplist_item(skiplist, key, value);
+	}
 	return skiplist_item;
 }
 
+
 // This is called when there are no other ongoing operations, so we don't need to deal
 // with locks
-void destroy_skiplist_item(Skiplist_Item * skiplist_item){
+void destroy_skiplist_item(Skiplist * skiplist, Skiplist_Item * skiplist_item){
 
-	// assert(value_cntn == 0) === assert(get_count_deque(skiplist_item -> value_list) == 0)
-	destroy_deque(skiplist_item -> value_list, false);
+	uintptr_t skiplist_item_ptr = (uintptr_t) skiplist_item;
+	// try to insert into slab first
+	int ret = produce_nonblock_fifo(skiplist -> skiplist_item_slab, (void *) &skiplist_item_ptr, false);
+	// fifo was full, so we should free this
+	if (ret != 0){
+		// assert(value_cntn == 0) === assert(get_count_deque(skiplist_item -> value_list) == 0)
+		destroy_deque(skiplist_item -> value_list, false);
 
-	// good practice to acquire lock before destroying
-	pthread_mutex_destroy(&(skiplist_item -> value_cnt_lock));
+		// good practice to acquire lock before destroying
+		pthread_mutex_destroy(&(skiplist_item -> value_cnt_lock));
 
-	free(skiplist_item -> forward);
+		free(skiplist_item -> forward);
 
-	for (uint8_t i = 0; i < skiplist_item -> level + 1; i++){
-		pthread_mutex_destroy(&((skiplist_item -> forward_locks)[i]));
+		for (uint8_t i = 0; i < skiplist_item -> level + 1; i++){
+			pthread_mutex_destroy(&((skiplist_item -> forward_locks)[i]));
+		}
+
+		free(skiplist_item -> forward_locks);
+
+		free(skiplist_item);
 	}
-
-	free(skiplist_item -> forward_locks);
-
-	free(skiplist_item);
 }
 
 
@@ -446,7 +512,7 @@ int insert_item_skiplist(Skiplist * skiplist, void * key, void * value) {
 
 	// Key not found, so we need to create a new item
 
-	Skiplist_Item * new_item = init_skiplist_item(skiplist, key, value);
+	Skiplist_Item * new_item = create_skiplist_item(skiplist, key, value);
 	if (new_item == NULL){
 		fprintf(stderr, "Error: failure to init new skiplist_item\n");
 
@@ -631,8 +697,9 @@ void reap_skiplist_item(Skiplist * skiplist, Skiplist_Item * zombie){
 	}
 
 
-	// Now we can destory the skiplist item and free up memory
-	destroy_skiplist_item(zombie);
+	// Now we can destroy the skiplist item
+	// Will try to place in slab, but if full then will free memory
+	destroy_skiplist_item(skiplist, zombie);
 
 	return;
 }

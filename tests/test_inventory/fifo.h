@@ -33,6 +33,8 @@ Fifo * init_fifo(uint64_t max_items, uint64_t item_size_bytes);
 // BLOCKING!
 uint64_t produce_fifo(Fifo * fifo, void * item);
 
+
+
 // returns the next item to be consume
 // unless fifo is NULL or cannot allocate memory for item => returns NULL
 // BLOCKING!
@@ -54,6 +56,18 @@ uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void 
 
 // returns the number of items consumed
 uint64_t consume_all_fifo(Fifo * fifo, void * ret_items);
+
+
+// NOTE: be cautious with using these
+// 	- they are used for slabs to have better amortized allocation times
+//	- within skiplist 
+
+// places the item at the back
+// returns 0 if put on the buffer, -1 otherwise
+int produce_nonblock_fifo(Fifo * fifo, void * item, bool to_signal_produced);
+
+// immediately returns if there are no items left 
+int consume_nonblock_fifo(Fifo * fifo, void * ret_item, bool to_signal_consumed);
 
 
 

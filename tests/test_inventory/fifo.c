@@ -481,3 +481,94 @@ uint64_t consume_all_fifo(Fifo * fifo, void * ret_items) {
 	return total_items;
 }
 
+
+
+
+int produce_nonblock_fifo(Fifo * fifo, void * item, bool to_signal_produced) {
+
+	uint64_t insert_ind;
+
+	// 1.) Optimisitically acquire update lock
+
+	pthread_mutex_lock(&(fifo -> update_lock));
+
+	// 2.) If it is at capacity then immediately return with error indicating full
+	if (fifo -> available_items == fifo -> max_items){
+		pthread_mutex_unlock(&(fifo -> update_lock));
+		return -1;
+
+	}
+
+	// 3.) Actually insert item
+
+	insert_ind = fifo -> produce_ind;
+	void * insert_start_addr;
+
+	// NOTE:
+	//	- for posting receives item will be null and it will get populated by NIC
+	//	- for posting sends, item will have contents that need to be copied from non-registered memory and sent out
+	if (item != NULL){
+		insert_start_addr = get_buffer_addr(fifo, insert_ind);
+		memcpy(insert_start_addr, item, fifo -> item_size_bytes);
+	}
+
+	// 4.) Update the number of items and the next spot to insert
+	fifo -> available_items += 1;
+	fifo -> produce_ind = (fifo -> produce_ind + 1) % (fifo -> max_items);
+
+	// 5.) Release the update lock
+	pthread_mutex_unlock(&(fifo -> update_lock));
+	
+	// 6.) Optionally: Indicate that we updated the produced cv to unblock a consumer
+	//		- for single item producer (not-batched) can use signal
+	//		- deicding to signal after unlock so consumer thread is not blocked on the update lock
+	if (to_signal_produced){
+		pthread_cond_signal(&(fifo -> produced_cv));
+	}
+
+	return 0;
+}
+
+
+int consume_nonblock_fifo(Fifo * fifo, void * ret_item, bool to_signal_consumed) {
+
+	// Error Check (if we want)
+
+	/*
+	if (unlikely(fifo == NULL)){
+		fprintf(stderr, "Error: consume_fifo failed because fifo is null\n");
+		return NULL;
+	}
+	*/
+
+	// 1.) Optimisitically acquire the update lock
+	pthread_mutex_lock(&(fifo -> update_lock));
+
+	// 2.) Immediately return if there are no items
+	if (fifo -> available_items == 0){
+		pthread_mutex_unlock(&(fifo -> update_lock));
+		return -1;
+	}
+
+	// 3.) Actually consume item
+	void * remove_start_addr = get_buffer_addr(fifo, fifo -> consume_ind);
+	memcpy(ret_item, remove_start_addr, fifo -> item_size_bytes);
+
+	// 4.) Update the number of items and the next spot to consume
+	fifo -> available_items -= 1;
+	fifo -> consume_ind = (fifo -> consume_ind + 1) % (fifo -> max_items);
+
+	// 5.) Release the update lock
+	pthread_mutex_unlock(&(fifo -> update_lock));
+	
+	// 6.) Optionally: Indicate that we updated the produced cv to unblock a producer
+	//		- for single item producer (not-batched) can use signal
+	//		- deicding to signal after unlock so producer thread is not blocked on the update lock
+	if (to_signal_consumed){
+		pthread_cond_signal(&(fifo -> consumed_cv));
+	}
+
+	return 0;
+
+}
+

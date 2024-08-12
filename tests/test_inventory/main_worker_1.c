@@ -30,14 +30,14 @@ int main(int argc, char * argv[]){
 
 	// 1.) Initialize HSA memory
 
-	printf("Intializing HSA memory container...\n");
+	printf("Intializing Backend Memory...\n");
 
 	Hsa_Memory * hsa_memory = hsa_init_memory();
 	if (hsa_memory == NULL){
 		fprintf(stderr, "Error: hsa_init_memory failed\n");
 	}
 
-	printf("Found %d HSA agents each with a mempool!\n\n\n", hsa_memory -> n_agents);
+	printf("Found %d HSA agents each with a mempool!\n", hsa_memory -> n_agents);
 
 
 	printf("Adding Device Memory and Preparing it for Verbs region...\n");
@@ -46,7 +46,7 @@ int main(int argc, char * argv[]){
 	// 2 MB Chunk Size
 	int device_id = 0;
 	uint64_t chunk_size = 1U << 16;
-	uint64_t num_chunks = 1000;
+	uint64_t num_chunks = 10000;
 
 	// should return a 2GB region
 	ret = hsa_add_device_memory(hsa_memory, device_id, num_chunks, chunk_size);
@@ -65,6 +65,7 @@ int main(int argc, char * argv[]){
 		fprintf(stderr, "Error: failed to initialize backend memory\n");
 		return -1;
 	}
+
 
 
 	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
@@ -134,8 +135,6 @@ int main(int argc, char * argv[]){
 	int mr_access = IBV_ACCESS_LOCAL_WRITE;
 
 
-	// TEMPORARY SOLUTION OF SPECIFIYING CHUNK_ID (for testing)
-	
 	Mem_Reservation mem_reservation_net_recv;
 
 	// allocate on device 0 and wanting chunk_size bytes;
@@ -144,14 +143,24 @@ int main(int argc, char * argv[]){
 
 
 	// Will populate mem_reservation.num_chunks, mem_reservation.start_chunk_id, mem_reservation.buffer
+	
+	struct timespec start, stop;
+
+	clock_gettime(CLOCK_MONOTONIC, &start);
 	ret = reserve_memory(memory, &mem_reservation_net_recv);
+	clock_gettime(CLOCK_MONOTONIC, &stop);
+
 	if (ret != 0){
 		fprintf(stderr, "Error: failed to reserve memory on pool id %d of size %lu\n", 
 					mem_reservation_net_recv.pool_id, mem_reservation_net_recv.size_bytes);
 		return -1;
 	}
 
+	uint64_t timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
+	uint64_t timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
+	uint64_t elapsed_ns = timestamp_stop - timestamp_start;
 
+	printf("\n\n\nElasped Reservation time (ns): %lu\n\n\n", elapsed_ns);
 
 	mr = ibv_reg_mr(pd, mem_reservation_net_recv.buffer, mem_reservation_net_recv.size_bytes, mr_access);
 	if (mr == NULL){
@@ -215,18 +224,22 @@ int main(int argc, char * argv[]){
 	mem_reservation_func_out.pool_id = 0;
 	mem_reservation_func_out.size_bytes = chunk_size;
 
-
+	clock_gettime(CLOCK_MONOTONIC, &start);
 	ret = reserve_memory(memory, &mem_reservation_func_out);
+	clock_gettime(CLOCK_MONOTONIC, &stop);
 	if (ret != 0){
 		fprintf(stderr, "Error: failed to reserve memory on device %d of size %lu\n", 
 					mem_reservation_func_out.pool_id, mem_reservation_func_out.size_bytes);
 		return -1;
 	}
 
+	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
+	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
+	elapsed_ns = timestamp_stop - timestamp_start;
+
+	printf("\n\n\nElasped Reservation time (ns): %lu\n\n\n", elapsed_ns);
+
 	void * out_dptr = mem_reservation_func_out.buffer;
-
-
-	uint64_t elapsed_ns;
 
 
 	int m = 2;
