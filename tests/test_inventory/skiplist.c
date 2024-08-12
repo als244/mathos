@@ -663,10 +663,6 @@ void * take_item_skiplist(Skiplist * skiplist, SkiplistTakeType take_type, void 
 	Skiplist_Item target_item;
 	target_item.key = key;
 
-	uint8_t max_levels = skiplist -> max_levels;
-	// we know max levels < 256, so no stack overflow here...
-	void * prev_items_per_level[max_levels];
-	memset(prev_items_per_level, 0, max_levels * sizeof(void *));
 
 	// use the level hint to quickly guess the correct starting level
 	uint8_t cur_max_level_hint = skiplist -> cur_max_level_hint;
@@ -675,6 +671,11 @@ void * take_item_skiplist(Skiplist * skiplist, SkiplistTakeType take_type, void 
 	Skiplist_Item * cur_skiplist_item = (skiplist -> level_lists)[cur_max_level];
 
 	// Search
+	
+	// TODO: for take_type == MIN_SKIPLIST, can skip the search
+	//	ALSO TODO: add tail pointer to track maximum element
+
+
 	// find the rightmost elements at each level that are less than key
 	// no locking needed
 	for (int cur_level = cur_max_level; cur_level >= 0; cur_level--){
@@ -702,10 +703,7 @@ void * take_item_skiplist(Skiplist * skiplist, SkiplistTakeType take_type, void 
 		// if there are no elements smaller at this level set prev to null
 		if ((cur_skiplist_item != NULL) && 
 			((skiplist -> key_cmp)(&target_item, (void *) (cur_skiplist_item)) <= 0)){
-			prev_items_per_level[cur_level] = NULL;
-		}
-		else{
-			prev_items_per_level[cur_level] = cur_skiplist_item;
+			cur_skiplist_item = NULL;
 		}
 
 		// decrease level and repeat
@@ -717,20 +715,20 @@ void * take_item_skiplist(Skiplist * skiplist, SkiplistTakeType take_type, void 
 
 	// this only occurs when the list is empty
 	// if the key is the smallest value then the rightmost_base_level will point to the 
-	Skiplist_Item * rightmost_base_level = prev_items_per_level[0];
+	Skiplist_Item * rightmost_pred_base_level = cur_skiplist_item;
 
 	
 	// there are no elements smaller, so we want to take the from 
 	// the minimum element in the list (which is the head of level-0)
 	// if key exists then we know that the minimum will be the key, so
 	// this sensisble
-	if (rightmost_base_level == NULL){
+	if (rightmost_pred_base_level == NULL){
 		closest_item = (skiplist -> level_lists)[0];
 	}
 	// otherwise we want to take the next element of predecessor at level 0 (which is either
 	// search key if it exsits, or the smallest key that is greater than search key)
 	else{
-		closest_item = (rightmost_base_level -> forward)[0];
+		closest_item = (rightmost_pred_base_level -> forward)[0];
 	}
 
 

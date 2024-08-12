@@ -9,7 +9,7 @@
 #include "inventory_messages.h"
 #include "work_pool.h"
 
-#include "mempool.h"
+#include "memory.h"
 #include "utils.h"
 
 typedef struct obj_location {

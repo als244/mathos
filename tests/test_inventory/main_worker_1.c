@@ -2,59 +2,13 @@
 #include "fingerprint.h"
 #include "exchange_client.h"
 #include "utils.h"
-#include "hsa_memory.h"
 #include "self_net.h"
 
 
 // Temporary
-#include "skiplist.h"
+#include "hsa_memory.h"
+#include "memory.h"
 #include "rocblas_funcs.h"
-
-typedef struct range_item {
-	uint64_t num_chunks;
-	uint64_t start_chunk_id;
-} Range_Item;
-
-
-// Skiplist key comparisons
-int range_item_skiplist_key_cmp(void * skiplist_item, void * other_skiplist_item) {
-	if ((skiplist_item == NULL) && (other_skiplist_item == NULL)){
-		return 0;
-	}
-	else if (skiplist_item == NULL){
-		return 1;
-	}
-	else if (other_skiplist_item == NULL){
-		return -1;
-	}
-	
-	uint64_t num_chunks = ((Range_Item *) (((Skiplist_Item *) skiplist_item) -> key)) -> num_chunks;
-	uint64_t other_num_chunks = ((Range_Item *) (((Skiplist_Item *) other_skiplist_item) -> key)) -> num_chunks;
-	if (num_chunks == other_num_chunks){
-		return 0;
-	}
-	else if (num_chunks > other_num_chunks){
-		return 1;
-	}
-	else{
-		return -1;
-	}
-}
-
-// Skiplist_Item -> value_list deque comparisons
-int range_item_skiplist_val_cmp(void * val_item, void * other_val_item) {
-	uint64_t start_chunk_id = ((Range_Item *) val_item) -> start_chunk_id;
-	uint64_t other_start_chunk_id = ((Range_Item *) other_val_item) -> start_chunk_id;
-	if (start_chunk_id == other_start_chunk_id){
-		return 0;
-	}
-	else if (start_chunk_id > other_start_chunk_id){
-		return 1;
-	}
-	else{
-		return -1;
-	}
-}
 
 
 int main(int argc, char * argv[]){
@@ -74,173 +28,43 @@ int main(int argc, char * argv[]){
 	}
 
 
-	/* QUICK AND DIRTY SPOT TO TEST STUFF! */
+	// 1.) Initialize HSA memory
 
-	
-	Skiplist * skiplist = init_skiplist(&range_item_skiplist_key_cmp, &range_item_skiplist_val_cmp, 8, 0.5, 1024, 0.2);
-	if (skiplist == NULL){
-		fprintf(stderr, "Error: could not initialize skiplist\n");
-		return -1;
+	printf("Intializing HSA memory container...\n");
+
+	Hsa_Memory * hsa_memory = hsa_init_memory();
+	if (hsa_memory == NULL){
+		fprintf(stderr, "Error: hsa_init_memory failed\n");
 	}
 
+	printf("Found %d HSA agents each with a mempool!\n\n\n", hsa_memory -> n_agents);
 
-	Range_Item * range_item = malloc(sizeof(Range_Item));
-	range_item -> num_chunks = 50;
-	range_item -> start_chunk_id = 0;
 
-	printf("Inserting items...\n\n");
+	printf("Adding Device Memory and Preparing it for Verbs region...\n");
 
-	ret = insert_item_skiplist(skiplist, range_item, range_item);
 
+	// 2 MB Chunk Size
+	int device_id = 0;
+	uint64_t chunk_size = 1U << 16;
+	uint64_t num_chunks = 1000;
+
+	// should return a 2GB region
+	ret = hsa_add_device_memory(hsa_memory, device_id, num_chunks, chunk_size);
 	if (ret != 0){
-		fprintf(stderr, "Error: could not insert item to skiplist\n");
-		return -1;
-	}
-
-	Range_Item * range_item_2 = malloc(sizeof(Range_Item));
-	range_item_2 -> num_chunks = 100;
-	range_item_2 -> start_chunk_id = 150;
-
-
-	ret = insert_item_skiplist(skiplist, range_item_2, range_item_2);
-
-	if (ret != 0){
-		fprintf(stderr, "Error: could not insert item to skiplist\n");
+		fprintf(stderr, "Error: failed to add device memory\n");
 		return -1;
 	}
 
 
-	Range_Item * range_item_3 = malloc(sizeof(Range_Item));
-	range_item_3 -> num_chunks = 100;
-	range_item_3 -> start_chunk_id = 50;
 
+	// 2.) Intiialize common (across accelerator backends) system memory struct
 
-	ret = insert_item_skiplist(skiplist, range_item_3, range_item_3);
-
-	if (ret != 0){
-		fprintf(stderr, "Error: could not insert item to skiplist\n");
+	// currently this function is within hsa_memory.c, but would be nicer to rearrange things...
+	Memory * memory =  init_backend_memory(hsa_memory);
+	if (memory == NULL){
+		fprintf(stderr, "Error: failed to initialize backend memory\n");
 		return -1;
 	}
-
-
-	Range_Item * range_item_4 = malloc(sizeof(Range_Item));
-	range_item_4 -> num_chunks = 100;
-	range_item_4 -> start_chunk_id = 250;
-
-
-	ret = insert_item_skiplist(skiplist, range_item_4, range_item_4);
-
-	if (ret != 0){
-		fprintf(stderr, "Error: could not insert item to skiplist\n");
-		return -1;
-	}
-
-
-	// Mimicking reserving memory (taking greater_or_eq) 
-	// and then trying release memory and merge (which requires removing the exisiting free range with a specified
-	// start chunk_id. External data needs to maintain mapping from chunk_id endpoint -> free range_size, so
-	// we can know what key (num_chunks) to search for within skiplist
-	Range_Item target_range;
-	target_range.num_chunks = 40;
-
-
-	Range_Item * ret_range_item = (Range_Item *) take_item_skiplist(skiplist, GREATER_OR_EQ_SKIPLIST, &target_range, NULL);
-	if (ret_range_item == NULL){
-		fprintf(stderr, "Error: could not take closest item\n");
-		return -1;
-	}
-
-
-	printf("Start chunk id for returned val: %lu\n\n", ret_range_item -> start_chunk_id);
-
-
-
-	// Mimicking relesase memory
-
-	// Out reservation ended at chunk_id 50, so we look up chunk 50 in the endpoint array
-	// and it indicates it is associated to a range of size num_chunks = 100 and we use this as the skiplist key
-	// We are removing this from skiplist in preperation to insert a larger, merged range
-
-	// Need to get num_chunks from endpoint array. Assume we have it
-	target_range.num_chunks = 100;
-
-	target_range.start_chunk_id = 50;
-
-	ret_range_item = (Range_Item *) take_item_skiplist(skiplist, EQ_SKIPLIST, &target_range, &target_range);
-	if (ret_range_item == NULL){
-		fprintf(stderr, "Error: could not take closest item\n");
-		return -1;
-	}
-
-	
-	printf("Start chunk id for returned val: %lu\n\n", ret_range_item -> start_chunk_id);
-
-
-	// Ensure that there are two other values with num chunks == 100
-	ret_range_item = (Range_Item *) take_item_skiplist(skiplist, GREATER_OR_EQ_SKIPLIST, &target_range, NULL);
-	if (ret_range_item == NULL){
-		fprintf(stderr, "Error: could not take closest item\n");
-		return -1;
-	}
-
-	printf("Start chunk id for returned val: %lu\n\n", ret_range_item -> start_chunk_id);
-
-
-
-	ret_range_item = (Range_Item *) take_item_skiplist(skiplist, GREATER_OR_EQ_SKIPLIST, &target_range, NULL);
-	if (ret_range_item == NULL){
-		fprintf(stderr, "Error: could not take closest item\n");
-		return -1;
-	}
-
-	printf("Start chunk id for returned val: %lu\n\n", ret_range_item -> start_chunk_id);
-
-
-	// Should be NULL 
-	ret_range_item = (Range_Item *) take_item_skiplist(skiplist, GREATER_OR_EQ_SKIPLIST, &target_range, NULL);
-	if (ret_range_item != NULL){
-		fprintf(stderr, "Error: taking item from null deque returned value\n");
-		return -1;
-	}
-
-	printf("\n\nSimple single-threaded skiplist test successful!\n\n");
-
-
-
-
-	/*
-	printf("Re-inserting range after deletion...\n");
-
-
-	ret = insert_item_skiplist(skiplist, range_item, range_item);
-
-	if (ret != 0){
-		fprintf(stderr, "Error: could not insert item to skiplist\n");
-		return -1;
-	}
-	*/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	exit(0);
-
-
 
 
 	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
@@ -292,35 +116,6 @@ int main(int argc, char * argv[]){
 	printf("\n\nSuccessfully started system. Everything online and ready to process...!\n\n");
 
 
-	// 1.) Initialize HSA memory
-
-	printf("Intializing HSA memory container...\n");
-
-	Hsa_Memory * hsa_memory = hsa_init_memory();
-	if (hsa_memory == NULL){
-		fprintf(stderr, "Error: hsa_init_memory failed\n");
-	}
-
-	printf("Found %d HSA agents each with a mempool!\n\n\n", hsa_memory -> n_agents);
-
-
-	printf("Adding Device Memory and Preparing it for Verbs region...\n");
-
-
-	// 2 MB Chunk Size
-	int device_id = 0;
-	uint64_t chunk_size = 1U << 16;
-	uint64_t num_chunks = 1000;
-
-	// should return a 2GB region
-	ret = hsa_add_device_memory(hsa_memory, device_id, num_chunks, chunk_size);
-	if (ret != 0){
-		fprintf(stderr, "Error: failed to add device memory\n");
-		return -1;
-	}
-
-	Hsa_User_Page_Table * user_page_table = hsa_memory -> user_page_table;
-
 	unsigned int cu_count = 82;
 	hipStream_t stream;
 	ret = initialize_stream(device_id, cu_count, &stream);
@@ -340,13 +135,25 @@ int main(int argc, char * argv[]){
 
 
 	// TEMPORARY SOLUTION OF SPECIFIYING CHUNK_ID (for testing)
-	void * dptr = hsa_reserve_memory(hsa_memory, device_id, 0);
-	if (dptr == NULL){
-		fprintf(stderr, "Error: failed to reserve memory on device %d of size %lu\n", device_id, chunk_size);
+	
+	Mem_Reservation mem_reservation_net_recv;
+
+	// allocate on device 0 and wanting chunk_size bytes;
+	mem_reservation_net_recv.pool_id = 0;
+	mem_reservation_net_recv.size_bytes = chunk_size; 
+
+
+	// Will populate mem_reservation.num_chunks, mem_reservation.start_chunk_id, mem_reservation.buffer
+	ret = reserve_memory(memory, &mem_reservation_net_recv);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to reserve memory on pool id %d of size %lu\n", 
+					mem_reservation_net_recv.pool_id, mem_reservation_net_recv.size_bytes);
+		return -1;
 	}
 
 
-	mr = ibv_reg_mr(pd, dptr, chunk_size, mr_access);
+
+	mr = ibv_reg_mr(pd, mem_reservation_net_recv.buffer, mem_reservation_net_recv.size_bytes, mr_access);
 	if (mr == NULL){
 		fprintf(stderr, "Error: ibv_reg_mr failed\n");
 		return -1;
@@ -354,7 +161,7 @@ int main(int argc, char * argv[]){
 
 
 	printf("Succeeded! Details:\n\tMR address: %p\n\tMR Lkey: %u\n\tDevice GEM Address: %p\n\n", 
-				mr -> addr, mr -> lkey, (void *)(uintptr_t) dptr);
+				mr -> addr, mr -> lkey, (void *)(uintptr_t) mem_reservation_net_recv.buffer);
 
 
 	
@@ -362,7 +169,7 @@ int main(int argc, char * argv[]){
 
 	qp = (net_world -> self_net -> self_node -> endpoints)[1].ibv_qp;
 
-	ret = post_recv_work_request(qp, (uint64_t) dptr, chunk_size, mr -> lkey, 0);
+	ret = post_recv_work_request(qp, (uint64_t) mem_reservation_net_recv.buffer, chunk_size, mr -> lkey, 0);
 	if (ret != 0){
 		fprintf(stderr, "Error: unable to post recv request to the registered dma buf region\n");
 		return -1;
@@ -376,17 +183,19 @@ int main(int argc, char * argv[]){
 	ret = block_for_wr_comp((net_world -> self_net -> cq_recv_collection)[0][1], 0);
 	if (ret != 0){
 		fprintf(stderr, "Error: unable to block for wr completion\n");
+		return -1;
 	}
 
 
 	printf("Attempting to copy contents from GPU to CPU...\n");
 	
 	
-	void * dptr_real = (void *) ((uint64_t) dptr + sizeof(struct ibv_grh));
+	void * dptr_real = (void *) ((uint64_t) mem_reservation_net_recv.buffer + sizeof(struct ibv_grh));
 	void * buffer;
 	ret = hsa_copy_to_host_memory(hsa_memory, device_id, dptr_real, num_floats * sizeof(float), (void **) &buffer);
 	if (ret != 0){
 		fprintf(stderr, "Error failed to copy contents from device to host\n");
+		return -1;
 	}
 	
 
@@ -400,11 +209,21 @@ int main(int argc, char * argv[]){
 
 
 	// TEMPORARY SOLUTION OF SPECIFIYING CHUNK_ID (for testing)
-	void * out_dptr = hsa_reserve_memory(hsa_memory, device_id, 1);
-	if (dptr == NULL){
-		fprintf(stderr, "Error: failed to reserve memory on device %d of size %lu\n", device_id, chunk_size);
+	
+	Mem_Reservation mem_reservation_func_out;
+
+	mem_reservation_func_out.pool_id = 0;
+	mem_reservation_func_out.size_bytes = chunk_size;
+
+
+	ret = reserve_memory(memory, &mem_reservation_func_out);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to reserve memory on device %d of size %lu\n", 
+					mem_reservation_func_out.pool_id, mem_reservation_func_out.size_bytes);
+		return -1;
 	}
 
+	void * out_dptr = mem_reservation_func_out.buffer;
 
 
 	uint64_t elapsed_ns;
@@ -437,13 +256,6 @@ int main(int argc, char * argv[]){
 
 
 	exit(0);
-
-
-
-
-
-
-
 
 
 

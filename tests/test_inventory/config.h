@@ -5,6 +5,28 @@
 #include "messages.h"
 
 
+// MEMORY CONFIGURATION
+
+// higher level factor -> more memory usage, 
+//	but potentially more items to skip over (but also could lead to more traversing)
+#define MEMORY_SKIPLIST_LEVEL_FACTOR 0.5
+// consider un-defining this and also having it be a function of num_chunks...?
+#define MEMORY_SKIPLIST_MIN_ITEMS_TO_CHECK_REAP 4096
+// higher ratio => reaping less, which could benefit in not stopping-the-world as much
+// but also lead to slower search times due to traversing zombied items
+#define MEMORY_SKIPLIST_MAX_ZOMBIE_RATIO 0.25
+// max levels will be set to log (num_chunks)
+
+// there may be race conditions (particularly at system startup time)
+// where an excess reservation is taken and another thread tries to reserve
+// but the excess as been re-inserted. Having a lock is too degredating for performance
+// so retry is better.
+
+// Different option would be to a set a maximum range size, so there is less contention for breaking
+// up large ranges at the beginning before system stabilizes
+#define MEMORY_RESERVATION_ATTEMPT_CNT 3
+
+
 // NOTE: THE "MASTER" PROCESS AND ALL WORKERS NEED TO AGREE ON THIS CONFIG!
 
 #define MASTER_NODE_ID 0

@@ -6,6 +6,7 @@
 #include <hsa/hsa_ext_amd.h>
 
 #include "common.h"
+#include "memory.h"
 
 #define MAX_HSA_AGENTS 33
 
@@ -14,6 +15,10 @@
 #define MAX_MEMPOOLS_PER_HSA_AGENT 1
 #define HSA_MAIN_MEMPOOL_IND 0
 
+
+// Probably should convert this into system-wide struct (nothing specific to this hsa backend)
+
+// However potentially want to leave opportunity for other backends to manage memory differently (i.e. physical chunks and mappings)
 typedef struct hsa_user_page_table {
 	// This is using our systems lingo
 	// Num devices does not include CPU
@@ -54,6 +59,12 @@ int hsa_copy_to_host_memory(Hsa_Memory * hsa_memory, int src_device_id, void * s
 
 // TEMPORARY SOLUTION FOR TESTING!!!!
 void * hsa_reserve_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t chunk_id);
+
+
+// Bridge between backend memory and common interface
+// called after all devices have been added
+// not responsible for initialzing system mempool
+Memory * init_backend_memory(Hsa_Memory * hsa_memory);
 
 
 

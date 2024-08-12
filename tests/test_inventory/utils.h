@@ -16,4 +16,6 @@ char * message_class_to_str(CtrlMessageClass message_class);
 
 void uint64_to_str_with_comma(char *buf, uint64_t val);
 
+uint8_t log_uint64_base_2(uint64_t n);
+
 #endif

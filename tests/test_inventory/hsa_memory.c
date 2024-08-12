@@ -311,3 +311,128 @@ void * hsa_reserve_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t chunk
 
 	return chunk_va;
 }
+
+
+
+// Bridge between backend memory and common interface
+// called after all devices have been added
+// not responsible for initialzing system mempool
+Memory * init_backend_memory(Hsa_Memory * hsa_memory) {
+
+	Memory * memory = (Memory *) malloc(sizeof(Memory));
+	if (memory == NULL){
+		fprintf(stderr, "Error: malloc failed to allocate memory container\n");
+		return NULL;
+	}
+
+	Hsa_User_Page_Table * hsa_user_page_table = hsa_memory -> user_page_table;
+
+	int num_devices = hsa_user_page_table -> num_devices;
+
+	memory -> num_devices = num_devices;
+
+	Mempool * mempools = (Mempool *) malloc(num_devices * sizeof(Mempool));
+	if (mempools == NULL){
+		fprintf(stderr, "Error: malloc faile dto allocate mempools container\n");
+		return NULL;
+	}
+
+
+	int ret;
+	uint8_t max_levels;
+	Mem_Range * full_range;
+	uint64_t num_chunks;
+	for (int i = 0; i < num_devices; i++){
+		mempools[i].pool_id = i;
+
+		num_chunks = (hsa_user_page_table -> num_chunks)[i];
+
+		mempools[i].num_chunks = num_chunks;
+		mempools[i].chunk_size = (hsa_user_page_table -> chunk_size)[i];
+		mempools[i].capacity_bytes = num_chunks * mempools[i].chunk_size;
+		// casting void * to uint64_t for convenience on pointer arithmetic
+		mempools[i].va_start_addr = (uint64_t) ((hsa_user_page_table -> virt_memories)[i]);
+
+		// determine max levels
+
+		// there are only num_chunks possible unique keys (because each key is the num_chunks of a range)
+		max_levels = log_uint64_base_2(num_chunks);
+
+		// use the constants defined in config.h for other parameters
+		mempools[i].free_mem_ranges = init_skiplist(&mem_range_skiplist_item_key_cmp, &mem_range_val_cmp, max_levels, 
+											MEMORY_SKIPLIST_LEVEL_FACTOR, MEMORY_SKIPLIST_MIN_ITEMS_TO_CHECK_REAP, MEMORY_SKIPLIST_MAX_ZOMBIE_RATIO);
+
+		if (mempools[i].free_mem_ranges == NULL){
+			fprintf(stderr, "Error: failure to initialize memory skiplist for device #%d\n", i);
+			// fatal error
+			return NULL;
+		}
+
+		// Should have a slab allocator for memory ranges because they will come and go frequently
+
+		// initial range to insert
+		// allocate a range and insert for every pool (the whole device)
+		// consider having a max range size so there is less congestion and chance
+		// of race conditions where mem reservation needs to retry. 
+		// Downside of setting upper bound on range size is that is lead could lead to 
+		// more fragmentation
+		full_range = (Mem_Range *) malloc(sizeof(Mem_Range));
+		if (full_range == NULL){
+			fprintf(stderr, "Error: malloc failed to allocate initial mem_range\n");
+			return NULL;
+		}
+
+		full_range -> num_chunks = num_chunks;
+		full_range -> start_chunk_id = 0;
+
+		ret = insert_item_skiplist(mempools[i].free_mem_ranges, full_range, full_range);
+		if (ret != 0){
+			fprintf(stderr, "Error: failed to insert initial full range into skiplist\n");
+			return NULL;
+		}
+
+
+		// Mem_Range_Endpoint is just a typedef of a uint64_t
+		// stores the num_chunks associated with endpoint
+		// 0 if not an endpoint or if reserved
+		mempools[i].endpoint_range_size = (uint64_t *) malloc(num_chunks * sizeof(uint64_t));
+		if (mempools[i].endpoint_range_size == NULL){
+			fprintf(stderr, "Error: malloc failed to allocate endpoint_range_size array for device #%d\n", i);
+			return NULL;
+		}
+
+		// initialize mem_range_endpoints
+	
+		for (uint64_t chunk_id = 0; chunk_id < num_chunks; chunk_id++){
+			(mempools[i].endpoint_range_size)[chunk_id] = 0;
+		}
+
+		//	- for sensibility, but this initialization doesn't matter with only 1 range
+		//		- (because there will be no ranges left after 1st reservation)
+		//		- starts to matter when a range is taken, but then split up and put back
+		mempools[i].endpoint_range_size[0] = num_chunks;
+		mempools[i].endpoint_range_size[num_chunks - 1] = num_chunks;
+
+
+		mempools[i].endpoint_locks = (pthread_mutex_t *) malloc(num_chunks * sizeof(pthread_mutex_t));
+		if (mempools[i].endpoint_locks == NULL){
+			fprintf(stderr, "Error: malloc failed to allocate endpoint locks array for devcie #%d\n", i);
+			return NULL;
+		}
+
+		for (uint64_t chunk_id = 0; chunk_id < num_chunks; chunk_id++){
+			ret = pthread_mutex_init(&((mempools[i].endpoint_locks)[chunk_id]), NULL);
+			if (ret != 0){
+				fprintf(stderr, "Error: failed to initialize endpoint lock on device #%d for chunk_id %lu\n", i, chunk_id);
+				return NULL;
+			}
+		}
+	}
+
+
+	memory -> device_mempools = mempools;
+
+	// Let a different function be responsible for initializating system mempool / cache / filesystem
+
+	return memory;
+}
