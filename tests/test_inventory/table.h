@@ -3,8 +3,6 @@
 
 #include "common.h"
 
-typedef uint64_t (*Hash_Func)(void * item, uint64_t table_size);
-
 typedef struct table {
 	// number of objects in table
 	uint64_t cnt;

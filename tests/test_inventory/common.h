@@ -47,6 +47,7 @@
 
 
 typedef int (*Item_Cmp)(void * item, void * other_item);
+typedef uint64_t (*Hash_Func)(void * item, uint64_t table_size);
 
 
 

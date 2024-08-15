@@ -12,7 +12,8 @@
 //			copy again and free the original.
 
 
-typedef uint64_t (*Hash_Func)(void * item, uint64_t table_size);
+// already defined in other table
+
 
 typedef struct fast_table {
 	uint64_t cnt;

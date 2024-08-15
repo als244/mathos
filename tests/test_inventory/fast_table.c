@@ -6,6 +6,8 @@
 // otherwise 0
 int init_fast_table(Fast_Table * fast_table, Hash_Func hash_func, uint64_t key_size_bytes, uint64_t value_size_bytes, uint64_t min_table_size, uint64_t max_table_size, float load_factor, float shrink_factor) {
 
+	fast_table -> hash_func = hash_func;
+
 	fast_table -> cnt = 0;
 	fast_table -> size = min_table_size;
 	fast_table -> min_size = min_table_size;
@@ -143,8 +145,8 @@ int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 	// create new table that will replace old one
 	// ensure new table is initialized to all null
 
-	uint64_t key_size_bytes = key_size_bytes;
-	uint64_t value_size_bytes = value_size_bytes;
+	uint64_t key_size_bytes = fast_table -> key_size_bytes;
+	uint64_t value_size_bytes = fast_table -> value_size_bytes;
 
 	uint64_t * new_is_empty_bit_vector = (uint64_t *) malloc(((new_size >> 6) + 1) * sizeof(uint64_t));
 	if (unlikely(!new_is_empty_bit_vector)){
@@ -265,8 +267,8 @@ int insert_fast_table(Fast_Table * fast_table, void * key, void * value) {
 	// we already saw cnt != size so we are guaranteed for this to succeed
 	uint64_t insert_ind = get_next_ind_fast_table(fast_table -> is_empty_bit_vector, fast_table -> size, hash_ind, false);
 	
-	uint64_t key_size_bytes = key_size_bytes;
-	uint64_t value_size_bytes = value_size_bytes;
+	uint64_t key_size_bytes = fast_table -> key_size_bytes;
+	uint64_t value_size_bytes = fast_table -> value_size_bytes;
 
 
 	// Now we want to insert into the table by copying key and value 
@@ -358,8 +360,8 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 	uint64_t cur_ind = hash_ind;
 
 
-	uint64_t key_size_bytes = key_size_bytes;
-	uint64_t value_size_bytes = value_size_bytes;
+	uint64_t key_size_bytes = fast_table -> key_size_bytes;
+	uint64_t value_size_bytes = fast_table -> value_size_bytes;
 
 	void * cur_table_key = (void *) (((uint64_t) fast_table -> items) + (cur_ind * (key_size_bytes + value_size_bytes)));
 

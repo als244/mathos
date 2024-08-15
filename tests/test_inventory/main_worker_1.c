@@ -11,21 +11,176 @@
 #include "rocblas_funcs.h"
 
 
+#include "fast_table.h"
+
+
+// Mixing hash function
+// Taken from "https://github.com/shenwei356/uint64-hash-bench?tab=readme-ov-file"
+// Credit: Thomas Wang
+uint64_t hash_func_64(void * key_ref, uint64_t table_size) {
+	uint64_t key = *((uint64_t *) key_ref);
+	key = (key << 21) - key - 1;
+	key = key ^ (key >> 24);
+	key = (key + (key << 3)) + (key << 8);
+	key = key ^ (key >> 14);
+	key = (key + (key << 2)) + (key << 4);
+	key = key ^ (key >> 28);
+	key = key + (key << 31);
+	return key % table_size;
+}
+
+
+uint64_t hash_func_32(void * key_ref, uint64_t table_size) {
+	uint32_t key = *((uint32_t *) key_ref);
+	// Take from "https://gist.github.com/badboy/6267743"
+	// Credit: Robert Jenkins
+	key = (key+0x7ed55d16) + (key<<12);
+   	key = (key^0xc761c23c) ^ (key>>19);
+   	key = (key+0x165667b1) + (key<<5);
+   	key = (key+0xd3a2646c) ^ (key<<9);
+   	key = (key+0xfd7046c5) + (key<<3);
+   	key = (key^0xb55a4f09) ^ (key>>16);
+	return key % table_size;
+}
+
+
+
 int main(int argc, char * argv[]){
 
 	int ret;
 	
+	char * master_ip_addr, * self_ip_addr;
+
+	/*
 	if ((argc != 2) && (argc != 3)){
 		fprintf(stderr, "Error: Usage ./testWorker <master_ip_addr> <self_ip_addr>\n");
 		return -1;
 	}
 	
-	char * master_ip_addr = argv[1];
-	
-	char * self_ip_addr = NULL;
+	master_ip_addr = argv[1];
+	self_ip_addr = NULL;
 	if (argc == 3){
 		self_ip_addr = argv[2];
 	}
+	*/
+
+
+
+
+	// TESTING FAST TABLE
+
+
+	Mem_Range range_1;
+	range_1.num_chunks = 70;
+	range_1.start_chunk_id = 0;
+
+
+	Mem_Range range_2;
+	range_2.num_chunks = 50;
+	range_2.start_chunk_id = 8;
+
+
+	Fast_Table fast_table;
+
+	Hash_Func hash_func = &hash_func_64;
+
+	uint64_t min_table_size = 16;
+	uint64_t max_table_size = 64;
+
+	float load_factor = 0.5;
+	float shrink_factor = 0.1;
+
+	uint64_t key_size_bytes = sizeof(uint64_t);
+	uint64_t value_size_bytes = sizeof(Mem_Range);
+
+	printf("Initializing fast table...\n\n");
+
+	ret = init_fast_table(&fast_table, hash_func, key_size_bytes, value_size_bytes, min_table_size, max_table_size, load_factor, shrink_factor);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to init fast_table\n");
+		return -1;
+	}
+
+
+	printf("Inserting values into table...\n\n");
+
+	ret = insert_fast_table(&fast_table, &range_1.num_chunks, &range_1);
+	if (unlikely(ret != 0)){
+		fprintf(stderr, "Error: failed to insert to hash table for 1st item\n");
+		return -1;
+	}
+
+	ret = insert_fast_table(&fast_table, &range_2.num_chunks, &range_2);
+	if (unlikely(ret != 0)){
+		fprintf(stderr, "Error: failed to insert to hash table for 2nd item\n");
+		return -1;
+	}
+
+
+
+	printf("Searching for inserted range...\n\n");
+	Mem_Range found_range;
+
+	uint64_t search_key = 50;
+	ret = find_fast_table(&fast_table, &search_key, true, &found_range);
+	if (ret == fast_table.max_size){
+		fprintf(stderr, "Error: failed to find 2nd item when it should have\n");
+		return -1;
+
+	}
+
+
+	printf("Found item. Was using search_key: %lu. Returned item chunk id: %lu\n\n", search_key, found_range.start_chunk_id);
+
+
+	printf("Now removing item 1...\n\n");
+
+	search_key = 70;
+	ret = remove_fast_table(&fast_table, &search_key, true, &found_range);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to remove 1st item when it should have\n");
+		return -1;
+	}
+
+	printf("Removed first item. It has chunk id: %lu\n\n", found_range.start_chunk_id);
+
+
+	printf("Now going to search again for item 1 and not expecting to find it...\n");
+
+	search_key = 70;
+	ret = find_fast_table(&fast_table, &search_key, true, &found_range);
+
+	// with true value search could also see if &found was set to null
+	if (ret != fast_table.max_size){
+		fprintf(stderr, "Error: wasn't expecting to find value, but did. Saw chunk id of: %lu\n\n", found_range.start_chunk_id);
+	}
+
+
+	printf("Simple test success!!\n\n\n");
+
+
+
+
+
+	exit(0);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 	// 1.) Initialize HSA memory
