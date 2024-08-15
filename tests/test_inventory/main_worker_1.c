@@ -12,38 +12,7 @@
 
 
 #include "fast_table.h"
-
-
-// Mixing hash function
-// Taken from "https://github.com/shenwei356/uint64-hash-bench?tab=readme-ov-file"
-// Credit: Thomas Wang
-uint64_t hash_func_64(void * key_ref, uint64_t table_size) {
-	uint64_t key = *((uint64_t *) key_ref);
-	key = (key << 21) - key - 1;
-	key = key ^ (key >> 24);
-	key = (key + (key << 3)) + (key << 8);
-	key = key ^ (key >> 14);
-	key = (key + (key << 2)) + (key << 4);
-	key = key ^ (key >> 28);
-	key = key + (key << 31);
-	return key % table_size;
-}
-
-
-uint64_t hash_func_32(void * key_ref, uint64_t table_size) {
-	uint32_t key = *((uint32_t *) key_ref);
-	// Take from "https://gist.github.com/badboy/6267743"
-	// Credit: Robert Jenkins
-	key = (key+0x7ed55d16) + (key<<12);
-   	key = (key^0xc761c23c) ^ (key>>19);
-   	key = (key+0x165667b1) + (key<<5);
-   	key = (key+0xd3a2646c) ^ (key<<9);
-   	key = (key+0xfd7046c5) + (key<<3);
-   	key = (key^0xb55a4f09) ^ (key>>16);
-	return key % table_size;
-}
-
-
+#include "fast_tree.h"
 
 int main(int argc, char * argv[]){
 
@@ -95,6 +64,7 @@ int main(int argc, char * argv[]){
 
 	printf("Initializing fast table...\n\n");
 
+
 	ret = init_fast_table(&fast_table, hash_func, key_size_bytes, value_size_bytes, min_table_size, max_table_size, load_factor, shrink_factor);
 	if (ret != 0){
 		fprintf(stderr, "Error: failed to init fast_table\n");
@@ -104,7 +74,8 @@ int main(int argc, char * argv[]){
 
 	printf("Inserting values into table...\n\n");
 
-	ret = insert_fast_table(&fast_table, &range_1.num_chunks, &range_1);
+	uint64_t insert_key = 70;
+	ret = insert_fast_table(&fast_table, &insert_key, &range_1);
 	if (unlikely(ret != 0)){
 		fprintf(stderr, "Error: failed to insert to hash table for 1st item\n");
 		return -1;
