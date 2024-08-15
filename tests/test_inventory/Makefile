@@ -13,7 +13,7 @@ all: testMaster testWorker1 testWorker2
 
 
 ## MASTER PROGRAM
-testMaster: main_master.c table.o fifo.o deque.o skiplist.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o master.o utils.o cq_handler.o ctrl_handler.o work_pool.o master_worker.o ctrl_recv_dispatch.o
+testMaster: main_master.c fast_table.o fast_tree.o table.o fifo.o deque.o skiplist.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o master.o utils.o cq_handler.o ctrl_handler.o work_pool.o master_worker.o ctrl_recv_dispatch.o
 	${CC} ${CFLAGS} $^ -o $@ -pthread -libverbs
 
 master.o: master.c
@@ -25,10 +25,10 @@ master_worker.o: master_worker.c
 
 ## WORKER PROGRAM
 
-testWorker1: main_worker_1.c table.o fifo.o deque.o skiplist.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o hsa_memory.o rocblas_funcs.o
+testWorker1: main_worker_1.c fast_table.o fast_tree.o table.o fifo.o deque.o skiplist.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o hsa_memory.o rocblas_funcs.o
 	${CC} ${CFLAGS} ${HSA_CFLAGS} $^ -o $@ -I $(HSA_INCLUDE) -pthread -libverbs -lcrypto -L $(HSA_LIB) -lamdhip64 -lrocblas
 
-testWorker2: main_worker_2.c table.o fifo.o deque.o skiplist.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o
+testWorker2: main_worker_2.c fast_table.o fast_tree.o table.o fifo.o deque.o skiplist.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o
 	${CC} ${CFLAGS} $^ -o $@ -pthread -libverbs -lcrypto
 
 join_net.o: join_net.c
@@ -74,6 +74,12 @@ hsa_memory.o: hsa_memory.c
 
 
 ## BOTH
+
+fast_table.o: fast_table.c
+	${CC} ${CFLAGS} -c $^
+
+fast_tree.o: fast_tree.c
+	${CC} ${CFLAGS} -c $^
 
 table.o: table.c
 	${CC} ${CFLAGS} -c $^
