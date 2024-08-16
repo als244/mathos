@@ -13,7 +13,10 @@
 //			copy again and free the original.
 
 
-// already defined in other table
+// For more details on role of load/shrink factor and relationship with min/max
+// sett config.h for example.
+
+// Note that load_factor = 0.25
 
 
 typedef struct fast_table {
@@ -21,12 +24,14 @@ typedef struct fast_table {
 	uint64_t size;
 	uint64_t min_size;
 	uint64_t max_size;
-	// This variables only matter if resizable == true
-	// when cnt > size * load_factor
-	// set new size to be size * (1 / load_factor) and grow table
+	// LOAD FACTOR:
+	// if ((new insertion) && ((size < max_size) && (new_cnt > size * load_factor)):
+	//	- new_size = min(size * (1 / load_factor), max_size)
+	//		- resize_table with new allocation and freeing of old
 	float load_factor;
-	// when cnt < size * shrink_factor
-	// set new size to be size * (1 - shrink_factor) and shrink table 
+	// SHRINK FACTOR:
+	// if ((new removal) && ((size > min_size) & (new_cnt < size * shrink_factor):
+	//	- new size = max(size * (1 - shrink_factor), min_size)
 	float shrink_factor;
 	Hash_Func hash_func;
 	// will be used to advance in the hash table
