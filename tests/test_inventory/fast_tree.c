@@ -80,7 +80,7 @@ int fast_tree_leaf_cmp(void * fast_tree_leaf, void * other_fast_tree_leaf){
 
 
 // this intializes a top level fast tree
-Fast_Tree * init_fast_tree() {
+Fast_Tree * init_fast_tree(uint64_t value_size_bytes) {
 
 	Fast_Tree * fast_tree = (Fast_Tree *) malloc(sizeof(Fast_Tree));
 	if (!fast_tree){
@@ -94,17 +94,17 @@ Fast_Tree * init_fast_tree() {
 	fast_tree -> min = 0xFFFFFFFFFFFFFFFF;
 	fast_tree -> max = 0;
 
+	
+
 	// we want to intialize a table that will store vertical children
 	// of the root
 
 	Hash_Func hash_func_root = hash_func_32;
-	uint64_t key_size_bytes = sizeof(uint32_t);
-	uint64_t value_size_bytes = sizeof(Fast_Tree_32);
 
 	// these parameters are definied within config.h
 
 	// not that the maximum number of keys in this table is 2^32
-	int ret = init_fast_table(&(fast_tree -> children), hash_func_root, key_size_bytes, value_size_bytes, 
+	int ret = init_fast_table(&(fast_tree -> inward), hash_func_root, sizeof(uint32_t), sizeof(Fast_Tree_32), 
 						FAST_TREE_32_MIN_TABLE_SIZE, FAST_TREE_32_MAX_TABLE_SIZE, FAST_TREE_32_LOAD_FACTOR, FAST_TREE_32_SHRINK_FACTOR);
 
 	if (ret != 0){
@@ -117,7 +117,7 @@ Fast_Tree * init_fast_tree() {
 	// ensure that sibling is set to 0, we will see it's count as 0 and then 
 	// initialize it the first time. Could do it here, but cleaner to do so 
 	// with an intial value where min and max can be set
-	memset(&(fast_tree -> siblings), 0, sizeof(Fast_Tree_32));
+	memset(&(fast_tree -> outward), 0, sizeof(Fast_Tree_32));
 
 
 	Item_Cmp leaf_cmp = &fast_tree_leaf_cmp;
