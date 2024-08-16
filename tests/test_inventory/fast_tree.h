@@ -19,6 +19,41 @@ typedef struct fast_tree_8 Fast_Tree_8;
 typedef struct fast_tree_outward_leaf Fast_Tree_Outward_Leaf;
 typedef struct fast_tree_leaf Fast_Tree_Leaf;
 
+
+// CONSERVING MEMORY BY NOT STORING UNNECESSARY INFO IN AUX-STRUCTURE
+
+typedef struct fast_tree_outward_32 Fast_Tree_Outward_32;
+typedef struct fast_tree_outward_16 Fast_Tree_Outward_16;
+typedef struct fast_tree_outward_8 Fast_Tree_Outward_8;
+typedef struct fast_tree_outward_leaf Fast_Tree_Outward_Leaf;
+
+
+// These are the leaves for the auxiliary structures
+// They will not be queried in the same way as normal tree,
+// so we can conserve memory
+struct fast_tree_outward_leaf {
+	uint64_t bit_vector[4];
+};
+
+ struct fast_tree_outward_8 {
+	// Table of 8-bit keys => fast_tree_outward_leaf
+	Fast_Table inward;
+	Fast_Tree_Outward_Leaf outward;
+};
+
+struct fast_tree_outward_16 {
+	// table of 16-bit keys => fast_tree_8
+ 	Fast_Table inward;
+	Fast_Tree_Outward_8 outward;
+};
+
+struct fast_tree_outward_32 {
+// table of 32 bit keys => fast_tree_16
+	Fast_Table inward;
+	Fast_Tree_Outward_16 outward;
+};
+
+
 typedef enum fast_tree_search_type {
 	FAST_TREE_EQUAL,
 	FAST_TREE_NEXT,
@@ -27,6 +62,13 @@ typedef enum fast_tree_search_type {
 	FAST_TREE_EQUAL_OR_PREV
 } FastTreeSearchType;
 
+
+// THIS LEAF ONLY EXISTS FOR THE ALL VERTICAL PATH
+// (all fast_tree_8 tables, except the all vertical path
+// point to fast_tree_outward_leaf)
+
+// The all vertical path has fast_table containing
+// these leaves
 
 struct fast_tree_leaf {
 	// This represents the starting value for item
@@ -75,24 +117,13 @@ struct fast_tree_leaf {
 	Deque_Item leaf;
 };
 
-
-// These are the leaves for the auxiliary structures
-// They will not be queried in the same way as normal tree,
-// so we can conserve memory
-struct fast_tree_outward_leaf {
-	uint8_t cnt;
-	uint8_t min;
-	uint8_t max;
-	uint64_t bit_vector[4];
-};
-
 struct fast_tree_8 {
 	uint8_t cnt;
 	uint8_t min;
 	uint8_t max;
 	// Table of 8-bit keys => fast_tree_leaf
-	Fast_Table children;
-	Fast_Tree_Leaf inward;
+	Fast_Table inward;
+	Fast_Tree_Outward_Leaf outward;
 };
 
 struct fast_tree_16 {
@@ -101,8 +132,9 @@ struct fast_tree_16 {
  	uint16_t max;
  	// table of 16-bit keys => fast_tree_8
  	Fast_Table inward;
-	Fast_Tree_8 outward;
+	Fast_Tree_Outward_8 outward;
  };
+
 
  struct fast_tree_32 {
  	// the base of all 32-bit trees is 0
@@ -112,8 +144,10 @@ struct fast_tree_16 {
 	uint32_t max;
 	// table of 32 bit keys => fast_tree_16
 	Fast_Table inward;
-	Fast_Tree_16 outward;
+	Fast_Tree_Outward_16 outward;
  };
+
+
 
 
 struct fast_tree {
@@ -129,7 +163,7 @@ struct fast_tree {
 	Fast_Table inward;
 	// This represents a Fast_Tree_32 seraching
 	// for the uint32_t index of the original elmeent
-	Fast_Tree_32 outward;
+	Fast_Tree_Outward_32 outward;
 	// doubly linked list of non-null
 	// leaves of the tree, each of which
 	// can contain 256 key-value pairs within

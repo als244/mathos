@@ -94,7 +94,7 @@ Fast_Tree * init_fast_tree(uint64_t value_size_bytes) {
 	fast_tree -> min = 0xFFFFFFFFFFFFFFFF;
 	fast_tree -> max = 0;
 
-	
+
 
 	// we want to intialize a table that will store vertical children
 	// of the root
@@ -113,11 +113,7 @@ Fast_Tree * init_fast_tree(uint64_t value_size_bytes) {
 	}
 
 
-
-	// ensure that sibling is set to 0, we will see it's count as 0 and then 
-	// initialize it the first time. Could do it here, but cleaner to do so 
-	// with an intial value where min and max can be set
-	memset(&(fast_tree -> outward), 0, sizeof(Fast_Tree_32));
+	memset(&(fast_tree -> outward), 0, sizeof(Fast_Tree_Outward_32));
 
 
 	Item_Cmp leaf_cmp = &fast_tree_leaf_cmp;
