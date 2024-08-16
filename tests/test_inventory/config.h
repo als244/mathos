@@ -29,7 +29,13 @@
 
 // However, if we have knowledge about the density distribution across
 // the [0, 2^64] universe, we could size our tables and set load/shrink 
-// factors appropriately to better trade off memory and lookup times. 
+// factors appropriately to better trade off memory and lookup times.
+
+// Also note that the hash function within each table is the simple modulus
+// of the table size. If we assume uniform distribution of keys across the key-space
+// at each level (32, 16, 8, 8) then this is the best we can do and no need
+// to be fancy. It takes care of linearly-clustered regions by default, unless there are unique 
+// patterns that exist between levels
 
 // When the last element in the table is removed, the higher level
 // function will call free upon the initalized memory containing
@@ -192,26 +198,30 @@
 // Each of these tables are embedded within their parent
 // (i.e. a FAST_TREE_32 table is actually within root, a FAST_TREE_16 table is within FAST_TREE_32, etc.)
 
+// Note that the minimum size is set to 2, because all trees are intiailized with at least 1 element,
+// so after the first isnertation they would immeidately grow to size 2 no matter what. When the table
+// becomes empty it gets freed and removed from the parent table.
+
 // can contain up to 2^32 entires
-#define FAST_TREE_32_MIN_TABLE_SIZE 1
+#define FAST_TREE_32_MIN_TABLE_SIZE 2
 #define FAST_TREE_32_MAX_TABLE_SIZE 0xFFFFFFF
 #define FAST_TREE_32_LOAD_FACTOR 0.5
 #define FAST_TREE_32_SHRINK_FACTOR 0.25
 
 // can contain up to 2^16 entries
-#define FAST_TREE_16_MIN_TABLE_SIZE 1
+#define FAST_TREE_16_MIN_TABLE_SIZE 2
 #define FAST_TREE_16_MAX_TABLE_SIZE 0xFFFF
 #define FAST_TREE_16_LOAD_FACTOR 0.5
 #define FAST_TREE_16_SHRINK_FACTOR 0.25
 
 // can contain up to 2^8 entries
-#define FAST_TREE_8_MIN_TABLE_SIZE 1
+#define FAST_TREE_8_MIN_TABLE_SIZE 2
 #define FAST_TREE_8_MAX_TABLE_SIZE 0xFF
 #define FAST_TREE_8_LOAD_FACTOR 0.5
 #define FAST_TREE_8_SHRINK_FACTOR 0.25
 
 // can contain up to 2^8 entries
-#define FAST_TREE_OUTWARD_LEAF_MIN_TABLE_SIZE 1
+#define FAST_TREE_OUTWARD_LEAF_MIN_TABLE_SIZE 2
 #define FAST_TREE_OUTWARD_LEAF_MAX_TABLE_SIZE 0xFF
 #define FAST_TREE_OUTWARD_LEAF_LOAD_FACTOR 0.5
 #define FAST_TREE_OUTWARD_LEAF_SHRINK_FACTOR 0.25
@@ -221,7 +231,7 @@
 // MAIN TREE!
 // and contains extra information such as 
 // base, another fast table, deque
-#define FAST_TREE_MAIN_LEAF_MIN_TABLE_SIZE 1
+#define FAST_TREE_MAIN_LEAF_MIN_TABLE_SIZE 2
 #define FAST_TREE_MAIN_LEAF_MAX_TABLE_SIZE 0xFF
 #define FAST_TREE_MAIN_LEAF_LOAD_FACTOR 0.5
 #define FAST_TREE_MAIN_LEAF_SHRINK_FACTOR 0.25
@@ -230,7 +240,7 @@
 // (i.e. the lower 8 bits of the uint64_t key)
 // The value is the value that was inserted associated
 // with corresponding uint64_t key
-#define FAST_TREE_VALUE_MIN_TABLE_SIZE 1
+#define FAST_TREE_VALUE_MIN_TABLE_SIZE 2
 #define FAST_TREE_VALUE_MAX_TABLE_SIZE 0xFF
 #define FAST_TREE_VALUE_LOAD_FACTOR 0.5
 #define FAST_TREE_VALUE_SHRINK_FACTOR 0.25
