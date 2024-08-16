@@ -65,7 +65,14 @@ int main(int argc, char * argv[]){
 	printf("Initializing fast table...\n\n");
 
 
-	ret = init_fast_table(&fast_table, hash_func, key_size_bytes, value_size_bytes, min_table_size, max_table_size, load_factor, shrink_factor);
+	Fast_Table_Config * fast_table_config = save_fast_table_config(hash_func, key_size_bytes, value_size_bytes, min_table_size, max_table_size, load_factor, shrink_factor);
+	if (!fast_table_config){
+		fprintf(stderr, "Error: failed to init fast table config\n");
+		return -1;
+	}
+
+
+	ret = init_fast_table(&fast_table, fast_table_config);
 	if (ret != 0){
 		fprintf(stderr, "Error: failed to init fast_table\n");
 		return -1;
@@ -94,7 +101,7 @@ int main(int argc, char * argv[]){
 
 	uint64_t search_key = 50;
 	ret = find_fast_table(&fast_table, &search_key, true, &found_range);
-	if (ret == fast_table.max_size){
+	if (ret == fast_table.config -> max_size){
 		fprintf(stderr, "Error: failed to find 2nd item when it should have\n");
 		return -1;
 
@@ -122,7 +129,7 @@ int main(int argc, char * argv[]){
 	ret = find_fast_table(&fast_table, &search_key, true, &found_range);
 
 	// with true value search could also see if &found was set to null
-	if (ret != fast_table.max_size){
+	if (ret != fast_table.config -> max_size){
 		fprintf(stderr, "Error: wasn't expecting to find value, but did. Saw chunk id of: %lu\n\n", found_range.start_chunk_id);
 	}
 

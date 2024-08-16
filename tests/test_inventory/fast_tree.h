@@ -16,7 +16,7 @@ typedef struct fast_tree Fast_Tree;
 typedef struct fast_tree_32 Fast_Tree_32;
 typedef struct fast_tree_16 Fast_Tree_16;
 typedef struct fast_tree_8 Fast_Tree_8;
-typedef struct fast_tree_outward_leaf Fast_Tree_Outward_Leaf;
+// Only the leaves for the all inward paths
 typedef struct fast_tree_leaf Fast_Tree_Leaf;
 
 
@@ -26,6 +26,12 @@ typedef struct fast_tree_outward_32 Fast_Tree_Outward_32;
 typedef struct fast_tree_outward_16 Fast_Tree_Outward_16;
 typedef struct fast_tree_outward_8 Fast_Tree_Outward_8;
 typedef struct fast_tree_outward_leaf Fast_Tree_Outward_Leaf;
+
+// Could further conserve memory by not storing count's 
+// for any tree except the all inward path. For the 
+// main tree is is important for querying, but has 
+// no use in any other path. For now not doing this as 
+// extra memory optimization.
 
 
 // These are the leaves for the auxiliary structures
@@ -42,13 +48,13 @@ struct fast_tree_outward_leaf {
 };
 
 struct fast_tree_outward_16 {
-	// table of 16-bit keys => fast_tree_8
+	// table of 8-bit keys => fast_tree_8
  	Fast_Table inward;
 	Fast_Tree_Outward_8 outward;
 };
 
 struct fast_tree_outward_32 {
-// table of 32 bit keys => fast_tree_16
+// table of 16 bit keys => fast_tree_16
 	Fast_Table inward;
 	Fast_Tree_Outward_16 outward;
 };
@@ -63,12 +69,12 @@ typedef enum fast_tree_search_type {
 } FastTreeSearchType;
 
 
-// THIS LEAF ONLY EXISTS FOR THE ALL VERTICAL PATH
-// (all fast_tree_8 tables, except the all vertical path
-// point to fast_tree_outward_leaf)
+// THIS LEAF ONLY EXISTS FOR THE ALL INWARD PATH
+// (i.e. for all fast_tree_8 tables, except the all inward path
+// contain fast_tree_outward_leaf as their value)
 
-// The all vertical path has fast_table containing
-// these leaves
+// The all inward path has fast_table containing
+// these leaves which store tables
 
 struct fast_tree_leaf {
 	// This represents the starting value for item
@@ -91,70 +97,71 @@ struct fast_tree_leaf {
 	// this base value to modify/query ancestors from the root. Conserving memory by not 
 	// storing pointers
 	uint64_t base: 56;
-	uint8_t cnt;
-	uint8_t min;
-	uint8_t max;
 	uint64_t bit_vector[4];
-	// the leaf stores pointers
-	// the ancestors leading to this path
-	// Because ancestors are shared and leaves
-	// are sparsely populated, storing pointers
-	// at leaves and reverseing search upward 
-	// can be useful, especially because the root
-	// has an ordered linked-list of all leaves
-	// this only get's populated
-	// with non-null values
-
-	// When inserting into outward
-	// trees or the original insert
-	// was null, propate a null value
-
 	// Table of 8-bit keys => value of size
 	// specified in root
 	Fast_Table values;
 	// this is a deque item 
 	// whose pointer is to self
 	Deque_Item leaf;
-};
-
-struct fast_tree_8 {
 	uint8_t cnt;
 	uint8_t min;
 	uint8_t max;
+};
+
+struct fast_tree_8 {
 	// Table of 8-bit keys => fast_tree_leaf
 	Fast_Table inward;
 	Fast_Tree_Outward_Leaf outward;
+	uint8_t cnt;
+	uint8_t min;
+	uint8_t max;
 };
 
 struct fast_tree_16 {
+	// table of 8-bit keys => fast_tree_8
+ 	Fast_Table inward;
+	Fast_Tree_Outward_8 outward;
  	uint16_t cnt;
  	uint16_t min;
  	uint16_t max;
- 	// table of 16-bit keys => fast_tree_8
- 	Fast_Table inward;
-	Fast_Tree_Outward_8 outward;
  };
 
 
  struct fast_tree_32 {
- 	// the base of all 32-bit trees is 0
- 	// (because its parent is root)
-	uint16_t cnt;
-	uint32_t min;
-	uint32_t max;
-	// table of 32 bit keys => fast_tree_16
+	// table of 16 bit keys => fast_tree_16
 	Fast_Table inward;
 	Fast_Tree_Outward_16 outward;
+	// the base of all 32-bit trees is 0
+ 	// (because its parent is root)
+	uint32_t cnt;
+	uint32_t min;
+	uint32_t max;
  };
 
 
 
 
 struct fast_tree {
-	uint64_t cnt;
-	uint64_t min;
-	uint64_t max;
+	// configurations for all the tables
+	// only saved once in memory meaning
+	// enormous memory savings when we have
+	// tons of tables
+	Fast_Table_Config * table_config_32;
+	Fast_Table_Config * table_config_16;
+	Fast_Table_Config * table_config_8;
+	// all of the leaves except the all inward
+	// leaves will use this table
+	Fast_Table_Config * table_config_outward_leaf;
+
+	// For leaves tied to the core tree (all inward path)
+	Fast_Table_Config * table_config_main_leaf;
+
+	// For the table within the main leaf that actually
+	// stores the values that are inserted
+	Fast_Table_Config * table_config_value;
 	
+
 	// hash table of index segments
 	// the key within this table is the 
 	// a uint32_t index ahd the value will be a 
@@ -164,11 +171,7 @@ struct fast_tree {
 	// This represents a Fast_Tree_32 seraching
 	// for the uint32_t index of the original elmeent
 	Fast_Tree_Outward_32 outward;
-	// doubly linked list of non-null
-	// leaves of the tree, each of which
-	// can contain 256 key-value pairs within
-	// a contiguous range
-	Deque * ordered_leaves;
+	
 	// if this fast tree will be containing
 	// entries within the leaves of the tree.
 
@@ -176,6 +179,14 @@ struct fast_tree {
 	// passed into the insert function is ignored
 	// and any value returned from the find/remove value
 	// functions are set to null
+	uint64_t cnt;
+	uint64_t min;
+	uint64_t max;
+	// doubly linked list of non-null
+	// leaves of the tree, each of which
+	// can contain 256 key-value pairs within
+	// a contiguous range
+	Deque * ordered_leaves;
 	uint64_t value_size_bytes;
 };
 

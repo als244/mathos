@@ -2,21 +2,39 @@
 
 // Assumes memory has already been allocated for fast_table container
 
+Fast_Table_Config * save_fast_table_config(Hash_Func hash_func, uint64_t key_size_bytes, uint64_t value_size_bytes, 
+						uint64_t min_table_size, uint64_t max_table_size, float load_factor, float shrink_factor) {
+
+	Fast_Table_Config * config = malloc(sizeof(Fast_Table_Config));
+	if (!config){
+		fprintf(stderr, "Error: malloc failed when trying to allocate fast table config\n");
+		return NULL;
+	}
+
+	config -> hash_func = hash_func;
+	config -> min_size = min_table_size;
+	config -> max_size = max_table_size;
+	config -> load_factor = load_factor;
+	config -> shrink_factor = shrink_factor;
+	config -> key_size_bytes = key_size_bytes;
+	config -> value_size_bytes = value_size_bytes;
+
+	return config;
+
+}
+
 // if memory error on creating table returns -1
 // otherwise 0
-int init_fast_table(Fast_Table * fast_table, Hash_Func hash_func, uint64_t key_size_bytes, uint64_t value_size_bytes, uint64_t min_table_size, uint64_t max_table_size, float load_factor, float shrink_factor) {
+int init_fast_table(Fast_Table * fast_table, Fast_Table_Config * config) {
 
-	fast_table -> hash_func = hash_func;
-
+	uint64_t min_size = config -> min_size;
+	fast_table -> config = config;
 	fast_table -> cnt = 0;
-	fast_table -> size = min_table_size;
-	fast_table -> min_size = min_table_size;
-	fast_table -> max_size = max_table_size;
-	fast_table -> load_factor = load_factor;
-	fast_table -> shrink_factor = shrink_factor;
 
-	fast_table -> key_size_bytes = key_size_bytes;
-	fast_table -> value_size_bytes = value_size_bytes;
+	fast_table -> size = min_size;
+
+
+
 
 	// also uses an extra byte per entry to indicate if 
 	// there is an item in that slot (otherwise wouldn't be able
@@ -29,15 +47,15 @@ int init_fast_table(Fast_Table * fast_table, Hash_Func hash_func, uint64_t key_s
 	// fast_table -> items
 
 	// and the bit position within each vector is the low order 6 bits
-	fast_table -> is_empty_bit_vector = (uint64_t *) malloc(((min_table_size >> 6) + 1) * sizeof(uint64_t));
+	fast_table -> is_empty_bit_vector = (uint64_t *) malloc(((min_size >> 6) + 1) * sizeof(uint64_t));
 	if (unlikely(!fast_table -> is_empty_bit_vector)){
 		return -1;
 	}
 
 	// initialize everything to empty
-	memset(fast_table -> is_empty_bit_vector, 0xFF, ((min_table_size >> 6) + 1) * sizeof(uint64_t));
+	memset(fast_table -> is_empty_bit_vector, 0xFF, ((config -> min_size >> 6) + 1) * sizeof(uint64_t));
 
-	fast_table -> items = calloc(min_table_size, key_size_bytes + value_size_bytes);
+	fast_table -> items = calloc(config -> min_size, config -> key_size_bytes + config -> value_size_bytes);
 	if (unlikely(!fast_table -> items)){
 		return -1;
 	}
@@ -145,8 +163,8 @@ int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 	// create new table that will replace old one
 	// ensure new table is initialized to all null
 
-	uint64_t key_size_bytes = fast_table -> key_size_bytes;
-	uint64_t value_size_bytes = fast_table -> value_size_bytes;
+	uint64_t key_size_bytes = fast_table -> config -> key_size_bytes;
+	uint64_t value_size_bytes = fast_table -> config -> value_size_bytes;
 
 	uint64_t * new_is_empty_bit_vector = (uint64_t *) malloc(((new_size >> 6) + 1) * sizeof(uint64_t));
 	if (unlikely(!new_is_empty_bit_vector)){
@@ -193,7 +211,7 @@ int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 		old_key = (void *) (((uint64_t) old_items) + (next_old_item_ind * (key_size_bytes + value_size_bytes)));
 		old_value = (void *) (((uint64_t) old_key) + key_size_bytes);
 
-		new_hash_ind = (fast_table -> hash_func)(old_key, new_size);
+		new_hash_ind = (fast_table -> config -> hash_func)(old_key, new_size);
 
 		// now we can get the insert index for the new table. now we are searching for next free slot
 		// and we will use the new bit vector
@@ -262,13 +280,13 @@ int insert_fast_table(Fast_Table * fast_table, void * key, void * value) {
 	// 1.) Lookup where to place this item in the table
 
 	// acutally compute the hash index
-	uint64_t hash_ind = (fast_table -> hash_func)(key, fast_table -> size);
+	uint64_t hash_ind = (fast_table -> config -> hash_func)(key, fast_table -> size);
 
 	// we already saw cnt != size so we are guaranteed for this to succeed
 	uint64_t insert_ind = get_next_ind_fast_table(fast_table -> is_empty_bit_vector, fast_table -> size, hash_ind, false);
 	
-	uint64_t key_size_bytes = fast_table -> key_size_bytes;
-	uint64_t value_size_bytes = fast_table -> value_size_bytes;
+	uint64_t key_size_bytes = fast_table -> config -> key_size_bytes;
+	uint64_t value_size_bytes = fast_table -> config -> value_size_bytes;
 
 
 	// Now we want to insert into the table by copying key and value 
@@ -309,8 +327,8 @@ int insert_fast_table(Fast_Table * fast_table, void * key, void * value) {
 
 	// check if we exceed load and are below max cap
 	// if so, grow
-	float load_factor = fast_table -> load_factor;
-	uint64_t max_size = fast_table -> max_size;
+	float load_factor = fast_table -> config -> load_factor;
+	uint64_t max_size = fast_table -> config -> max_size;
 	// make sure types are correct when multiplying uint64_t by float
 	uint64_t load_cap = (uint64_t) (size * load_factor);
 	if ((size < max_size) && (cnt > load_cap)){
@@ -345,7 +363,7 @@ int insert_fast_table(Fast_Table * fast_table, void * key, void * value) {
 uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, void * ret_value){
 
 	uint64_t size = fast_table -> size;
-	uint64_t hash_ind = (fast_table -> hash_func)(key, size);
+	uint64_t hash_ind = (fast_table -> config -> hash_func)(key, size);
 
 
 	// get the next null value and search up to that point
@@ -360,8 +378,8 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 	uint64_t cur_ind = hash_ind;
 
 
-	uint64_t key_size_bytes = fast_table -> key_size_bytes;
-	uint64_t value_size_bytes = fast_table -> value_size_bytes;
+	uint64_t key_size_bytes = fast_table -> config -> key_size_bytes;
+	uint64_t value_size_bytes = fast_table -> config -> value_size_bytes;
 
 	void * cur_table_key = (void *) (((uint64_t) fast_table -> items) + (cur_ind * (key_size_bytes + value_size_bytes)));
 
@@ -405,7 +423,7 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 	
 	
 
-	return fast_table -> max_size;
+	return fast_table -> config -> max_size;
 }
 
 // returns 0 upon successfully removing, -1 on error finding. 
@@ -430,7 +448,7 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 	uint64_t found_ind = find_fast_table(fast_table, key, to_copy_value, ret_value);
 
 	// item didn't exist so we immediately return
-	if (found_ind == (fast_table -> max_size)){
+	if (found_ind == (fast_table -> config -> max_size)){
 		return -1;
 	}
 
@@ -459,8 +477,8 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 	uint64_t cnt = fast_table -> cnt;
 
 
-	float shrink_factor = fast_table -> shrink_factor;
-	uint64_t min_size = fast_table -> min_size;
+	float shrink_factor = fast_table -> config -> shrink_factor;
+	uint64_t min_size = fast_table -> config -> min_size;
 	// make sure types are correct when multiplying uint64_t by float
 	uint64_t shrink_cap = (uint64_t) (size * shrink_factor);
 	if ((size > min_size) && (cnt < shrink_cap)) {

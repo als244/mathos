@@ -19,9 +19,15 @@
 // Note that load_factor = 0.25
 
 
-typedef struct fast_table {
-	uint64_t cnt;
-	uint64_t size;
+// This stores the static values of the 
+// the table and can be shared
+
+// Within fast tree we can make a TON
+// of fast tables so need to conserve memory
+// by having trees at each level point to 
+// this struct
+
+typedef struct fast_table_config {
 	uint64_t min_size;
 	uint64_t max_size;
 	// LOAD FACTOR:
@@ -38,7 +44,13 @@ typedef struct fast_table {
 	uint64_t key_size_bytes;
 	// to know how much room to allocate
 	uint64_t value_size_bytes;
+} Fast_Table_Config;
 
+
+typedef struct fast_table {
+	uint64_t cnt;
+	uint64_t size;
+	Fast_Table_Config * config;
 	// a bit vector of capacity size >> 6 uint64_t's
 	// upon an insert an item's current index is checked
 	// against this vector to be inserted
@@ -59,10 +71,11 @@ typedef struct fast_table {
 } Fast_Table;
 
 
+Fast_Table_Config * save_fast_table_config(Hash_Func hash_func, uint64_t key_size_bytes, uint64_t value_size_bytes, 
+						uint64_t min_table_size, uint64_t max_table_size, float load_factor, float shrink_factor);
 
 // Assumes memory has already been allocated for fast_table container
-int init_fast_table(Fast_Table * fast_table, Hash_Func hash_func, uint64_t key_size_bytes, uint64_t value_size_bytes, 
-						uint64_t min_table_size, uint64_t max_table_size, float load_factor, float shrink_factor);
+int init_fast_table(Fast_Table * fast_table, Fast_Table_Config * config);
 
 // all it does is free fast_table -> items
 void destroy_fast_table(Fast_Table * fast_table);

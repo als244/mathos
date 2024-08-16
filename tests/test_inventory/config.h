@@ -189,6 +189,9 @@
 // in terms of still trying to be conservative with memory, but being less volatile
 // in terms of continuously resizing and paying the overhead of doing so.
 
+// Each of these tables are embedded within their parent
+// (i.e. a FAST_TREE_32 table is actually within root, a FAST_TREE_16 table is within FAST_TREE_32, etc.)
+
 // can contain up to 2^32 entires
 #define FAST_TREE_32_MIN_TABLE_SIZE 1
 #define FAST_TREE_32_MAX_TABLE_SIZE 0xFFFFFFF
@@ -206,6 +209,31 @@
 #define FAST_TREE_8_MAX_TABLE_SIZE 0xFF
 #define FAST_TREE_8_LOAD_FACTOR 0.5
 #define FAST_TREE_8_SHRINK_FACTOR 0.25
+
+// can contain up to 2^8 entries
+#define FAST_TREE_OUTWARD_LEAF_MIN_TABLE_SIZE 1
+#define FAST_TREE_OUTWARD_LEAF_MAX_TABLE_SIZE 0xFF
+#define FAST_TREE_OUTWARD_LEAF_LOAD_FACTOR 0.5
+#define FAST_TREE_OUTWARD_LEAF_SHRINK_FACTOR 0.25
+
+
+// THIS IS THE TABLE WITHIN THE LEAVES OF THE
+// MAIN TREE!
+// and contains extra information such as 
+// base, another fast table, deque
+#define FAST_TREE_MAIN_LEAF_MIN_TABLE_SIZE 1
+#define FAST_TREE_MAIN_LEAF_MAX_TABLE_SIZE 0xFF
+#define FAST_TREE_MAIN_LEAF_LOAD_FACTOR 0.5
+#define FAST_TREE_MAIN_LEAF_SHRINK_FACTOR 0.25
+
+// The key is the offset within the leaf.
+// (i.e. the lower 8 bits of the uint64_t key)
+// The value is the value that was inserted associated
+// with corresponding uint64_t key
+#define FAST_TREE_VALUE_MIN_TABLE_SIZE 1
+#define FAST_TREE_VALUE_MAX_TABLE_SIZE 0xFF
+#define FAST_TREE_VALUE_LOAD_FACTOR 0.5
+#define FAST_TREE_VALUE_SHRINK_FACTOR 0.25
 
 
 // MEMORY CONFIGURATION
