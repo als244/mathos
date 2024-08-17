@@ -401,6 +401,10 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 			if (to_copy_value) {
 				memcpy(ret_value, table_value, value_size_bytes);
 			}
+			else{
+				ret_value = table_value;
+			}
+			
 			return cur_ind;
 		}
 

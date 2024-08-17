@@ -239,6 +239,13 @@ struct fast_tree_leaf {
 	// to this leaf
 
 	// This leaf = root.inward[base & 0xFFFF].inward[base & 0xFF].inward[base & 0xF]
+
+	// NOTE: here the .inward[i].inward involves:
+	//	- Finding key i within the tree's inward table, which then returns
+	//		a Fast_Tree at a lower level
+	//	- If the fast_tree_8 function still has is_main_tree flag set to true
+	//		then it inserts this leaf type into it's table. Otherwise
+
 	// Becaues root.inward[base & 0xFFFF] is a Fast_Tree_16, then get's to a Fast_Tree_8
 	// and then gets to this leaf
 

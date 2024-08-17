@@ -97,8 +97,23 @@ Fast_Tree * init_fast_tree(uint64_t value_size_bytes) {
 	// These leaves will have Fast_Table with values that were inserted into the tree and also have linked list pointers
 	// to the other main leaves
 
-	
-	Fast_Table_Config * table_config_main_leaf = save_fast_table_config(&hash_func_modulus_8, sizeof(uint8_t), sizeof(Fast_Tree_Leaf), 
+	// NOTE THAT THE TYPE IN THIS TABLE IS A POINTER TO A LEAF!
+	// We want to save the pointers the leaves because we will have a linked list that connects them.
+	// We do not want their addresses to change upon leaf table resizing
+
+	// The fast_tree_8's still part of main tree are responsible for calling create_fast_tree_leaf() if the index of the leaf
+	// does not exist in the fast_tree_8's inward table. 
+
+	// This function is responsible for:
+	//	 a.) allocating memory for the leaf
+	//	 b.) Initializing the leaf's values table (if value_size_bytes > 0)
+	//	 c.) Initializing a deque item for itself to be linked to prev and next leaves
+	//	 d.) Calling search for keys with base - 1 and base + 256 to get fast tree leaves
+	//			for prev and succ (whose deque items can be then be linked)
+	//	 e.) If no prev setting root -> ordered_leaves -> head to be this newly created deque item
+	//			- and same for tail
+
+	Fast_Table_Config * table_config_main_leaf = save_fast_table_config(&hash_func_modulus_8, sizeof(uint8_t), sizeof(Fast_Tree_Leaf *), 
 						FAST_TREE_MAIN_LEAF_MIN_TABLE_SIZE, FAST_TREE_MAIN_LEAF_MAX_TABLE_SIZE, FAST_TREE_MAIN_LEAF_LOAD_FACTOR, FAST_TREE_MAIN_LEAF_SHRINK_FACTOR);
 	if (!table_config_main_leaf){
 		fprintf(stderr, "Error: failed to create main_leaf config\n");
@@ -174,8 +189,50 @@ Fast_Tree * init_fast_tree(uint64_t value_size_bytes) {
 }
 
 
+// This is only called upon leaves part of the main tree
+// It is responsible for inserting the value originally passed
+// in to the leaf's value table.
+
+	// This function is responsible for:
+	//	 a.) allocating memory for the leaf
+	//	 b.) Initializing the leaf's values table (if value_size_bytes > 0)
+	//	 c.) Initializing a deque item for itself to be linked to prev and next leaves
+	//	 d.) Calling search for keys with base - 1 and base + 256 to get fast tree leaves
+	//			for prev and succ (whose deque items can be then be linked)
+	//	 e.) If no prev setting root -> ordered_leaves -> head to be this newly created deque item
+	//			- and same for tail
+Fast_Tree_Leaf * create_and_link_fast_tree_leaf(Fast_Tree * root, uint8_t key, void * value, bool to_overwrite, void * prev_value, uint64_t base){
+
+	fprintf(stderr, "Unimplemented Error: create_and_link_fast_tree_leaf\n");
+	return -1;
+
+}
+
+// If is_main_tree and the key is not in inward table, call create_and_link_fast_tree_leaf
+// and then insert the resulting pointer to this tree's inward table
+
+// If is_main_tree and key already is in the inward table, then insert value into the leaf's value table
+
+// If not in main tree and key doesn't exist in inward table, responsible for intializing a outward_leaf (can do so on stack)
+// and setting the appropriate bit position corresponding to key within the outward_leaf's bit vector. Then will insert
+// this newly created outward leaf (that only contains the bit vector) in the table (which will memcpy the contents)
+
+// If not in main tree and key exists (using find_fast_table with to_copy_value set to false)
+// the returned value will be a pointer to an outward leaf (which is just 4 uint64_t's) which has been allocated within
+// the table -> items array. Now we can modify this returned value inplace.
 
 
+int insert_fast_tree_8(Fast_Tree * root, Fast_Tree_8 * fast_tree, uint8_t key, void * value, bool to_overwrite, void * prev_value, uint64_t base, bool is_main_tree){
+
+}
+
+int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key, void * value, bool to_overwrite, void * prev_value, uint64_t base, bool is_main_tree){
+
+}
+
+int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key, void * value, bool to_overwrite, void * prev_value, uint64_t base, bool is_main_tree){
+
+}
 
 // returns 0 on success -1 on error
 // fails is key is already in the tree and overwrite set to false
