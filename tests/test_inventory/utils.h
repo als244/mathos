@@ -18,4 +18,15 @@ void uint64_to_str_with_comma(char *buf, uint64_t val);
 
 uint8_t log_uint64_base_2(uint64_t n);
 
+
+// Some simple hash functions.
+
+// These all assume that the key_ref can be casted
+// the uint type of corresponding _X
+uint64_t hash_func_64(void * key_ref, uint64_t table_size);
+uint64_t hash_func_32(void * key_ref, uint64_t table_size);
+uint64_t hash_func_16(void * key_ref, uint64_t table_size);
+uint64_t hash_func_8(void * key_ref, uint64_t table_size);
+
+
 #endif

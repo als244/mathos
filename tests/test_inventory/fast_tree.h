@@ -8,6 +8,86 @@
 #include "table.h"
 
 
+// this is a modifier to specify if we want
+// only equal key, only >, >=, <, or <= with respect
+// to the queried key with respect
+// to either a search request or an update request
+typedef enum fast_tree_search_modifier {
+	FAST_TREE_EQUAL,
+	FAST_TREE_NEXT,
+	FAST_TREE_EQUAL_OR_NEXT,
+	FAST_TREE_PREV,
+	FAST_TREE_EQUAL_OR_PREV,
+} FastTreeSearchModifier;
+
+
+// A smart update operation is a combination of a search + 
+// insert and/or delete based upon the key that satisfied the
+// search query.
+
+// REMOVE_KEY: search + remove_fast_tree()
+// REPLACE_KEY: search() + remove_fast_tree() + insert_fast_tree()
+// REPLACE_KEY_VALUE: search + remove_fast_tree() + insert_fast_tree()
+// REMOVE_VALUE: only search, but modifies the table in the leaf
+// UPDATE_VALUE: only search(), but modifies the table in the leaf
+// COPY_VALUE: search() +  insert_fast_tree()
+
+
+// The overwrite flags require a non-null 
+typedef enum fast_tree_update_op_type {
+	// This removes key that satified the search query
+	// (relative to the search key argument) from the tree 
+	// along with its assoicated value in the leaf (if exists)
+
+	// To remove a specific key, use the FAST_TREE_EQUAL
+	// search modifier and set search_key = key
+
+	// - Ignores "new_key" and "new_value" within update_op_params
+	REMOVE_KEY,
+	// this is equivalent to calling copy value, to obtain
+	// the value that should be inserted with new key,
+	// and then remove_key where key = satified search 
+	// result
+	// - Ignores the "value" field within op_params
+
+	// Note: if serach key modifier is set to FAST_TREE_EQUAL
+	// than this has no effect.
+	REPLACE_KEY,
+	
+	// this is equivalent to removing the preivously satisfied
+	// key (and value if non-null) relative to the search key 
+	// and then inserting the (key, value) from op_params
+
+	// (same effect of REMOVE_KEY using this search key,
+	// and then calling insert)
+	REPLACE_KEY_VALUE,
+	// This removes only the value assoicated with the 
+	// key that satified search request (meaning it removes
+	// the value from the leaf's values table). It leaves
+	// the key in the tree.
+	// - Ignores the "key" and "value" fields within update_op_params
+
+	// To remove a value from a specific key, use the
+	// FAST_TREE_EQUAL search modifier and set search_key = key
+	REMOVE_VALUE,
+
+	// this changes the value assoicated
+	// with key satisfying search query in the leaf of the tree.
+	// - Ignores the "key" field within op_params
+
+	// With search modifier FAST_TREE_EQUAL, equivalent to 
+	// insert with key = search_key and overwrite flag = true
+	UPDATE_VALUE,
+	
+	// this is equivalent to searching for the key that satifies
+	// request, obtaining the value, and inserting the new key
+	// into the tree with the previous value
+	// - Ignores the "value" field within op_params
+	COPY_VALUE
+} FastTreeUpdateOpType;
+
+
+
 // NOTE: THE UGLY TYPE SPECIFIC LEVELS IS DONE PURPOSEFULLY FOR PERFORMANCE REASONS!
 //			- less memory usage and can define constants within the functions...
 
@@ -22,9 +102,9 @@ typedef struct fast_tree_leaf Fast_Tree_Leaf;
 
 // CONSERVING MEMORY BY NOT STORING UNNECESSARY INFO IN AUX-STRUCTURE
 
-typedef struct fast_tree_outward_32 Fast_Tree_Outward_32;
-typedef struct fast_tree_outward_16 Fast_Tree_Outward_16;
-typedef struct fast_tree_outward_8 Fast_Tree_Outward_8;
+typedef struct fast_tree_outward_root_32 Fast_Tree_Outward_Root_32;
+typedef struct fast_tree_outward_root_16 Fast_Tree_Outward_Root_16;
+typedef struct fast_tree_outward_root_8 Fast_Tree_Outward_Root_8;
 typedef struct fast_tree_outward_leaf Fast_Tree_Outward_Leaf;
 
 // Could further conserve memory by not storing count's 
@@ -41,32 +121,101 @@ struct fast_tree_outward_leaf {
 	uint64_t bit_vector[4];
 };
 
- struct fast_tree_outward_8 {
+ struct fast_tree_outward_root_8 {
 	// Table of 8-bit keys => fast_tree_outward_leaf
 	Fast_Table inward;
-	Fast_Tree_Outward_Leaf outward;
+	Fast_Tree_Outward_Leaf outward_root;
 };
 
-struct fast_tree_outward_16 {
+struct fast_tree_outward_root_16 {
 	// table of 8-bit keys => fast_tree_8
  	Fast_Table inward;
-	Fast_Tree_Outward_8 outward;
+	Fast_Tree_Outward_Root_8 outward_root;
 };
 
-struct fast_tree_outward_32 {
+struct fast_tree_outward_root_32 {
 // table of 16 bit keys => fast_tree_16
 	Fast_Table inward;
-	Fast_Tree_Outward_16 outward;
+	Fast_Tree_Outward_Root_16 outward_root;
 };
 
 
-typedef enum fast_tree_search_type {
-	FAST_TREE_EQUAL,
-	FAST_TREE_NEXT,
-	FAST_TREE_EQUAL_OR_NEXT,
-	FAST_TREE_PREV,
-	FAST_TREE_EQUAL_OR_PREV
-} FastTreeSearchType;
+
+// the user will pass in this struct with populated
+// values that correspond to the update type they 
+// requested.
+typedef struct fast_tree_smart_update_params {
+	FastTreeUpdateOpType op_type;
+	uint64_t new_key;
+	void * new_value;
+	// To_overwrite is relelvant for update operations of type:
+	//	- REPLACE_KEY
+	//	- REPLACE_KEY_VALUE
+	//	- COPY_VALUE
+
+	// These update types perform an insert on a key that
+	// is different from the key corresponding to result 
+	// of search query, so there is the possiblility
+	// that the "new_key" passed in
+	bool to_overwrite_new_key;
+} Fast_Tree_Smart_Update_Params;
+
+
+// This struct is set in both search() and smart_update(), but 
+// can take on slightly different meanings.
+typedef struct fast_tree_result {
+
+	// If this result is returned by a search() or smart_update() and no
+	// key satisfied the query then the functions returns -1
+	// and leaf and value are set to NULL in this struct.
+	// In this case the value of the "key" field should be ignored.
+
+
+	// If this result is returned by an update operation
+	// with type of:
+
+	//	- REMOVE_KEY
+	//	- REPLACE_KEY
+	//	- REPLACE_KEY_VALUE
+
+	// Then there is a chance that the leaf corresponding to the key
+	// that satisfied the search query has been removed from the tree. 
+	// This occurs when the key that satisisfied search
+	// query was the only remaining key within that leaf. In these
+	// scenarios this pointer is set to NULL. Key and value are 
+	// still set according, though.
+	Fast_Tree_Leaf * fast_tree_leaf;
+	// Returns the key that satisfied that
+	// search query (same meaning)
+	uint64_t key;
+	// For regular searches value is set to the current value
+	// corresponding the key that satisfied search query
+
+	// For update operations, value is set the value corresponding
+	// to the search key BEFORE the update was performed.
+	void * value;
+
+
+	// "new_key_prev_value" is only relevant
+	// if this result is returned by an update operation
+	// with one of the following types: 
+
+	//	- REPLACE_KEY
+	//	- REPLACE_KEY_VALUE
+	//	- COPY_VALUE
+
+	// If "new_key" already existed, then
+	// this field is set the previous value of "new_key" (not
+	// the key that satisfied the satisfied search result)
+
+	// If this result is returned by a search() or a smart_update()
+	// not of one of the above types, or if it was one of the above
+	// types and "new_key" did not exist, then this field is set to NULL
+	void * new_key_prev_value;
+} Fast_Tree_Result;
+
+
+
 
 
 // THIS LEAF ONLY EXISTS FOR THE ALL INWARD PATH
@@ -112,7 +261,7 @@ struct fast_tree_leaf {
 struct fast_tree_8 {
 	// Table of 8-bit keys => fast_tree_leaf
 	Fast_Table inward;
-	Fast_Tree_Outward_Leaf outward;
+	Fast_Tree_Outward_Leaf outward_leaf;
 	uint8_t cnt;
 	uint8_t min;
 	uint8_t max;
@@ -121,7 +270,7 @@ struct fast_tree_8 {
 struct fast_tree_16 {
 	// table of 8-bit keys => fast_tree_8
  	Fast_Table inward;
-	Fast_Tree_Outward_8 outward;
+	Fast_Tree_Outward_Root_8 outward_root;
  	uint16_t cnt;
  	uint16_t min;
  	uint16_t max;
@@ -131,7 +280,7 @@ struct fast_tree_16 {
  struct fast_tree_32 {
 	// table of 16 bit keys => fast_tree_16
 	Fast_Table inward;
-	Fast_Tree_Outward_16 outward;
+	Fast_Tree_Outward_Root_16 outward_root;
 	// the base of all 32-bit trees is 0
  	// (because its parent is root)
 	uint32_t cnt;
@@ -170,7 +319,7 @@ struct fast_tree {
 	Fast_Table inward;
 	// This represents a Fast_Tree_32 seraching
 	// for the uint32_t index of the original elmeent
-	Fast_Tree_Outward_32 outward;
+	Fast_Tree_Outward_Root_32 outward_root;
 	
 	// if this fast tree will be containing
 	// entries within the leaves of the tree.
@@ -191,12 +340,17 @@ struct fast_tree {
 };
 
 
-// SOME HASH FUNCTIONS
+// These hash functions cast key to the apprporiate width
+// and then take modulus with table_size
 
-uint64_t hash_func_64(void * key_ref, uint64_t table_size);
-uint64_t hash_func_32(void * key_ref, uint64_t table_size);
-uint64_t hash_func_16(void * key_ref, uint64_t table_size);
-uint64_t hash_func_8(void * key_ref, uint64_t table_size);
+// Note: that the hash function within each table in the tree is the simple modulus
+// of the table size. If we assume uniform distribution of keys across the key-space
+// at each level (32, 16, 8, 8) then this is the best we can do and no need
+// to be fancy. It takes care of linearly-clustered regions by default, unless there are unique 
+// patterns that exist between levels
+uint64_t hash_func_modulus_32(void * key_ref, uint64_t table_size);
+uint64_t hash_func_modulus_16(void * key_ref, uint64_t table_size);
+uint64_t hash_func_modulus_8(void * key_ref, uint64_t table_size);
 
 
 // Initializes a root level fast tree where
@@ -214,38 +368,53 @@ uint64_t hash_func_8(void * key_ref, uint64_t table_size);
 
 Fast_Tree * init_fast_tree(uint64_t value_size_bytes);
 
-// Internal functions
-
-Fast_Tree_Leaf * get_fast_tree_leaf(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchType search_type);
-
-
-
-
 
 // Exposed functions
 
-// Can insert any key in the range (0)
-int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value);
+// Only exposing the top level functions that operate on 64-bit keys
 
-// If we only care the value satisfying the query for a given key and search type
 
-// return 0 upon success and populates ret_key
-// return -1 if not key satisfied search
-int search_key_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchType search_type, uint64_t * ret_key);
+// reutnrs 0 on success -1 if no satisfying search result
+// sets the search result
+int search_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchModifier search_type, Fast_Tree_Result * ret_search_result);
 
-// If we want the key and value satisfying the request
 
-// returns 0 upon success if there existed a key that satified request
-//	if a key existed without a value, then ret_value is set to NULL and the user should check
-//	if a key exsited that satified request and had a value, then the contents from teh 
+// returns 0 on success -1 on error
+// fails is key is already in the tree and overwrite set to false
+// if key was already in the tree and had a non-null value, then copies the previous value into prev_value
+int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_overwrite, void * prev_value);
 
-// returns -1 if no key existed to s
-// assumes that the user wants the value to by copied into ret_value
-int search_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchType search_type, uint64_t * ret_key, void * ret_value);
 
+// returns 0 on success -1 on error
+// fails is key is not in the tree
+int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * prev_value);
 
 
 
+
+// This provides a single API for a very large set of possible behaviors
+
+// It always conducts a search and then performs an action conditional on the
+// returned search result.
+
+// Returns 0 upon "success", otherwise -1 on error
+
+// Success is almost always defined as the success of the search query.
+
+// The only exception is in the case that:
+//	a.) to_overwrite = false, 
+// 	b.) update is of one the following types:
+//		- REPLACE_KEY
+//		- REPLACE_KEY_VALUE
+//		- COPY_VALUE
+//	c.) "new_key" already existed in the tree
+
+// In this case the insertion would fail so the update returns failure, but 
+// still conducts and returns the result from searching and sets "new_key_prev_val"
+// within the Fast_Tree_Result accordingly (even though no changes were made to the tree
+// the caller might want to know the previous value). 
+int smart_update_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchModifier search_type, 
+								Fast_Tree_Smart_Update_Params smart_update_params, Fast_Tree_Result * ret_smart_update_result);
 
 
 
