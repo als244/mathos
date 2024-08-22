@@ -243,6 +243,9 @@ Fast_Tree_Leaf * create_and_link_fast_tree_leaf(Fast_Tree * root, uint8_t key, v
 			}
 		}
 	}
+
+	// we just created this leaf so we know there was no previous value
+	prev_value = NULL;
 	
 
 	// need to initialize deque item
@@ -287,39 +290,46 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 	Fast_Tree_Leaf * inward_leaf;
 	Fast_Tree_Outward_Leaf outward_leaf = fast_tree -> outward_leaf;
 
+	// if the table hasn't been created yet, this will immediately return not-found
 	uint64_t ret = find_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, &inward_leaf);
+	
 	// not in the tree so we need to create
 	// also means that ind_32 wan't inserted into the outward root
 	if (ret == fast_tree -> inward_leaves.config -> max_size){
 
+		// we might need to create table if this is the first leaf to be inserted
 		if (fast_tree -> inward_leaves.items == NULL){
-			init_fast_table(&(fast_tree -> inward_leaves), root -> table_config_main_leaf);
+			ret = init_fast_table(&(fast_tree -> inward_leaves), root -> table_config_main_leaf);
+			if (unlikely(ret != 0)){
+				fprintf(stderr, "Error: failure to init inward.items table from 16\n");
+				return -1;
+			}
 		}
 
 		// SHOULD CREATE AND LINK LEAVES HERE!
 
+		// responsible for allocating memory for leaf, initializing table for values, inserting value, 
+		// creating deque item, linking deque item (and potentially linked to root deque -> head/tail)
 		inward_leaf = create_and_link_fast_tree_leaf(root, off_8, value, to_overwrite, prev_value, base + (uint64_t) (ind_8 << 8));
 		if (!inward_leaf){
 			fprintf(stderr, "Error: failure to create and link fast tree leaf\n");
 			return -1;
 		}
 
+		// insert the pointer to the newly created/value added/linked leaf into the table so we will find this leaf again
 		ret = insert_fast_table(&(fast_tree -> inward_leaves), &off_8, &inward_leaf);
 		if (unlikely(ret != 0)){
-			fprintf(stderr, "Error: failure to insert tree into table\n");
+			fprintf(stderr, "Error: failure to insert tree into table from 16\n");
 			return -1;
 		}
 
-
+		// the parent should have initialized this to be all (4 uint64_t) 0's
+		// need to add the index to the outward leaf
 		set_bitvector(outward_leaf.bit_vector, ind_8);
-
-
-		// we know there was no previous value if there was no leaf corresponding to this key before
-		prev_value = NULL;
-		
 	}
 	else{
 
+		// This leaf was already in the table so we need to add the key to leaf and potentially get old value & insert/overwrite value
 
 		// insert off_8 into the inward leaf with value and return prev value
 		int in_bitvector = set_bitvector(inward_leaf -> bit_vector, off_8);
@@ -329,6 +339,8 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 		// this value was already in table
 		if (in_bitvector != 0){
 			
+			// have prev_value_table be a pointer within the table, so we can overwrite it if that
+			// flag was set
 			ret = find_fast_table(&(inward_leaf -> values), &off_8, false, (void *) &prev_value_table);
 			// if there was a value corresponding to this key before
 			if (ret != inward_leaf -> values.config -> max_size){
@@ -353,7 +365,7 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 			if ((root -> value_size_bytes > 0) && (value != NULL)){
 				ret = insert_fast_table(&(inward_leaf -> values), &off_8, value);
 				if (unlikely(ret != 0)){
-					fprintf(stderr, "Error: failure to insert value in the leaf's value table\n");
+					fprintf(stderr, "Error: failure to insert value in the leaf's value table from 16\n");
 					return -1;
 				}
 			}
@@ -387,25 +399,29 @@ int insert_fast_tree_nonmain_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint
 	// also means that ind_32 wan't inserted into the outward root
 	if (ret == fast_tree -> inward_leaves.config -> max_size){
 		if (fast_tree -> inward_leaves.items == NULL){
-			init_fast_table(&(fast_tree -> inward_leaves), root -> table_config_outward_leaf);
+			ret = init_fast_table(&(fast_tree -> inward_leaves), root -> table_config_outward_leaf);
+			if (unlikely(ret != 0)){
+				fprintf(stderr, "Error: failure to init inward.items table from nonmain_16\n");
+				return -1;
+			}
 		}
 
 
-		// need to modify the inward_leaf to initialize the inward leaf bitvector
-		// and then add to table
-
-
+		memset(inward_leaf.bit_vector, 0, 4 * sizeof(uint64_t));
+		set_bitvector(inward_leaf.bit_vector, off_8);
+		ret = insert_fast_table(&(fast_tree -> inward_leaves), &ind_8, &inward_leaf);
+		if (unlikely(ret != 0)){
+			fprintf(stderr, "Error: failure to insert tree into table from nonmain_16\n");
+			return -1;
+		}
+		
 		// need to modify the outward_leaf to initialize the outward_leaf bitvector
 		// and add ind_8
-
-		
+		set_bitvector(outward_leaf.bit_vector, ind_8);
 	}
 	else{
-
-		// insert off_8 into the inward leaf with value
-
-		// insert ind_8 into the fast_tree -> outward_leaf bitvector
-
+		set_bitvector(inward_leaf.bit_vector, off_8);
+		// if ind_8 was in the table it was already added the outward_leaf bitvector
 
 	}
 	return ret;
@@ -425,20 +441,21 @@ int insert_fast_tree_outward_16(Fast_Tree * root, Fast_Tree_Outward_Root_16 * fa
 	// not in the tree so we need to create
 	// also means that ind_32 wan't inserted into the outward root
 	if (ret == fast_tree -> inward_leaves.config -> max_size){
+		
+		// the outward_16 tree's have had their inward_leaves table initialized by parent
+		memset(inward_leaf.bit_vector, 0, 4 * sizeof(uint64_t));
+		set_bitvector(inward_leaf.bit_vector, off_8);
 		ret = insert_fast_table(&(fast_tree -> inward_leaves), &ind_8, &inward_leaf);
 		if (unlikely(ret != 0)){
-			fprintf(stderr, "Error: failure to insert tree into table\n");
+			fprintf(stderr, "Error: failure to insert tree into table from outward_16\n");
 			return -1;
 		}
-
-
-		// need to modify the outward_leaf to initialize the outward_leaf bitvector
-		// and add ind_8
+		set_bitvector(outward_leaf.bit_vector, ind_8);
 	}
 	else{
-		// insert off_8 into the inward leaf
+		set_bitvector(inward_leaf.bit_vector, off_8);
 	}
-	return ret;
+	return 0;
 
 }
 
@@ -463,19 +480,36 @@ int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key
 	// also means that ind_32 wan't inserted into the outward root
 	if (ret == fast_tree -> inward.config -> max_size){
 		if (fast_tree -> inward.items == NULL){
-			init_fast_table(&(fast_tree -> inward), root -> table_config_16);
+			ret = init_fast_table(&(fast_tree -> inward), root -> table_config_16);
+			if (unlikely(ret != 0)){
+				fprintf(stderr, "Error: failure to init inward.items table from 32\n");
+				return -1;
+			}
 		}
+		// the cnt will be incremented within the next function call (insert_fast_tree_16)
+		inward_tree_16.cnt = 0;
+		inward_tree_16.min = off_16;
+		inward_tree_16.max = off_16;
+		memset(inward_tree_16.outward_leaf.bit_vector, 0, 4 * sizeof(uint64_t));
 		ret = insert_fast_table(&(fast_tree -> inward), &ind_16, &inward_tree_16);
 		if (unlikely(ret != 0)){
-			fprintf(stderr, "Error: failure to insert tree into table\n");
+			fprintf(stderr, "Error: failure to insert tree into table from 32\n");
 			return -1;
 		}
+
+
+
 		if (fast_tree -> outward_root.inward_leaves.items == NULL){
-			init_fast_table(&(fast_tree -> outward_root.inward_leaves), root -> table_config_outward_leaf);
+			ret = init_fast_table(&(fast_tree -> outward_root.inward_leaves), root -> table_config_outward_leaf);
+			if (unlikely(ret != 0)){
+				fprintf(stderr, "Error: failure to init outward_root.inward_leaves table from 32\n");
+				return -1;
+			}
+			memset(fast_tree -> outward_root.outward_leaf.bit_vector, 0, 4 * sizeof(uint64_t));
 		}
 		ret = insert_fast_tree_outward_16(root, &(fast_tree -> outward_root), ind_16);
 		if (unlikely(ret != 0)){
-			fprintf(stderr, "Error: failure to insert into outward tree\n");
+			fprintf(stderr, "Error: failure to insert into outward tree from 32\n");
 			return -1;
 		}
 	}
@@ -497,14 +531,35 @@ int insert_fast_tree_outward_32(Fast_Tree * root, Fast_Tree_Outward_Root_32 * fa
 	// not in the tree so we need to create
 	// also means that ind_32 wan't inserted into the outward root
 	if (ret == fast_tree -> inward.config -> max_size){
+		// the cnt will be incremented within the next function call (insert_fast_tree_nonmain_16)
+		ret = init_fast_table(&(inward_tree_16.inward_leaves), root -> table_config_outward_leaf);
+		if (unlikely(ret != 0)){
+			fprintf(stderr, "Error: failure to init inward_tree_16 table from outward_32\n");
+			return -1;
+		}
+		inward_tree_16.cnt = 0;
+		inward_tree_16.min = off_16;
+		inward_tree_16.max = off_16;
+		memset(inward_tree_16.outward_leaf.bit_vector, 0, 4 * sizeof(uint64_t));
+
 		ret = insert_fast_table(&(fast_tree -> inward), &ind_16, &inward_tree_16);
 		if (unlikely(ret != 0)){
-			fprintf(stderr, "Error: failure to insert tree into table\n");
+			fprintf(stderr, "Error: failure to insert tree into table from outward_32\n");
 			return -1;
+		}
+
+		if (fast_tree -> outward_root.inward_leaves.items == NULL){
+			ret = init_fast_table(&(fast_tree -> outward_root.inward_leaves), root -> table_config_outward_leaf);
+			if (unlikely(ret != 0)){
+				fprintf(stderr, "Error: failure to init outward_root.inward_leaves table from outward_32\n");
+				return -1;
+			}
+			memset(fast_tree -> outward_root.outward_leaf.bit_vector, 0, 4 * sizeof(uint64_t));
+
 		}
 		ret = insert_fast_tree_outward_16(root, &(fast_tree -> outward_root), ind_16);
 		if (unlikely(ret != 0)){
-			fprintf(stderr, "Error: failure to insert into outward tree\n");
+			fprintf(stderr, "Error: failure to insert into outward tree from outward_32\n");
 			return -1;
 		}
 	}
