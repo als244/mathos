@@ -258,20 +258,8 @@ Fast_Tree_Leaf * create_and_link_fast_tree_leaf(Fast_Tree * root, uint8_t key, v
 
 }
 
-// If is_main_tree and the key is not in inward table, call create_and_link_fast_tree_leaf
-// and then insert the resulting pointer to this tree's inward table
 
-// If is_main_tree and key already is in the inward table, then insert value into the leaf's value table
-
-// If not in main tree and key doesn't exist in inward table, responsible for intializing a outward_leaf (can do so on stack)
-// and setting the appropriate bit position corresponding to key within the outward_leaf's bit vector. Then will insert
-// this newly created outward leaf (that only contains the bit vector) in the table (which will memcpy the contents)
-
-// If not in main tree and key exists (using find_fast_table with to_copy_value set to false)
-// the returned value will be a pointer to an outward leaf (which is just 4 uint64_t's) which has been allocated within
-// the table -> items array. Now we can modify this returned value inplace.
-
-
+// Called by 32 inserting into an Fast_Tree_16 associated with main tree
 int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key, void * value, bool to_overwrite, void * prev_value, uint64_t base){
 
 	if (key < fast_tree -> min){
@@ -376,6 +364,7 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 	return 0;
 }
 
+// Called by outward_32 inserting into a Fast_Tree_16
 int insert_fast_tree_nonmain_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key){
 
 	if (key < fast_tree -> min){
@@ -427,6 +416,7 @@ int insert_fast_tree_nonmain_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint
 	return ret;
 }
 
+// Called by 32 & outward_32 inserting into an Fast_Tree_Outward_Root_16
 int insert_fast_tree_outward_16(Fast_Tree * root, Fast_Tree_Outward_Root_16 * fast_tree, uint16_t key) {
 
    	
