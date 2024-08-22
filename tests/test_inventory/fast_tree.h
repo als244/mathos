@@ -26,8 +26,8 @@ typedef enum fast_tree_search_modifier {
 // search query.
 
 // REMOVE_KEY: search + remove_fast_tree()
-// REPLACE_KEY: search() + remove_fast_tree() + insert_fast_tree()
-// REPLACE_KEY_VALUE: search + remove_fast_tree() + insert_fast_tree()
+// SWAP_KEY: search() + remove_fast_tree() + insert_fast_tree()
+// SWAP_KEY_VALUE: search + remove_fast_tree() + insert_fast_tree()
 // REMOVE_VALUE: only search, but modifies the table in the leaf
 // UPDATE_VALUE: only search(), but modifies the table in the leaf
 // COPY_VALUE: search() +  insert_fast_tree()
@@ -52,7 +52,7 @@ typedef enum fast_tree_update_op_type {
 
 	// Note: if serach key modifier is set to FAST_TREE_EQUAL
 	// than this has no effect.
-	REPLACE_KEY,
+	SWAP_KEY,
 	
 	// this is equivalent to removing the preivously satisfied
 	// key (and value if non-null) relative to the search key 
@@ -60,7 +60,7 @@ typedef enum fast_tree_update_op_type {
 
 	// (same effect of REMOVE_KEY using this search key,
 	// and then calling insert)
-	REPLACE_KEY_VALUE,
+	SWAP_KEY_VALUE,
 	// This removes only the value assoicated with the 
 	// key that satified search request (meaning it removes
 	// the value from the leaf's values table). It leaves
@@ -95,7 +95,6 @@ typedef enum fast_tree_update_op_type {
 typedef struct fast_tree Fast_Tree;
 typedef struct fast_tree_32 Fast_Tree_32;
 typedef struct fast_tree_16 Fast_Tree_16;
-typedef struct fast_tree_8 Fast_Tree_8;
 // Only the leaves for the all inward paths
 typedef struct fast_tree_leaf Fast_Tree_Leaf;
 
@@ -104,7 +103,6 @@ typedef struct fast_tree_leaf Fast_Tree_Leaf;
 
 typedef struct fast_tree_outward_root_32 Fast_Tree_Outward_Root_32;
 typedef struct fast_tree_outward_root_16 Fast_Tree_Outward_Root_16;
-typedef struct fast_tree_outward_root_8 Fast_Tree_Outward_Root_8;
 typedef struct fast_tree_outward_leaf Fast_Tree_Outward_Leaf;
 
 // Could further conserve memory by not storing count's 
@@ -121,16 +119,10 @@ struct fast_tree_outward_leaf {
 	uint64_t bit_vector[4];
 };
 
- struct fast_tree_outward_root_8 {
-	// Table of 8-bit keys => fast_tree_outward_leaf
-	Fast_Table inward;
-	Fast_Tree_Outward_Leaf outward_root;
-};
-
 struct fast_tree_outward_root_16 {
 	// table of 8-bit keys => fast_tree_8
- 	Fast_Table inward;
-	Fast_Tree_Outward_Root_8 outward_root;
+ 	Fast_Table inward_leaves;
+	Fast_Tree_Outward_Leaf outward_leaf;
 };
 
 struct fast_tree_outward_root_32 {
@@ -149,8 +141,8 @@ typedef struct fast_tree_smart_update_params {
 	uint64_t new_key;
 	void * new_value;
 	// To_overwrite is relelvant for update operations of type:
-	//	- REPLACE_KEY
-	//	- REPLACE_KEY_VALUE
+	//	- SWAP_KEY
+	//	- SWAP_KEY_VALUE
 	//	- COPY_VALUE
 
 	// These update types perform an insert on a key that
@@ -175,8 +167,8 @@ typedef struct fast_tree_result {
 	// with type of:
 
 	//	- REMOVE_KEY
-	//	- REPLACE_KEY
-	//	- REPLACE_KEY_VALUE
+	//	- SWAP_KEY
+	//	- SWAP_KEY_VALUE
 
 	// Then there is a chance that the leaf corresponding to the key
 	// that satisfied the search query has been removed from the tree. 
@@ -200,8 +192,8 @@ typedef struct fast_tree_result {
 	// if this result is returned by an update operation
 	// with one of the following types: 
 
-	//	- REPLACE_KEY
-	//	- REPLACE_KEY_VALUE
+	//	- SWAP_KEY
+	//	- SWAP_KEY_VALUE
 	//	- COPY_VALUE
 
 	// If "new_key" already existed, then
@@ -265,19 +257,11 @@ struct fast_tree_leaf {
 	uint8_t max;
 };
 
-struct fast_tree_8 {
-	// Table of 8-bit keys => fast_tree_leaf
-	Fast_Table inward;
-	Fast_Tree_Outward_Leaf outward_leaf;
-	uint8_t cnt;
-	uint8_t min;
-	uint8_t max;
-};
 
 struct fast_tree_16 {
 	// table of 8-bit keys => fast_tree_8
- 	Fast_Table inward;
-	Fast_Tree_Outward_Root_8 outward_root;
+ 	Fast_Table inward_leaves;
+	Fast_Tree_Outward_Leaf outward_leaf;
  	uint16_t cnt;
  	uint16_t min;
  	uint16_t max;
@@ -305,7 +289,6 @@ struct fast_tree {
 	// tons of tables
 	Fast_Table_Config * table_config_32;
 	Fast_Table_Config * table_config_16;
-	Fast_Table_Config * table_config_8;
 	// all of the leaves except the all inward
 	// leaves will use this table
 	Fast_Table_Config * table_config_outward_leaf;
@@ -411,8 +394,8 @@ int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * prev_value);
 // The only exception is in the case that:
 //	a.) to_overwrite = false, 
 // 	b.) update is of one the following types:
-//		- REPLACE_KEY
-//		- REPLACE_KEY_VALUE
+//		- SWAP_KEY
+//		- SWAP_KEY_VALUE
 //		- COPY_VALUE
 //	c.) "new_key" already existed in the tree
 

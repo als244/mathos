@@ -362,6 +362,10 @@ int insert_fast_table(Fast_Table * fast_table, void * key, void * value) {
 // And so a memory copy will succeed
 uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, void * ret_value){
 
+	if (fast_table -> items == NULL){
+		return fast_table -> config -> max_size;
+	}
+
 	uint64_t size = fast_table -> size;
 	uint64_t hash_ind = (fast_table -> config -> hash_func)(key, size);
 
@@ -404,7 +408,7 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 			else{
 				ret_value = table_value;
 			}
-			
+
 			return cur_ind;
 		}
 
