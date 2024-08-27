@@ -136,6 +136,21 @@ int main(int argc, char * argv[]){
 		fprintf(stderr, "Error: insert_fast_tree failed\n");
 	}
 
+
+	Fast_Tree_Result search_result;
+	FastTreeSearchModifier search_type = FAST_TREE_EQUAL;
+	ret = search_fast_tree(fast_tree, 70, search_type, &search_result);
+	if (ret != 0){
+		fprintf(stderr, "Error: no key found\n");
+		return -1;
+	}
+
+	uint64_t found_key = search_result.key;
+	Fast_Tree_Leaf * found_leaf = search_result.fast_tree_leaf;
+	Deque * found_deque = (Deque *) search_result.value;
+
+	printf("Search result key: %lu\n", found_key);
+
 	printf("Simple test success!!\n\n\n");
 
 
