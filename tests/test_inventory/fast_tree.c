@@ -868,19 +868,7 @@ int search_prev_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, Fast_Tree_
 }
 
 
-int search_next_fast_tree_16(Fast_Tree_16 * fast_tree, uint16_t search_key, Fast_Tree_Result * ret_search_result, bool is_main_tree){
-
-	// We can return early if key is less than min or greater than max
-
-	// Don't want to return early if main tree, because we want to set the
-	// leaf and value within search result to prevent an additional traversal
-	if ((!is_main_tree) && (search_key <= fast_tree -> min)){
-		return fast_tree -> min;
-	}
-
-	if ((!is_main_tree) && (search_key == fast_tree -> max)){
-		return fast_tree -> max;
-	}
+int search_next_fast_tree_16(Fast_Tree_16 * fast_tree, uint16_t search_key, Fast_Tree_Result * ret_search_result){
 
 	uint8_t ind_8 = (search_key & IND_8_MASK) >> 8;
 	uint8_t off_8 = (search_key & OFF_8_MASK);
@@ -910,10 +898,8 @@ int search_next_fast_tree_16(Fast_Tree_16 * fast_tree, uint16_t search_key, Fast
 		ret_search_result -> key = ((uint16_t) next_leaf_ind << 8) + (uint16_t) leaf_ref -> min;
 
 		// we are in the leaf of main tree, so can accelerate by populing the values here
-		if (is_main_tree){
-			ret_search_result -> fast_tree_leaf = leaf_ref;
-			ret_search_result -> value = get_value_from_leaf(leaf_ref, leaf_ref -> min);
-		}
+		ret_search_result -> fast_tree_leaf = leaf_ref;
+		ret_search_result -> value = get_value_from_leaf(leaf_ref, leaf_ref -> min);
 	}
 	else{
 
@@ -923,15 +909,66 @@ int search_next_fast_tree_16(Fast_Tree_16 * fast_tree, uint16_t search_key, Fast
 		// set the bottom result
 		ret_search_result -> key = ((uint16_t) ind_8 << 8) + (uint16_t) next_leaf_off;
 
-		// we are in the leaf of main tree, so can accelerate by populing the values here
-		if (is_main_tree){
-			ret_search_result -> fast_tree_leaf = leaf_ref;
-			ret_search_result -> value = get_value_from_leaf(leaf_ref, off_8);
-		}
+		ret_search_result -> fast_tree_leaf = leaf_ref;
+		ret_search_result -> value = get_value_from_leaf(leaf_ref, off_8);
 	}
 
 	return 0;
 
+}
+
+int search_next_fast_tree_nonmain_16(Fast_Tree_16 * fast_tree, uint16_t search_key, Fast_Tree_Result * ret_search_result){
+
+	// We can return early if key is less than min or greater than max
+
+	// Don't want to return early if main tree, because we want to set the
+	// leaf and value within search result to prevent an additional traversa
+
+	if (search_key <= fast_tree -> min){
+		return fast_tree -> min;
+	}
+
+	if (search_key == fast_tree -> max){
+		return fast_tree -> max;
+	}
+
+	uint8_t ind_8 = (search_key & IND_8_MASK) >> 8;
+	uint8_t off_8 = (search_key & OFF_8_MASK);
+
+
+	Fast_Tree_Outward_Leaf * leaf_ref = NULL;
+
+	find_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, (void **) &leaf_ref);
+
+	// this index did not exist so now our search will be looking for the
+	// the successor of index and returing the minimum value from this 32_tree
+	if ((!leaf_ref) || (off_8 > leaf_ref -> max)){
+
+		uint8_t next_leaf_ind = lookup_bitvector_next(fast_tree -> outward_leaf.bit_vector, ind_8 + 1);
+
+		// now we should be guarenteed that there will be a tree with the next index
+		find_fast_table(&(fast_tree -> inward_leaves), &next_leaf_ind, false, (void **) &leaf_ref);
+
+		// this should never happen
+		if (unlikely(!leaf_ref)){
+			fprintf(stderr, "Error: expected to find ind_16 tree after outward search, but not found\n");
+			ret_search_result -> key = search_key;
+			return -1;
+		}
+
+		// set the bottom result
+		ret_search_result -> key = ((uint16_t) next_leaf_ind << 8) + (uint16_t) leaf_ref -> min;
+	}
+	else{
+
+		// this will temporarily populate the ret_search_result with 32-bit value represent next off_32
+		uint8_t next_leaf_off = lookup_bitvector_next(leaf_ref -> bit_vector, off_8);
+
+		// set the bottom result
+		ret_search_result -> key = ((uint16_t) ind_8 << 8) + (uint16_t) next_leaf_off;
+	}
+
+	return 0;
 }
 
 int search_next_fast_tree_outward_16(Fast_Tree_Outward_Root_16 * fast_tree, uint16_t search_key, Fast_Tree_Result * ret_search_result){
@@ -1018,7 +1055,7 @@ int search_next_fast_tree_32(Fast_Tree_32 * fast_tree, uint32_t search_key, Fast
 	else{
 
 		// this will temporarily populate the ret_search_result with 32-bit value represent next off_32
-		ret = search_next_fast_tree_16(inward_tree_16_ref, off_16, ret_search_result, true);
+		ret = search_next_fast_tree_16(inward_tree_16_ref, off_16, ret_search_result);
 
 		// this should never happen
 		if (unlikely(ret)){
@@ -1080,7 +1117,7 @@ int search_next_fast_tree_outward_32(Fast_Tree_Outward_Root_32 * fast_tree, uint
 	else{
 
 		// this will temporarily populate the ret_search_result with 32-bit value represent next off_32
-		ret = search_next_fast_tree_16(inward_tree_16_ref, off_16, ret_search_result, false);
+		ret = search_next_fast_tree_nonmain_16(inward_tree_16_ref, off_16, ret_search_result);
 
 		// this should never happen
 		if (unlikely(ret)){
