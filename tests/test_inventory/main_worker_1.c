@@ -103,7 +103,7 @@ int main(int argc, char * argv[]){
 
 	uint64_t value_size_bytes = sizeof(Deque *);
 
-	printf("INITIALIZING TREE...\n");
+	printf("INITIALIZING TREE...\n\n");
 
 	Fast_Tree * fast_tree = init_fast_tree(value_size_bytes);
 	if (!fast_tree){
@@ -116,7 +116,7 @@ int main(int argc, char * argv[]){
 	
 	// mem_range_size is the key
 
-	printf("INSERTING RANGE SIZE + DEQUE INTO TREE...\n");
+	printf("INSERTING RANGE SIZE + DEQUE INTO TREE...\n\n\n");
 
 	ret = insert_fast_tree(fast_tree, 70, mem_ranges_70, false, prev_value);
 
@@ -137,9 +137,10 @@ int main(int argc, char * argv[]){
 	}
 
 
+	uint64_t search_key = 69;
 	Fast_Tree_Result search_result;
-	FastTreeSearchModifier search_type = FAST_TREE_EQUAL;
-	ret = search_fast_tree(fast_tree, 70, search_type, &search_result);
+	FastTreeSearchModifier search_type = FAST_TREE_EQUAL_OR_NEXT;
+	ret = search_fast_tree(fast_tree, search_key, search_type, &search_result);
 	if (ret != 0){
 		fprintf(stderr, "Error: no key found\n");
 		return -1;
@@ -149,7 +150,12 @@ int main(int argc, char * argv[]){
 	Fast_Tree_Leaf * found_leaf = search_result.fast_tree_leaf;
 	Deque * found_deque = (Deque *) search_result.value;
 
-	printf("Search result key: %lu\n", found_key);
+	printf("Search Key: %lu => Search result found key: %lu\n", search_key, found_key);
+
+	if (!found_deque){
+		fprintf(stderr, "Error: was expecting the value to be populated with deque, but returned null\n");
+		return -1;
+	}
 
 	printf("Simple test success!!\n\n\n");
 

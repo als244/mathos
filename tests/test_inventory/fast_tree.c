@@ -217,11 +217,14 @@ int set_bitvector(uint64_t * bit_vector, uint8_t key){
 	uint8_t bit_ind = (key & LEAF_BIT_POS_MASK);
 
 	// check if already set
-	if ((bit_vector[vec_ind] & (1 << bit_ind)) >> bit_ind){
+
+	// Note: Need to add UL otherwise compiler will assume of type bit_ind
+	if ((bit_vector[vec_ind] & (1UL << bit_ind)) >> bit_ind){
 		return -1;
 	}
 
-	bit_vector[vec_ind] |= (1 << bit_ind);
+	bit_vector[vec_ind] |= (1UL << bit_ind);
+
 	return 0;
 }
 
@@ -791,7 +794,7 @@ uint8_t lookup_bitvector_prev(uint64_t * bit_vector, uint8_t key){
 		}
 
 		// get highest order set bit position
-		found_element_pos = __builtin_ffsll(cur_search_vec);
+		found_element_pos = __builtin_ffsll(cur_search_vec) - 1;
 
 		return cur_val + found_element_pos;
 	}
@@ -810,9 +813,8 @@ uint8_t lookup_bitvector_next(uint64_t * bit_vector, uint8_t key){
 	// lower 6 bits
 	uint8_t bit_ind = (key & LEAF_BIT_POS_MASK);
 
-	
-
 	uint64_t orig_vec = bit_vector[vec_ind];
+
 	// need to clear the lower bits before looing for
 	// highest set bit
 	uint64_t cur_search_vec = orig_vec & (ALL_ONES_64 << bit_ind);
@@ -874,13 +876,15 @@ int search_next_fast_tree_16(Fast_Tree_16 * fast_tree, uint16_t search_key, Fast
 	uint8_t off_8 = (search_key & OFF_8_MASK);
 
 
-	Fast_Tree_Leaf * leaf_ref = NULL;
+	Fast_Tree_Leaf ** leaf_ref = NULL;
+
+	Fast_Tree_Leaf * main_leaf = NULL;
 
 	find_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, (void **) &leaf_ref);
 
 	// this index did not exist so now our search will be looking for the
 	// the successor of index and returing the minimum value from this 32_tree
-	if ((!leaf_ref) || (off_8 > leaf_ref -> max)){
+	if ((!leaf_ref) || (off_8 > (*leaf_ref) -> max)){
 
 		uint8_t next_leaf_ind = lookup_bitvector_next(fast_tree -> outward_leaf.bit_vector, ind_8 + 1);
 
@@ -894,23 +898,27 @@ int search_next_fast_tree_16(Fast_Tree_16 * fast_tree, uint16_t search_key, Fast
 			return -1;
 		}
 
+		main_leaf = *leaf_ref;
+
 		// set the bottom result
-		ret_search_result -> key = ((uint16_t) next_leaf_ind << 8) + (uint16_t) leaf_ref -> min;
+		ret_search_result -> key = ((uint16_t) next_leaf_ind << 8) + (uint16_t) main_leaf -> min;
 
 		// we are in the leaf of main tree, so can accelerate by populing the values here
-		ret_search_result -> fast_tree_leaf = leaf_ref;
-		ret_search_result -> value = get_value_from_leaf(leaf_ref, leaf_ref -> min);
+		ret_search_result -> fast_tree_leaf = main_leaf;
+		ret_search_result -> value = get_value_from_leaf(main_leaf, main_leaf -> min);
 	}
 	else{
 
+		main_leaf = *leaf_ref;
+
 		// this will temporarily populate the ret_search_result with 32-bit value represent next off_32
-		uint8_t next_leaf_off = lookup_bitvector_next(leaf_ref -> bit_vector, off_8);
+		uint8_t next_leaf_off = lookup_bitvector_next(main_leaf -> bit_vector, off_8);
 
 		// set the bottom result
 		ret_search_result -> key = ((uint16_t) ind_8 << 8) + (uint16_t) next_leaf_off;
 
-		ret_search_result -> fast_tree_leaf = leaf_ref;
-		ret_search_result -> value = get_value_from_leaf(leaf_ref, off_8);
+		ret_search_result -> fast_tree_leaf = main_leaf;
+		ret_search_result -> value = get_value_from_leaf(main_leaf, off_8);
 	}
 
 	return 0;
