@@ -52,6 +52,10 @@ int main(int argc, char * argv[]){
 	range_3.num_chunks = 70;
 	range_3.start_chunk_id = 120;
 
+	Mem_Range range_4;
+	range_4.num_chunks = 100;
+	range_4.start_chunk_id = 220;
+
 
 	Deque * mem_ranges_70 = init_deque(NULL);
 	if (mem_ranges_70 == NULL){
@@ -61,6 +65,12 @@ int main(int argc, char * argv[]){
 
 	Deque * mem_ranges_50 = init_deque(NULL);
 	if (mem_ranges_50 == NULL){
+		fprintf(stderr, "Error: init deque failed\n");
+		return -1;
+	}
+
+	Deque * mem_ranges_100 = init_deque(NULL);
+	if (mem_ranges_100 == NULL){
 		fprintf(stderr, "Error: init deque failed\n");
 		return -1;
 	}
@@ -84,6 +94,12 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
+	ret = insert_deque(mem_ranges_100, BACK_DEQUE, &range_4);
+	if (ret != 0){
+		fprintf(stderr, "Error: insert_deque failed\n");
+		return -1;
+	}
+
 
 	uint64_t value_size_bytes = sizeof(Deque *);
 
@@ -99,19 +115,22 @@ int main(int argc, char * argv[]){
 
 	
 	// mem_range_size is the key
-	uint64_t mem_range_70 = 70;
-	uint64_t mem_range_50 = 50;
-
 
 	printf("INSERTING RANGE SIZE + DEQUE INTO TREE...\n");
 
-	ret = insert_fast_tree(fast_tree, mem_range_70, mem_ranges_70, false, prev_value);
+	ret = insert_fast_tree(fast_tree, 70, mem_ranges_70, false, prev_value);
 
 	if (ret != 0){
 		fprintf(stderr, "Error: insert_fast_tree failed\n");
 	}
 
-	ret = insert_fast_tree(fast_tree, mem_range_50, mem_ranges_50, false, prev_value);
+	ret = insert_fast_tree(fast_tree, 50, mem_ranges_50, false, prev_value);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: insert_fast_tree failed\n");
+	}
+
+	ret = insert_fast_tree(fast_tree, 100, mem_ranges_100, false, prev_value);
 
 	if (ret != 0){
 		fprintf(stderr, "Error: insert_fast_tree failed\n");
