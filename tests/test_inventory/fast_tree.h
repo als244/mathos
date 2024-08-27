@@ -116,6 +116,8 @@ typedef struct fast_tree_outward_leaf Fast_Tree_Outward_Leaf;
 // They will not be queried in the same way as normal tree,
 // so we can conserve memory
 struct fast_tree_outward_leaf {
+	uint8_t min;
+	uint8_t max;
 	uint64_t bit_vector[4];
 };
 
@@ -357,6 +359,10 @@ uint64_t hash_func_modulus_8(void * key_ref, uint64_t table_size);
 
 
 Fast_Tree * init_fast_tree(uint64_t value_size_bytes);
+
+
+// ONLY TEMPORARILY EXPOSING THIS FUNCTION!
+Fast_Tree_Leaf * get_leaf(Fast_Tree * fast_tree, uint64_t key);
 
 
 // Exposed functions
