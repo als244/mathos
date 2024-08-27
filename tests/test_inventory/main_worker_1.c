@@ -46,93 +46,76 @@ int main(int argc, char * argv[]){
 
 	Mem_Range range_2;
 	range_2.num_chunks = 50;
-	range_2.start_chunk_id = 8;
+	range_2.start_chunk_id = 70;
+
+	Mem_Range range_3;
+	range_3.num_chunks = 70;
+	range_3.start_chunk_id = 120;
 
 
-	Fast_Table fast_table;
+	Deque * mem_ranges_70 = init_deque(NULL);
+	if (mem_ranges_70 == NULL){
+		fprintf(stderr, "Error: init deque failed\n");
+		return -1;
+	}
 
-	Hash_Func hash_func = &hash_func_64;
-
-	uint64_t min_table_size = 16;
-	uint64_t max_table_size = 64;
-
-	float load_factor = 0.5;
-	float shrink_factor = 0.1;
-
-	uint64_t key_size_bytes = sizeof(uint64_t);
-	uint64_t value_size_bytes = sizeof(Mem_Range);
-
-	printf("Initializing fast table...\n\n");
-
-
-	Fast_Table_Config * fast_table_config = save_fast_table_config(hash_func, key_size_bytes, value_size_bytes, min_table_size, max_table_size, load_factor, shrink_factor);
-	if (!fast_table_config){
-		fprintf(stderr, "Error: failed to init fast table config\n");
+	Deque * mem_ranges_50 = init_deque(NULL);
+	if (mem_ranges_50 == NULL){
+		fprintf(stderr, "Error: init deque failed\n");
 		return -1;
 	}
 
 
-	ret = init_fast_table(&fast_table, fast_table_config);
+	ret = insert_deque(mem_ranges_70, BACK_DEQUE, &range_1);
 	if (ret != 0){
-		fprintf(stderr, "Error: failed to init fast_table\n");
+		fprintf(stderr, "Error: insert_deque failed\n");
 		return -1;
 	}
 
-
-	printf("Inserting values into table...\n\n");
-
-	uint64_t insert_key = 70;
-	ret = insert_fast_table(&fast_table, &insert_key, &range_1);
-	if (unlikely(ret != 0)){
-		fprintf(stderr, "Error: failed to insert to hash table for 1st item\n");
-		return -1;
-	}
-
-	ret = insert_fast_table(&fast_table, &range_2.num_chunks, &range_2);
-	if (unlikely(ret != 0)){
-		fprintf(stderr, "Error: failed to insert to hash table for 2nd item\n");
-		return -1;
-	}
-
-
-
-	printf("Searching for inserted range...\n\n");
-	Mem_Range found_range;
-
-	uint64_t search_key = 50;
-	ret = find_fast_table(&fast_table, &search_key, true, &found_range);
-	if (ret == fast_table.config -> max_size){
-		fprintf(stderr, "Error: failed to find 2nd item when it should have\n");
-		return -1;
-
-	}
-
-
-	printf("Found item. Was using search_key: %lu. Returned item chunk id: %lu\n\n", search_key, found_range.start_chunk_id);
-
-
-	printf("Now removing item 1...\n\n");
-
-	search_key = 70;
-	ret = remove_fast_table(&fast_table, &search_key, true, &found_range);
+	ret = insert_deque(mem_ranges_70, BACK_DEQUE, &range_3);
 	if (ret != 0){
-		fprintf(stderr, "Error: failed to remove 1st item when it should have\n");
+		fprintf(stderr, "Error: insert_deque failed\n");
 		return -1;
 	}
 
-	printf("Removed first item. It has chunk id: %lu\n\n", found_range.start_chunk_id);
-
-
-	printf("Now going to search again for item 1 and not expecting to find it...\n");
-
-	search_key = 70;
-	ret = find_fast_table(&fast_table, &search_key, true, &found_range);
-
-	// with true value search could also see if &found was set to null
-	if (ret != fast_table.config -> max_size){
-		fprintf(stderr, "Error: wasn't expecting to find value, but did. Saw chunk id of: %lu\n\n", found_range.start_chunk_id);
+	ret = insert_deque(mem_ranges_50, BACK_DEQUE, &range_2);
+	if (ret != 0){
+		fprintf(stderr, "Error: insert_deque failed\n");
+		return -1;
 	}
 
+
+	uint64_t value_size_bytes = sizeof(Deque *);
+
+	printf("INITIALIZING TREE...\n");
+
+	Fast_Tree * fast_tree = init_fast_tree(value_size_bytes);
+	if (!fast_tree){
+		fprintf(stderr, "Error: init fast tree failed\n");
+		return -1;
+	}
+
+	uint8_t prev_value[value_size_bytes];
+
+	
+	// mem_range_size is the key
+	uint64_t mem_range_70 = 70;
+	uint64_t mem_range_50 = 50;
+
+
+	printf("INSERTING RANGE SIZE + DEQUE INTO TREE...\n");
+
+	ret = insert_fast_tree(fast_tree, mem_range_70, mem_ranges_70, false, prev_value);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: insert_fast_tree failed\n");
+	}
+
+	ret = insert_fast_tree(fast_tree, mem_range_50, mem_ranges_50, false, prev_value);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: insert_fast_tree failed\n");
+	}
 
 	printf("Simple test success!!\n\n\n");
 

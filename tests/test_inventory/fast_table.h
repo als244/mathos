@@ -98,11 +98,11 @@ int insert_fast_table(Fast_Table * fast_table, void * key, void * value);
 // And so a memory copy will succeed
 
 // If to_copy_value is set the copy back the the item. If no item exists and this flag is set, ret_value is set to NULL
-uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, void * ret_value);
+uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, void ** ret_value);
 
 // returns 0 upon success, -1 upon error
 // if copy_val is set to true then copy back the item. If no item exists and this flag is set, ret_value is set to NULL
-int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, void * ret_value);
+int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, void ** ret_value);
 
 
 

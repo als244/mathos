@@ -173,7 +173,7 @@ int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 	}
 
 	// initialize everything to empty by setting to 1 everywhere
-	memset(fast_table -> is_empty_bit_vector, 0xFF, ((new_size >> 6) + 1) * sizeof(uint64_t));
+	memset(new_is_empty_bit_vector, 0xFF, ((new_size >> 6) + 1) * sizeof(uint64_t));
 	
 	void * new_items = (void *) calloc(new_size, key_size_bytes + value_size_bytes);
 	if (unlikely(!new_items)){
@@ -244,15 +244,13 @@ int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 	// now reset the table size, items, and bit vector 
 	// and free the old memory
 
+	free(old_is_empty_bit_vector);
+	free(old_items);
+
 	fast_table -> size = new_size;
 	fast_table -> is_empty_bit_vector = new_is_empty_bit_vector;
 	fast_table -> items = new_items;
 
-
-	free(old_is_empty_bit_vector);
-	free(old_items);
-
-	
 	return 0;
 }
 
@@ -360,7 +358,7 @@ int insert_fast_table(Fast_Table * fast_table, void * key, void * value) {
 // A copy of the value assoicated with key in the table
 // Assumes that memory of value_sized_bytes as already been allocated to ret_val
 // And so a memory copy will succeed
-uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, void * ret_value){
+uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, void ** ret_value){
 
 	if (fast_table -> items == NULL){
 		return fast_table -> config -> max_size;
@@ -377,6 +375,7 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 	// we could just walk along and check the bit vector as we go, but this is easily
 	// (at albeit potential performance hit if table is very full and we do wasted work)
 	uint64_t * is_empty_bit_vector = fast_table -> is_empty_bit_vector;
+	
 	uint64_t next_empty = get_next_ind_fast_table(is_empty_bit_vector, size, hash_ind, false);
 
 	uint64_t cur_ind = hash_ind;
@@ -403,10 +402,10 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 
 			// now we want to copy the value and then can return
 			if (to_copy_value) {
-				memcpy(ret_value, table_value, value_size_bytes);
+				memcpy(*ret_value, table_value, value_size_bytes);
 			}
 			else{
-				ret_value = table_value;
+				*ret_value = table_value;
 			}
 
 			return cur_ind;
@@ -426,7 +425,7 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 
 	// now can set the return value to null and return not found as -1
 	if (to_copy_value){
-		ret_value = NULL;
+		*ret_value = NULL;
 	}
 	
 	
@@ -441,7 +440,7 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 // table and allocating new, smaller one)
 
 // if copy_val is set to true then copy back the item
-int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, void * ret_value) {
+int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, void ** ret_value) {
 
 
 	// remove is equivalent to find, except we need to also:
