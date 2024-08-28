@@ -16,6 +16,10 @@
 
 int main(int argc, char * argv[]){
 
+
+	struct timespec start, stop;
+	uint64_t timestamp_start, timestamp_stop, elapsed_ns;
+
 	int ret;
 	
 	char * master_ip_addr, * self_ip_addr;
@@ -53,7 +57,7 @@ int main(int argc, char * argv[]){
 	range_3.start_chunk_id = 120;
 
 	Mem_Range range_4;
-	range_4.num_chunks = 100;
+	range_4.num_chunks = 1024;
 	range_4.start_chunk_id = 220;
 
 
@@ -69,8 +73,8 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	Deque * mem_ranges_100 = init_deque(NULL);
-	if (mem_ranges_100 == NULL){
+	Deque * mem_ranges_1024 = init_deque(NULL);
+	if (mem_ranges_1024 == NULL){
 		fprintf(stderr, "Error: init deque failed\n");
 		return -1;
 	}
@@ -94,7 +98,7 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	ret = insert_deque(mem_ranges_100, BACK_DEQUE, &range_4);
+	ret = insert_deque(mem_ranges_1024, BACK_DEQUE, &range_4);
 	if (ret != 0){
 		fprintf(stderr, "Error: insert_deque failed\n");
 		return -1;
@@ -126,17 +130,25 @@ int main(int argc, char * argv[]){
 		fprintf(stderr, "Error: insert_fast_tree failed\n");
 	}
 
-	ret = insert_fast_tree(fast_tree, 100, mem_ranges_100, false, &prev_value);
+	ret = insert_fast_tree(fast_tree, 1024, mem_ranges_1024, false, &prev_value);
 
 	if (ret != 0){
 		fprintf(stderr, "Error: insert_fast_tree failed\n");
 	}
 
 
-	uint64_t search_key = 69;
+	uint64_t search_key = 70;
 	Fast_Tree_Result search_result;
-	FastTreeSearchModifier search_type = FAST_TREE_EQUAL_OR_NEXT;
+	FastTreeSearchModifier search_type = FAST_TREE_EQUAL_OR_PREV;
+	
+
+	
+
+	clock_gettime(CLOCK_MONOTONIC, &start);
 	ret = search_fast_tree(fast_tree, search_key, search_type, &search_result);
+	clock_gettime(CLOCK_MONOTONIC, &stop);
+
+
 	if (ret != 0){
 		fprintf(stderr, "Error: no key found\n");
 		return -1;
@@ -153,7 +165,12 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	printf("Simple test success!!\n\n\n");
+	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
+	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
+
+	elapsed_ns = timestamp_stop - timestamp_start;
+
+	printf("Simple test success!!\n\tElasped Search Time (ns): %lu\n\n", elapsed_ns);
 
 
 
@@ -296,7 +313,7 @@ int main(int argc, char * argv[]){
 
 	// Will populate mem_reservation.num_chunks, mem_reservation.start_chunk_id, mem_reservation.buffer
 	
-	struct timespec start, stop;
+	//struct timespec start, stop;
 
 	clock_gettime(CLOCK_MONOTONIC, &start);
 	ret = reserve_memory(memory, &mem_reservation_net_recv);
@@ -308,9 +325,9 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	uint64_t timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
-	uint64_t timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
-	uint64_t elapsed_ns = timestamp_stop - timestamp_start;
+	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
+	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
+	elapsed_ns = timestamp_stop - timestamp_start;
 
 	printf("\n\n\nElasped Reservation time (ns): %lu\n\n\n", elapsed_ns);
 
