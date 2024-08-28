@@ -61,7 +61,7 @@ int fast_tree_leaf_cmp(void * fast_tree_leaf, void * other_fast_tree_leaf){
 
 
 // this intializes a top level fast tree
-Fast_Tree * init_fast_tree(uint64_t value_size_bytes) {
+Fast_Tree * init_fast_tree(bool is_dict) {
 
 	Fast_Tree * fast_tree = (Fast_Tree *) malloc(sizeof(Fast_Tree));
 	if (!fast_tree){
@@ -135,7 +135,7 @@ Fast_Tree * init_fast_tree(uint64_t value_size_bytes) {
 
 
 	// Notice that the value size bytes for this table is the value that was passed in to this intialization function!!!
-	Fast_Table_Config * table_config_value = save_fast_table_config(&hash_func_modulus_8, sizeof(uint8_t), value_size_bytes, 
+	Fast_Table_Config * table_config_value = save_fast_table_config(&hash_func_modulus_8, sizeof(uint8_t), sizeof(void *), 
 						FAST_TREE_VALUE_MIN_TABLE_SIZE, FAST_TREE_VALUE_MAX_TABLE_SIZE, FAST_TREE_VALUE_LOAD_FACTOR, FAST_TREE_VALUE_SHRINK_FACTOR);
 	if (!table_config_value){
 		fprintf(stderr, "Error: failed to create main_leaf config\n");
@@ -199,8 +199,7 @@ Fast_Tree * init_fast_tree(uint64_t value_size_bytes) {
 		return NULL;
 	}
 
-	fast_tree -> value_size_bytes = value_size_bytes;
-
+	fast_tree -> is_dict = is_dict;
 
 	return fast_tree;
 
@@ -241,7 +240,7 @@ int set_bitvector(uint64_t * bit_vector, uint8_t key){
 	//			for prev and succ (whose deque items can be then be linked)
 	//	 e.) If no prev setting root -> ordered_leaves -> head to be this newly created deque item
 	//			- and same for tail
-Fast_Tree_Leaf * create_and_link_fast_tree_leaf(Fast_Tree * root, uint8_t key, void * value, bool to_overwrite, void * prev_value, uint64_t base){
+Fast_Tree_Leaf * create_and_link_fast_tree_leaf(Fast_Tree * root, uint8_t key, void * value, bool to_overwrite, void ** prev_value, uint64_t base){
 
 	Fast_Tree_Leaf * fast_tree_leaf = (Fast_Tree_Leaf *) malloc(sizeof(Fast_Tree_Leaf));
 	if (unlikely(!fast_tree_leaf)){
@@ -260,7 +259,7 @@ Fast_Tree_Leaf * create_and_link_fast_tree_leaf(Fast_Tree * root, uint8_t key, v
 
 	// deal with inserting value
 	int ret;
-	if (root -> value_size_bytes > 0){
+	if (root -> is_dict > 0){
 		ret = init_fast_table(&(fast_tree_leaf -> values), root -> table_config_value);
 		if (unlikely(ret != 0)){
 			fprintf(stderr, "Error: failure to init value table in leaf\n");
@@ -268,8 +267,8 @@ Fast_Tree_Leaf * create_and_link_fast_tree_leaf(Fast_Tree * root, uint8_t key, v
 		}
 
 		if (value != NULL){
-			uint8_t value_key = key;
-			ret = insert_fast_table(&(fast_tree_leaf -> values), &value_key, value);
+			uint8_t value_key = key;			
+			ret = insert_fast_table(&(fast_tree_leaf -> values), &value_key, &value);
 			if (unlikely(ret != 0)){
 				fprintf(stderr, "Error: failure to insert value into the table in leaf\n");
 				return NULL;
@@ -278,7 +277,7 @@ Fast_Tree_Leaf * create_and_link_fast_tree_leaf(Fast_Tree * root, uint8_t key, v
 	}
 
 	// we just created this leaf so we know there was no previous value
-	prev_value = NULL;
+	*prev_value = NULL;
 	
 
 	// need to initialize deque item
@@ -293,7 +292,7 @@ Fast_Tree_Leaf * create_and_link_fast_tree_leaf(Fast_Tree * root, uint8_t key, v
 
 
 // Called by 32 inserting into an Fast_Tree_16 associated with main tree
-int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key, void * value, bool to_overwrite, void * prev_value, uint64_t base){
+int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key, void * value, bool to_overwrite, void ** prev_value, uint64_t base){
 
 	if (fast_tree -> inward_leaves.items == NULL){
 		int init_ret = init_fast_table(&(fast_tree -> inward_leaves), root -> table_config_main_leaf);
@@ -369,7 +368,7 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 		// insert off_8 into the inward leaf with value and return prev value
 		int in_bitvector = set_bitvector(inward_leaf -> bit_vector, off_8);
 		
-		void * prev_value_table;
+		void * prev_value_table = NULL;
 
 		// this Key was Already in the Tree
 		if (in_bitvector != 0){
@@ -379,16 +378,17 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 			ret = find_fast_table(&(inward_leaf -> values), &off_8, false, &prev_value_table);
 			// if there was a value corresponding to this key before
 			if (ret != inward_leaf -> values.config -> max_size){
-				if (root -> value_size_bytes > 0){
-					memcpy(prev_value, prev_value_table, root -> value_size_bytes);
+				if (prev_value_table){
+					*prev_value = *((void **) prev_value_table);
 				}
 				if (!to_overwrite){
 					fprintf(stderr, "Error: item already existed in bitvector\n");
 					return -1;
 				}      
 				else{
-					if ((root -> value_size_bytes > 0) && (value != NULL)){
-						memcpy(prev_value_table, value, root -> value_size_bytes);
+					// overwriting the old pointer with new pointer
+					if (prev_value_table && (value != NULL)){
+						memcpy(prev_value_table, &value, sizeof(uintptr_t));
 					}
 					else {
 						remove_fast_table(&(inward_leaf -> values), &off_8, false, NULL);
@@ -407,7 +407,7 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 			}
 
 			// If we need to update the value table
-			if ((root -> value_size_bytes > 0) && (value != NULL)){
+			if ((root -> is_dict > 0) && (value != NULL)){
 				ret = insert_fast_table(&(inward_leaf -> values), &off_8, value);
 				if (unlikely(ret != 0)){
 					fprintf(stderr, "Error: failure to insert value in the leaf's value table from 16\n");
@@ -554,7 +554,7 @@ int insert_fast_tree_outward_16(Fast_Tree * root, Fast_Tree_Outward_Root_16 * fa
 
 }
 
-int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key, void * value, bool to_overwrite, void * prev_value, uint64_t base){
+int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key, void * value, bool to_overwrite, void ** prev_value, uint64_t base){
 
 	if (fast_tree -> inward.items == NULL){
 		// the cnt will be incremented within the next function call (insert_fast_tree_nonmain_16)
@@ -656,7 +656,7 @@ int insert_fast_tree_outward_32(Fast_Tree * root, Fast_Tree_Outward_Root_32 * fa
 // returns 0 on success -1 on error
 // fails is key is already in the tree and overwrite set to false
 // if key was already in the tree and had a non-null value, then copies the previous value into prev_value
-int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_overwrite, void * prev_value) {
+int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_overwrite, void ** prev_value) {
 
 	// SHOULD CHECK IF KEY EXISTS FIRST
 
@@ -844,6 +844,9 @@ uint8_t lookup_bitvector_next(uint64_t * bit_vector, uint8_t key){
 }
 
 
+// Returns a copy of the value!
+// The value table might get resized so we don't want to to return a pointer
+// to something within the table!
 void * get_value_from_leaf(Fast_Tree_Leaf * fast_tree_leaf, uint8_t key){
 	// if there isn't a table for this leaf
 	if (fast_tree_leaf -> values.items == NULL){
@@ -851,8 +854,15 @@ void * get_value_from_leaf(Fast_Tree_Leaf * fast_tree_leaf, uint8_t key){
 	}
 	// otherwise lookup key within table
 	uint8_t value_key = key;
-	void * value;
-	find_fast_table(&(fast_tree_leaf -> values), &value_key, false, &value);
+	void * table_value_ptr = NULL;
+
+	
+	find_fast_table(&(fast_tree_leaf -> values), &value_key, false, (void **) &table_value_ptr);
+	if (!table_value_ptr){
+		return NULL;
+	}
+
+	void * value = *((void **) table_value_ptr);
 	return value;
 }
 
@@ -1249,7 +1259,7 @@ int search_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchM
 			value = get_value_from_leaf(fast_tree_leaf, leaf_key);
 
 			ret_search_result -> fast_tree_leaf = fast_tree_leaf;
-			ret_search_result -> key = search_key;
+			ret_search_result -> key = search_key;			
 			ret_search_result -> value = value;
 			ret = 0;
 			break;
@@ -1306,6 +1316,12 @@ int search_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchM
 			value = get_value_from_leaf(fast_tree_leaf, leaf_key);
 			ret_search_result -> value = value;
 		}
+		// if we got the correct leaf, but wrong key then value would be empty
+		else if (search_key != found_key){
+			leaf_key = found_key & LEAF_KEY_MASK;
+			value = get_value_from_leaf(ret_search_result -> fast_tree_leaf, leaf_key);
+			ret_search_result -> value = value;
+		}
 		// otherwise we found the key through main tree and then fast_tree_leaf and value
 		// have already been set
 
@@ -1319,7 +1335,7 @@ int search_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchM
 
 // returns 0 on success -1 on error
 // fails is key is not in the tree
-int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * prev_value) {
+int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void ** prev_value) {
 	fprintf(stderr, "Unimplemented Error: remove_fast_tree\n");
 	return -1;
 }

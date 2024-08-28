@@ -100,37 +100,33 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-
-	uint64_t value_size_bytes = sizeof(Deque *);
-
 	printf("INITIALIZING TREE...\n\n");
 
-	Fast_Tree * fast_tree = init_fast_tree(value_size_bytes);
+	Fast_Tree * fast_tree = init_fast_tree(true);
 	if (!fast_tree){
 		fprintf(stderr, "Error: init fast tree failed\n");
 		return -1;
 	}
 
-	uint8_t prev_value[value_size_bytes];
-
+	void * prev_value;
 	
 	// mem_range_size is the key
 
 	printf("INSERTING RANGE SIZE + DEQUE INTO TREE...\n\n\n");
 
-	ret = insert_fast_tree(fast_tree, 70, mem_ranges_70, false, prev_value);
+	ret = insert_fast_tree(fast_tree, 70, mem_ranges_70, false, &prev_value);
 
 	if (ret != 0){
 		fprintf(stderr, "Error: insert_fast_tree failed\n");
 	}
 
-	ret = insert_fast_tree(fast_tree, 50, mem_ranges_50, false, prev_value);
+	ret = insert_fast_tree(fast_tree, 50, mem_ranges_50, false, &prev_value);
 
 	if (ret != 0){
 		fprintf(stderr, "Error: insert_fast_tree failed\n");
 	}
 
-	ret = insert_fast_tree(fast_tree, 100, mem_ranges_100, false, prev_value);
+	ret = insert_fast_tree(fast_tree, 100, mem_ranges_100, false, &prev_value);
 
 	if (ret != 0){
 		fprintf(stderr, "Error: insert_fast_tree failed\n");

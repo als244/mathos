@@ -328,7 +328,7 @@ struct fast_tree {
 	// can contain 256 key-value pairs within
 	// a contiguous range
 	Deque * ordered_leaves;
-	uint64_t value_size_bytes;
+	bool is_dict;
 };
 
 
@@ -358,7 +358,7 @@ uint64_t hash_func_modulus_8(void * key_ref, uint64_t table_size);
 // functions are set to null
 
 
-Fast_Tree * init_fast_tree(uint64_t value_size_bytes);
+Fast_Tree * init_fast_tree(bool is_dict);
 
 
 // ONLY TEMPORARILY EXPOSING THIS FUNCTION!
@@ -378,12 +378,12 @@ int search_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchM
 // returns 0 on success -1 on error
 // fails is key is already in the tree and overwrite set to false
 // if key was already in the tree and had a non-null value, then copies the previous value into prev_value
-int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_overwrite, void * prev_value);
+int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_overwrite, void ** prev_value);
 
 
 // returns 0 on success -1 on error
 // fails is key is not in the tree
-int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * prev_value);
+int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void ** prev_value);
 
 
 

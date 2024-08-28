@@ -122,30 +122,30 @@ uint64_t get_next_ind_fast_table(uint64_t * is_empty_bit_vector, uint64_t table_
 		// we are are seaching for next full index we just flip the bits
 		if(to_flip_empty){
 			search_vector = (search_vector ^ 0xFFFFFFFFFFFFFFFF);
+			// here we still want to ignore the indices lower than 
+			// bit position, so still clear out lower bits
+			if (cur_vec_ind == start_vec_ind){
+				search_vector = search_vector & (0xFFFFFFFFFFFFFFFF << start_bit_ind);
+			}
 		}
 
-		// returns 1 + the least significant 1-bit, so we want to subtract 1
-		// when computing the proper empty value
-		least_sig_one_bit_ind = __builtin_ffsll(search_vector);
+		if (search_vector == 0){
+			cur_vec_ind++;
+			// if the cur_vec_ind would be wrapped around we don't
+			// need to do any masking because we just care about the low
+			// order bits which weren't seen the first go-around
+			search_vector = is_empty_bit_vector[cur_vec_ind % bit_vector_size];
+			continue;
+		}
+
+		// returns index of the least significant 1-bit
+		least_sig_one_bit_ind = __builtin_ctzll(search_vector);
 		
-		// is there is a matching slot
-		// we can return the value corresponding to bucked ind
-		if (least_sig_one_bit_ind != 0){
-			insert_ind = 64 * (cur_vec_ind % bit_vector_size) + (least_sig_one_bit_ind - 1);
-			return insert_ind;
-		}
-
-		// There were no empty slots (bit vector was all 0's), so we continue to the next
-		// set of 64 buckets
-		cur_vec_ind++;
-
-		// if the cur_vec_ind would be wrapped around we don't
-		// need to do any masking because we just care about the low
-		// order bits which weren't seen the first go-around
-		search_vector = is_empty_bit_vector[cur_vec_ind % bit_vector_size];
+		insert_ind = 64 * (cur_vec_ind % bit_vector_size) + least_sig_one_bit_ind;
+		return insert_ind;
 	}
 
-	// indicate that we couldn't find an empty slot
+	// indicate that we couldn't find an empty slot (or full slot if to_flip_empty flag is true)
 	return table_size;
 
 }
@@ -236,8 +236,13 @@ int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 
 		// the bucket's upper bits represent index into the bit vector elements
 		// and the low order 6 bits represent offset into element. Set to 0 
-		new_is_empty_bit_vector[new_insert_ind >> 6] &= ~(1 << (new_insert_ind & (0xFF >> 2)));
+
+		// needs to be 1UL otherwise will default to 1 byte
+		new_is_empty_bit_vector[new_insert_ind >> 6] &= ~(1UL << (new_insert_ind & (0xFF >> 2)));
 		seen_cnt += 1;
+
+		// now search after this
+		old_get_next_start_ind = next_old_item_ind + 1;
 	}
 
 
@@ -318,7 +323,9 @@ int insert_fast_table(Fast_Table * fast_table, void * key, void * value) {
 
 	// the bucket's upper bits represent index into the bit vector elements
 	// and the low order 6 bits represent offset into element. Set to 0 
-	(fast_table -> is_empty_bit_vector)[insert_ind >> 6] &= ~(1 << (insert_ind & (0xFF >> 2)));
+
+	// needs to be 1UL otherwise will default to 1 byte
+	(fast_table -> is_empty_bit_vector)[insert_ind >> 6] &= ~(1UL << (insert_ind & (0xFF >> 2)));
 
 
 	// 4.) Potentially resize
@@ -471,7 +478,7 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 	// and the low order 6 bits represent offset into element. 
 
 	// Set to 1 to indicate this bucket is now free 
-	(fast_table -> is_empty_bit_vector)[found_ind >> 6] |= (1 << (found_ind & (0xFF >> 2)));
+	(fast_table -> is_empty_bit_vector)[found_ind >> 6] |= (1UL << (found_ind & (0xFF >> 2)));
 
 
 	// 3.) Check if this removal triggered 
