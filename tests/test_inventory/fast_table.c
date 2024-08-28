@@ -372,6 +372,9 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 	}
 
 	uint64_t size = fast_table -> size;
+	uint64_t key_size_bytes = fast_table -> config -> key_size_bytes;
+	uint64_t value_size_bytes = fast_table -> config -> value_size_bytes;
+
 	uint64_t hash_ind = (fast_table -> config -> hash_func)(key, size);
 
 
@@ -384,18 +387,26 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 	uint64_t * is_empty_bit_vector = fast_table -> is_empty_bit_vector;
 	
 	uint64_t next_empty = get_next_ind_fast_table(is_empty_bit_vector, size, hash_ind, false);
-
+	
 	uint64_t cur_ind = hash_ind;
 
 
-	uint64_t key_size_bytes = fast_table -> config -> key_size_bytes;
-	uint64_t value_size_bytes = fast_table -> config -> value_size_bytes;
-
 	void * cur_table_key = (void *) (((uint64_t) fast_table -> items) + (cur_ind * (key_size_bytes + value_size_bytes)));
 
-	int key_cmp;
+	uint64_t items_to_check;
+	if (cur_ind <= next_empty){
+		items_to_check = next_empty - cur_ind;
+	}
+	// the next empty slot needs to be
+	// wrapped around
+	else{
+		items_to_check = (size - cur_ind) + next_empty + 1;
+	}
 
-	while (cur_ind < next_empty) {
+
+	int key_cmp;
+	uint64_t i = 0;
+	while (i < items_to_check) {
 
 		// compare the key
 		key_cmp = memcmp(key, cur_table_key, key_size_bytes);
@@ -426,6 +437,7 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 		// next empty might have a returned a value that wrapped around
 		// if the whole table
 		cur_ind = (cur_ind + 1) % size;
+		i += 1;
 	}
 	
 	// We didn't find the element
@@ -440,6 +452,7 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 	return fast_table -> config -> max_size;
 }
 
+
 // returns 0 upon successfully removing, -1 on error finding. 
 
 // Note: Might want to have different return value
@@ -451,8 +464,8 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 
 
 	// remove is equivalent to find, except we need to also:
-	//	a.) mark the empty bit
-	//	b.) decrease cnt
+	//	a.) Confirm that other positions can still be found (by replacing as needed)
+	//	b.) mark the empty bit/decrease count
 	//	c.) potentially shrink
 
 
@@ -467,7 +480,59 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 	}
 
 
-	// 2.) If item was found, do proper bookkeeping
+	// 2.) Ensure that we will still be able to find other items that have collided
+	// 		with a hash that is >= to the index we removed
+	uint64_t size = fast_table -> size;
+	uint64_t key_size_bytes = fast_table -> config -> key_size_bytes;
+	uint64_t value_size_bytes = fast_table -> config -> value_size_bytes;
+	uint64_t * is_empty_bit_vector = fast_table -> is_empty_bit_vector;
+	uint64_t next_empty = get_next_ind_fast_table(is_empty_bit_vector, size, found_ind, false);
+
+	uint64_t items_to_check;
+	if (found_ind < next_empty){
+		items_to_check = next_empty - found_ind;
+	}
+	// the next empty slot needs to be
+	// wrapped around
+	else{
+		items_to_check = (size - found_ind) + next_empty + 1;
+	}
+
+	uint64_t i = 0;
+	uint64_t cur_ind = (found_ind + 1) % size;
+	uint64_t hash_ind;
+	void * cur_table_key;
+	void * found_table_key = (void *) (((uint64_t) fast_table -> items) + (found_ind * (key_size_bytes + value_size_bytes)));
+	while (i < items_to_check){ 
+
+		cur_table_key = (void *) (((uint64_t) fast_table -> items) + (cur_ind * (key_size_bytes + value_size_bytes)));
+
+		hash_ind = (fast_table -> config -> hash_func)(key, size);
+
+		// Ref: https://stackoverflow.com/questions/9127207/hash-table-why-deletion-is-difficult-in-open-addressing-scheme
+
+		// If cur_table_key wouldn't be able to be found again we need to move it to the 
+		// found_ind position to ensure that it could be
+		if (((cur_ind > found_ind) && (hash_ind <= found_ind || hash_ind > cur_ind))
+			|| ((found_ind < cur_ind) && (hash_ind <= found_ind && hash_ind > cur_ind))){
+			
+			// perform the replacement
+			memcpy(found_table_key, cur_table_key, key_size_bytes + value_size_bytes);
+
+			// now reset the next time we might need to replace
+			found_ind = cur_ind;
+			found_table_key = cur_table_key;
+		}
+
+		i += 1;
+
+		// update position of cur table key and index
+		cur_ind = (cur_ind + 1) % size;
+		
+
+	}
+
+	// 3.) Do proper bookkeeping. Mark the last empty slot (after re-shuffling) as empty now
 
 	// otherwise we need to update
 	fast_table -> cnt -= 1;
@@ -486,7 +551,6 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 
 	// check if we should shrink
 
-	uint64_t size = fast_table -> size;
 	// now this is updated afer we decremented
 	uint64_t cnt = fast_table -> cnt;
 
