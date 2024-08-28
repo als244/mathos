@@ -472,10 +472,10 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 	// 1.) Search for item!
 
 	// if the item existed this will handle copying if we wanted to
-	uint64_t found_ind = find_fast_table(fast_table, key, to_copy_value, ret_value);
+	uint64_t empty_ind = find_fast_table(fast_table, key, to_copy_value, ret_value);
 
 	// item didn't exist so we immediately return
-	if (found_ind == (fast_table -> config -> max_size)){
+	if (empty_ind == (fast_table -> config -> max_size)){
 		return -1;
 	}
 
@@ -486,23 +486,23 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 	uint64_t key_size_bytes = fast_table -> config -> key_size_bytes;
 	uint64_t value_size_bytes = fast_table -> config -> value_size_bytes;
 	uint64_t * is_empty_bit_vector = fast_table -> is_empty_bit_vector;
-	uint64_t next_empty = get_next_ind_fast_table(is_empty_bit_vector, size, found_ind, false);
+	uint64_t next_empty = get_next_ind_fast_table(is_empty_bit_vector, size, empty_ind, false);
 
 	uint64_t items_to_check;
-	if (found_ind < next_empty){
-		items_to_check = next_empty - found_ind;
+	if (empty_ind < next_empty){
+		items_to_check = next_empty - empty_ind;
 	}
 	// the next empty slot needs to be
 	// wrapped around
 	else{
-		items_to_check = (size - found_ind) + next_empty + 1;
+		items_to_check = (size - empty_ind) + next_empty + 1;
 	}
 
 	uint64_t i = 0;
-	uint64_t cur_ind = (found_ind + 1) % size;
+	uint64_t cur_ind = (empty_ind + 1) % size;
 	uint64_t hash_ind;
 	void * cur_table_key;
-	void * found_table_key = (void *) (((uint64_t) fast_table -> items) + (found_ind * (key_size_bytes + value_size_bytes)));
+	void * empty_table_key = (void *) (((uint64_t) fast_table -> items) + (empty_ind * (key_size_bytes + value_size_bytes)));
 	while (i < items_to_check){ 
 
 		cur_table_key = (void *) (((uint64_t) fast_table -> items) + (cur_ind * (key_size_bytes + value_size_bytes)));
@@ -512,16 +512,16 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 		// Ref: https://stackoverflow.com/questions/9127207/hash-table-why-deletion-is-difficult-in-open-addressing-scheme
 
 		// If cur_table_key wouldn't be able to be found again we need to move it to the 
-		// found_ind position to ensure that it could be
-		if (((cur_ind > found_ind) && (hash_ind <= found_ind || hash_ind > cur_ind))
-			|| ((found_ind < cur_ind) && (hash_ind <= found_ind && hash_ind > cur_ind))){
+		// empty_ind position to ensure that it could be
+		if (((cur_ind > empty_ind) && (hash_ind <= empty_ind || hash_ind > cur_ind))
+			|| ((empty_ind < cur_ind) && (hash_ind <= empty_ind && hash_ind > cur_ind))){
 			
 			// perform the replacement
-			memcpy(found_table_key, cur_table_key, key_size_bytes + value_size_bytes);
+			memcpy(empty_table_key, cur_table_key, key_size_bytes + value_size_bytes);
 
 			// now reset the next time we might need to replace
-			found_ind = cur_ind;
-			found_table_key = cur_table_key;
+			empty_ind = cur_ind;
+			empty_table_key = cur_table_key;
 		}
 
 		i += 1;
@@ -543,7 +543,7 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 	// and the low order 6 bits represent offset into element. 
 
 	// Set to 1 to indicate this bucket is now free 
-	(fast_table -> is_empty_bit_vector)[found_ind >> 6] |= (1UL << (found_ind & (0xFF >> 2)));
+	(fast_table -> is_empty_bit_vector)[empty_ind >> 6] |= (1UL << (empty_ind & (0xFF >> 2)));
 
 
 	// 3.) Check if this removal triggered 
