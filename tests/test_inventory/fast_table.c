@@ -64,6 +64,7 @@ int init_fast_table(Fast_Table * fast_table, Fast_Table_Config * config) {
 
 
 void destroy_fast_table(Fast_Table * fast_table) {
+	free(fast_table -> is_empty_bit_vector);
 	free(fast_table -> items);
 }
 

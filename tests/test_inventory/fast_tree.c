@@ -1874,7 +1874,7 @@ int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void ** prev_value) {
 			}
 			// if there wasn't a matching global new min key, but there is still an 
 			// element in this tree => we know that it means there is a global new max
-			// one element left and it will be the max
+			// one element left and it will be the min+max
 			else{
 				inward_tree_16_ref -> min = global_new_max_key & (0x000000000000FFFF);
 			}
@@ -1951,7 +1951,7 @@ int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void ** prev_value) {
 			}
 			// if there wasn't a matching global new min key, but there is still an 
 			// element in this tree => we know that it means there is a global new max
-			// one element left and it will be the max
+			// one element left and it will be the min+max
 			else{
 				inward_tree_32_ref -> min = global_new_max_key & (0x00000000FFFFFFFF);
 			}

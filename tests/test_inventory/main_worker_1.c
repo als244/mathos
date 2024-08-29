@@ -158,7 +158,7 @@ int main(int argc, char * argv[]){
 	Fast_Tree_Leaf * found_leaf = search_result.fast_tree_leaf;
 	Deque * found_deque = (Deque *) search_result.value;
 
-	printf("Search Key: %lu => Search result found key: %lu\n", search_key, found_key);
+	printf("Search Key: %lu => Search equal/prev result found key: %lu\n", search_key, found_key);
 
 	if (!found_deque){
 		fprintf(stderr, "Error: was expecting the value to be populated with deque, but returned null\n");
@@ -171,7 +171,7 @@ int main(int argc, char * argv[]){
 	elapsed_ns = timestamp_stop - timestamp_start;
 
 
-	printf("Removing key 1024...\n");
+	printf("\nRemoving key 1024...\n\n");
 
 	uint64_t remove_key = 1024;
 
@@ -194,7 +194,7 @@ int main(int argc, char * argv[]){
 	found_leaf = search_result.fast_tree_leaf;
 	found_deque = (Deque *) search_result.value;
 
-	printf("Search Key: %lu => Search result found key: %lu\n", search_key, found_key);
+	printf("Search Key: %lu => Search equal/prev result found key: %lu\n", search_key, found_key);
 
 	if (!found_deque){
 		fprintf(stderr, "Error: was expecting the value to be populated with deque, but returned null\n");
