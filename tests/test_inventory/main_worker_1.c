@@ -60,6 +60,14 @@ int main(int argc, char * argv[]){
 	range_4.num_chunks = 1024;
 	range_4.start_chunk_id = 220;
 
+	Mem_Range range_5;
+	range_5.num_chunks = 222222;
+	range_5.start_chunk_id = 0;
+
+	Mem_Range range_6;
+	range_6.num_chunks = (1UL << 32) + 222222;
+	range_6.start_chunk_id = 0;
+
 
 	Deque * mem_ranges_70 = init_deque(NULL);
 	if (mem_ranges_70 == NULL){
@@ -74,6 +82,20 @@ int main(int argc, char * argv[]){
 	}
 
 	Deque * mem_ranges_1024 = init_deque(NULL);
+	if (mem_ranges_1024 == NULL){
+		fprintf(stderr, "Error: init deque failed\n");
+		return -1;
+	}
+
+
+	Deque * mem_ranges_222222 = init_deque(NULL);
+	if (mem_ranges_1024 == NULL){
+		fprintf(stderr, "Error: init deque failed\n");
+		return -1;
+	}
+
+
+	Deque * mem_ranges_big = init_deque(NULL);
 	if (mem_ranges_1024 == NULL){
 		fprintf(stderr, "Error: init deque failed\n");
 		return -1;
@@ -99,6 +121,18 @@ int main(int argc, char * argv[]){
 	}
 
 	ret = insert_deque(mem_ranges_1024, BACK_DEQUE, &range_4);
+	if (ret != 0){
+		fprintf(stderr, "Error: insert_deque failed\n");
+		return -1;
+	}
+
+	ret = insert_deque(mem_ranges_222222, BACK_DEQUE, &range_5);
+	if (ret != 0){
+		fprintf(stderr, "Error: insert_deque failed\n");
+		return -1;
+	}
+
+	ret = insert_deque(mem_ranges_big, BACK_DEQUE, &range_6);
 	if (ret != 0){
 		fprintf(stderr, "Error: insert_deque failed\n");
 		return -1;
@@ -136,8 +170,20 @@ int main(int argc, char * argv[]){
 		fprintf(stderr, "Error: insert_fast_tree failed\n");
 	}
 
+	ret = insert_fast_tree(fast_tree, 222222, mem_ranges_222222, false, &prev_value);
 
-	uint64_t search_key = 1025;
+	if (ret != 0){
+		fprintf(stderr, "Error: insert_fast_tree failed\n");
+	}
+
+	ret = insert_fast_tree(fast_tree, (1UL << 32) + 222222, mem_ranges_big, false, &prev_value);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: insert_fast_tree failed\n");
+	}
+
+
+	uint64_t search_key = 200000;
 	Fast_Tree_Result search_result;
 	FastTreeSearchModifier search_type = FAST_TREE_EQUAL_OR_PREV;
 	

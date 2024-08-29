@@ -220,6 +220,24 @@ int set_bitvector(uint64_t * bit_vector, uint8_t key){
 	return 0;
 }
 
+bool check_bitvector(uint64_t * bit_vector, uint8_t key){
+
+	// upper 2 bits
+	uint8_t vec_ind = (key & LEAF_VEC_IND_MASK) >> 6;
+	// lower 6 bits
+	uint8_t bit_ind = (key & LEAF_BIT_POS_MASK);
+
+	// check if already set
+
+	// Note: Need to add UL otherwise compiler will assume of type bit_ind
+	if ((bit_vector[vec_ind] & (1UL << bit_ind)) >> bit_ind){
+		return true;
+	}
+
+	return false;
+}
+
+
 void clear_bitvector(uint64_t * bit_vector, uint8_t key){
 
 	// upper 2 bits
@@ -245,7 +263,7 @@ void clear_bitvector(uint64_t * bit_vector, uint8_t key){
 	//			for prev and succ (whose deque items can be then be linked)
 	//	 e.) If no prev setting root -> ordered_leaves -> head to be this newly created deque item
 	//			- and same for tail
-Fast_Tree_Leaf * create_and_link_fast_tree_leaf(Fast_Tree * root, uint8_t key, void * value, bool to_overwrite, void ** prev_value, uint64_t base){
+Fast_Tree_Leaf * create_fast_tree_leaf(Fast_Tree * root, uint8_t key, void * value, bool to_overwrite, void ** prev_value, uint64_t base){
 
 	Fast_Tree_Leaf * fast_tree_leaf = (Fast_Tree_Leaf *) malloc(sizeof(Fast_Tree_Leaf));
 	if (unlikely(!fast_tree_leaf)){
@@ -284,10 +302,17 @@ Fast_Tree_Leaf * create_and_link_fast_tree_leaf(Fast_Tree * root, uint8_t key, v
 	// we just created this leaf so we know there was no previous value
 	*prev_value = NULL;
 	
+	return fast_tree_leaf;
 
-	// need to initialize deque item
-	// neee to call search to get prev and next leaves and link this leaf in between
-	//	- potentially changing the head/tail of root -> ordered_leaves deque
+}
+
+
+void link_fast_tree_leaf(Fast_Tree * root, Fast_Tree_Leaf * fast_tree_leaf){
+
+	int ret;
+
+	uint64_t base = fast_tree_leaf -> base;
+
 
 	Fast_Tree_Result leaf_search;
 
@@ -325,39 +350,15 @@ Fast_Tree_Leaf * create_and_link_fast_tree_leaf(Fast_Tree * root, uint8_t key, v
 			}
 		}
 	}
-	return fast_tree_leaf;
-
-}
-
-void destroy_and_unlink_fast_tree_leaf(Fast_Tree * root, Fast_Tree_Leaf * fast_tree_leaf){
-
-	if (fast_tree_leaf -> values.items != NULL){
-		destroy_fast_table(&(fast_tree_leaf -> values));
-	}
-
-	Fast_Tree_Leaf * prev_leaf = fast_tree_leaf -> prev;
-	Fast_Tree_Leaf * next_leaf = fast_tree_leaf -> next;
-
-	if (prev_leaf){
-		prev_leaf -> next = next_leaf;
-	}
-	// if there was no previous we know this was at the head of ordered_leaves
-	else{
-		root -> ordered_leaves = next_leaf;
-	}
-
-	if (next_leaf){
-		next_leaf -> prev = prev_leaf;
-	}
-
-	free(fast_tree_leaf);
-
 	return;
+
 }
+
+
 
 
 // Called by 32 inserting into an Fast_Tree_16 associated with main tree
-int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key, void * value, bool to_overwrite, void ** prev_value, uint64_t base){
+int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key, void * value, bool to_overwrite, void ** prev_value, uint64_t base, bool * element_inserted, Fast_Tree_Leaf ** new_main_leaf){
 
 	if (fast_tree -> inward_leaves.items == NULL){
 		int init_ret = init_fast_table(&(fast_tree -> inward_leaves), root -> table_config_main_leaf);
@@ -365,6 +366,8 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 			fprintf(stderr, "Error: failure to init inward_leaves table from main_16\n");
 			return -1;
 		}
+		fast_tree -> outward_leaf.min = 0xFF;
+		fast_tree -> outward_leaf.max = 0;
 		memset(fast_tree -> outward_leaf.bit_vector, 0, 4 * sizeof(uint64_t));
 	}
 
@@ -374,8 +377,6 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 	if (key > fast_tree -> max){
 		fast_tree -> max = key;
 	}
-
-	fast_tree -> cnt += 1;
 
 	uint8_t ind_8 = (key & IND_8_MASK) >> 8;
 	uint8_t off_8 = (key & OFF_8_MASK);
@@ -394,15 +395,22 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 	// also means that ind_32 wan't inserted into the outward root
 	if (!inward_leaf_ref){
 
+
+		*element_inserted = true;
+		fast_tree -> cnt += 1;
+
+
 		// SHOULD CREATE AND LINK LEAVES HERE!
 
 		// responsible for allocating memory for leaf, initializing table for values, inserting value, 
 		// creating deque item, linking deque item (and potentially linked to root deque -> head/tail)
-		inward_leaf = create_and_link_fast_tree_leaf(root, off_8, value, to_overwrite, prev_value, base + (uint64_t) (ind_8 << 8));
+		inward_leaf = create_fast_tree_leaf(root, off_8, value, to_overwrite, prev_value, base + (uint64_t) (ind_8 << 8));
 		if (!inward_leaf){
 			fprintf(stderr, "Error: failure to create and link fast tree leaf\n");
 			return -1;
 		}
+
+		*new_main_leaf = inward_leaf;
 
 		uintptr_t inward_leaf_ptr = (uintptr_t) inward_leaf;
 
@@ -426,6 +434,8 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 	}
 	else{
 
+		*new_main_leaf = NULL;
+
 		inward_leaf = *inward_leaf_ref;
 
 		// This leaf was already in the table so we need to add the key to leaf and potentially get old value & insert/overwrite value
@@ -437,6 +447,8 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 
 		// this Key was Already in the Tree
 		if (in_bitvector != 0){
+
+			*element_inserted = false;
 			
 			// have prev_value_table be a pointer within the table, so we can overwrite it if that
 			// flag was set
@@ -462,6 +474,9 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 			}
 		}
 		else{
+
+			*element_inserted = true;
+			fast_tree -> cnt += 1;
 
 			inward_leaf -> cnt += 1;
 			if (off_8 < inward_leaf -> min){
@@ -496,6 +511,8 @@ int insert_fast_tree_nonmain_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint
 			fprintf(stderr, "Error: failure to init inward_leaves table from nonmain_16\n");
 			return -1;
 		}
+		fast_tree -> outward_leaf.min = 0xFF;
+		fast_tree -> outward_leaf.max = 0;
 		memset(fast_tree -> outward_leaf.bit_vector, 0, 4 * sizeof(uint64_t));
 	}
 
@@ -525,6 +542,10 @@ int insert_fast_tree_nonmain_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint
 
 		memset(new_inward_leaf.bit_vector, 0, 4 * sizeof(uint64_t));
 		set_bitvector(new_inward_leaf.bit_vector, off_8);
+
+		new_inward_leaf.min = off_8;
+		new_inward_leaf.max = off_8;
+
 		ret = insert_fast_table(&(fast_tree -> inward_leaves), &ind_8, &new_inward_leaf);
 		if (unlikely(ret != 0)){
 			fprintf(stderr, "Error: failure to insert tree into table from nonmain_16\n");
@@ -568,6 +589,8 @@ int insert_fast_tree_outward_16(Fast_Tree * root, Fast_Tree_Outward_Root_16 * fa
 			fprintf(stderr, "Error: failure to init inward_leaves table from outward_16\n");
 			return -1;
 		}
+		fast_tree -> outward_leaf.min = 0xFF;
+		fast_tree -> outward_leaf.max = 0;
 		memset(fast_tree -> outward_leaf.bit_vector, 0, 4 * sizeof(uint64_t));
 	}
    	
@@ -588,7 +611,12 @@ int insert_fast_tree_outward_16(Fast_Tree * root, Fast_Tree_Outward_Root_16 * fa
 
 		// the outward_16 tree's have had their inward_leaves table initialized by parent
 		memset(new_inward_leaf.bit_vector, 0, 4 * sizeof(uint64_t));
+
+		new_inward_leaf.min = off_8;
+		new_inward_leaf.max = off_8;
+		
 		set_bitvector(new_inward_leaf.bit_vector, off_8);
+		
 		ret = insert_fast_table(&(fast_tree -> inward_leaves), &ind_8, &new_inward_leaf);
 		if (unlikely(ret != 0)){
 			fprintf(stderr, "Error: failure to insert tree into table from outward_16\n");
@@ -619,7 +647,7 @@ int insert_fast_tree_outward_16(Fast_Tree * root, Fast_Tree_Outward_Root_16 * fa
 
 }
 
-int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key, void * value, bool to_overwrite, void ** prev_value, uint64_t base){
+int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key, void * value, bool to_overwrite, void ** prev_value, uint64_t base, bool * element_inserted, Fast_Tree_Leaf ** new_main_leaf){
 
 	if (fast_tree -> inward.items == NULL){
 		// the cnt will be incremented within the next function call (insert_fast_tree_nonmain_16)
@@ -638,8 +666,6 @@ int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key
 		fast_tree -> max = key;
 	}
 
-	fast_tree -> cnt += 1;
-
 	uint16_t ind_16 = (key & IND_16_MASK) >> 16;
 	uint16_t off_16 = (key & OFF_16_MASK);
 
@@ -654,6 +680,9 @@ int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key
 
 		// the cnt will be incremented within the next function call (insert_fast_tree_16)
 		memset(&new_inward_tree_16, 0, sizeof(Fast_Tree_16));
+
+		new_inward_tree_16.min = off_16;
+		new_inward_tree_16.max = off_16;
 
 		ret = insert_fast_table(&(fast_tree -> inward), &ind_16, &new_inward_tree_16);
 		if (unlikely(ret != 0)){
@@ -672,7 +701,12 @@ int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key
 	}
 	
 
-	ret = insert_fast_tree_16(root, inward_tree_16_ref, off_16, value, to_overwrite, prev_value, base + (uint64_t) ((ind_16) << 16));
+	ret = insert_fast_tree_16(root, inward_tree_16_ref, off_16, value, to_overwrite, prev_value, base + (uint64_t) ((ind_16) << 16), element_inserted, new_main_leaf);
+
+	if (*element_inserted){
+		fast_tree -> cnt += 1;
+	}
+
 	return ret;
 
 }
@@ -695,6 +729,9 @@ int insert_fast_tree_outward_32(Fast_Tree * root, Fast_Tree_Outward_Root_32 * fa
 		Fast_Tree_16 new_inward_tree_16;
 
 		memset(&new_inward_tree_16, 0, sizeof(Fast_Tree_16));
+
+		new_inward_tree_16.min = off_16;
+		new_inward_tree_16.max = off_16;
 
 		ret = insert_fast_table(&(fast_tree -> inward), &ind_16, &new_inward_tree_16);
 		if (unlikely(ret != 0)){
@@ -723,17 +760,6 @@ int insert_fast_tree_outward_32(Fast_Tree * root, Fast_Tree_Outward_Root_32 * fa
 // if key was already in the tree and had a non-null value, then copies the previous value into prev_value
 int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_overwrite, void ** prev_value) {
 
-	// SHOULD CHECK IF KEY EXISTS FIRST
-
-	if (key < fast_tree -> min){
-		fast_tree -> min = key;
-	}
-	if (key > fast_tree -> max){
-		fast_tree -> max = key;
-	}
-
-	fast_tree -> cnt += 1;
-
 	uint32_t ind_32 = (key & IND_32_MASK) >> 32;
 	uint32_t off_32 = (key & OFF_32_MASK);
 
@@ -741,6 +767,7 @@ int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_
 	
 	// NOT COPYING THE VALUE, JUST SETTING REF
 	uint64_t ret = find_fast_table(&(fast_tree -> inward), &ind_32, false, (void **) &inward_tree_32_ref);
+
 	// not in the tree so we need to create
 	// also means that ind_32 wan't inserted into the outward root
 	if (!inward_tree_32_ref){
@@ -748,6 +775,9 @@ int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_
 		Fast_Tree_32 new_inward_tree_32;
 
 		memset(&new_inward_tree_32, 0, sizeof(Fast_Tree_32));
+
+		new_inward_tree_32.min = off_32;
+		new_inward_tree_32.max = off_32;
 
 		ret = insert_fast_table(&(fast_tree -> inward), &ind_32, &new_inward_tree_32);
 		if (unlikely(ret != 0)){
@@ -766,24 +796,32 @@ int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_
 
 	}
 	
-	ret = insert_fast_tree_32(fast_tree, inward_tree_32_ref, off_32, value, to_overwrite, prev_value, (uint64_t) ind_32 << 32);
+
+	bool element_inserted = false;
+
+	Fast_Tree_Leaf * new_main_leaf = NULL;
+	ret = insert_fast_tree_32(fast_tree, inward_tree_32_ref, off_32, value, to_overwrite, prev_value, (uint64_t) ind_32 << 32, &element_inserted, &new_main_leaf);
+
+	if (new_main_leaf){
+		link_fast_tree_leaf(fast_tree, new_main_leaf);
+	}
+
+	if (element_inserted){
+		fast_tree -> cnt += 1;
+	}
+
+	if (key < fast_tree -> min){
+		fast_tree -> min = key;
+	}
+	if (key > fast_tree -> max){
+		fast_tree -> max = key;
+	}
+
 	return ret;
 
 
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -849,6 +887,7 @@ uint8_t lookup_bitvector_prev(uint64_t * bit_vector, uint8_t key){
 
 	uint8_t cur_val = 64 * vec_ind;
 	uint8_t cur_vec_ind = vec_ind;
+	
 	int found_element_pos;
 	while (cur_vec_ind >= 0){
 
@@ -856,6 +895,7 @@ uint8_t lookup_bitvector_prev(uint64_t * bit_vector, uint8_t key){
 			cur_val -= 64;
 			cur_vec_ind -= 1;
 			cur_search_vec = bit_vector[cur_vec_ind];
+			continue;
 		}
 
 		// get highest order set bit position
@@ -893,6 +933,7 @@ uint8_t lookup_bitvector_next(uint64_t * bit_vector, uint8_t key){
 			cur_val += 64;
 			cur_vec_ind += 1;
 			cur_search_vec = bit_vector[cur_vec_ind];
+			continue;
 		}
 
 		// get lowest order set bit position
@@ -1344,19 +1385,6 @@ int search_next_fast_tree_16(Fast_Tree_16 * fast_tree, uint16_t search_key, Fast
 
 int search_next_fast_tree_nonmain_16(Fast_Tree_16 * fast_tree, uint16_t search_key, Fast_Tree_Result * ret_search_result){
 
-	// We can return early if key is less than min or greater than max
-
-	// Don't want to return early if main tree, because we want to set the
-	// leaf and value within search result to prevent an additional traversa
-
-	if (search_key <= fast_tree -> min){
-		return fast_tree -> min;
-	}
-
-	if (search_key == fast_tree -> max){
-		return fast_tree -> max;
-	}
-
 	uint8_t ind_8 = (search_key & IND_8_MASK) >> 8;
 	uint8_t off_8 = (search_key & OFF_8_MASK);
 
@@ -1740,11 +1768,339 @@ int search_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchM
 }
 
 
+void destroy_and_unlink_fast_tree_leaf(Fast_Tree * root, Fast_Tree_Leaf * fast_tree_leaf, uint64_t * global_new_min_key, uint64_t * global_new_max_key){
+
+	if (fast_tree_leaf -> values.items != NULL){
+		destroy_fast_table(&(fast_tree_leaf -> values));
+	}
+
+	Fast_Tree_Leaf * prev_leaf = fast_tree_leaf -> prev;
+	Fast_Tree_Leaf * next_leaf = fast_tree_leaf -> next;
+
+	if (prev_leaf){
+		*global_new_max_key = prev_leaf -> base + prev_leaf -> max;
+		prev_leaf -> next = next_leaf;
+	}
+	// if there was no previous we know this was at the head of ordered_leaves
+	else{
+		root -> ordered_leaves = next_leaf;
+	}
+
+	if (next_leaf){
+		*global_new_min_key = next_leaf -> base + next_leaf -> min;
+		next_leaf -> prev = prev_leaf;
+	}
+
+	free(fast_tree_leaf);
+
+	return;
+}
+
+int remove_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key, uint64_t * global_new_min_key, uint64_t * global_new_max_key, bool * element_removed, bool * tree_removed, void ** prev_value){
+
+	// OUTWARD ROOT 32 HAS ALREADY INITIALIZED TABLE FROM INIT_FAST_TREE()
+
+	*tree_removed = false;
+
+	uint8_t ind_8 = (key & IND_8_MASK) >> 8;
+	uint8_t off_8 = (key & OFF_8_MASK);
+
+	Fast_Tree_Leaf ** inward_leaf_ref = NULL;
+	Fast_Tree_Outward_Leaf * outward_leaf_ref = &(fast_tree -> outward_leaf);
+
+	find_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, (void **) &inward_leaf_ref);
+
+	if (!inward_leaf_ref){
+		*element_removed = false;
+		return 0;
+	}
+
+	Fast_Tree_Leaf * main_leaf = *inward_leaf_ref;
+
+	bool in_leaf = check_bitvector(main_leaf -> bit_vector, off_8);
+	if (!in_leaf){
+		*element_removed = false;
+		return 0;
+	}
+
+	clear_bitvector(main_leaf -> bit_vector, off_8);
+	*element_removed = true;
+
+	fast_tree -> cnt -= 1;
+
+	*prev_value = get_value_from_leaf(main_leaf, off_8);
+
+
+
+	if ((main_leaf -> min == off_8) && (main_leaf -> max == off_8)){
+		destroy_and_unlink_fast_tree_leaf(root, main_leaf, global_new_min_key, global_new_max_key);
+
+		remove_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, NULL);
+
+		clear_bitvector(outward_leaf_ref -> bit_vector, ind_8);
+
+		if ((outward_leaf_ref -> min == ind_8) && (outward_leaf_ref -> max == ind_8)){
+			destroy_fast_table(&(fast_tree -> inward_leaves));
+			*tree_removed = true;
+			return 0;
+		}
+		else if (outward_leaf_ref -> min == ind_8){
+			outward_leaf_ref -> min = lookup_bitvector_next(outward_leaf_ref -> bit_vector, ind_8);
+		}
+		else if (outward_leaf_ref -> max == ind_8){
+			outward_leaf_ref -> max = lookup_bitvector_next(outward_leaf_ref -> bit_vector, ind_8);
+		}
+
+	}
+	else if (main_leaf -> min == off_8){
+		main_leaf -> min = lookup_bitvector_next(main_leaf -> bit_vector, off_8);
+		*global_new_min_key = main_leaf -> base + main_leaf -> min;
+	}
+	else if (main_leaf -> max == off_8){
+		main_leaf -> max = lookup_bitvector_prev(main_leaf -> bit_vector, off_8);
+		*global_new_max_key = main_leaf -> base + main_leaf -> max;
+	}
+
+
+	if (fast_tree -> min == key){
+		// IF THERE WERE 2 ELEMENTS IN THE TREE BEFORE THEN MIN
+		// MIGHT NOT HAVE BEEN SET...?
+		if (key < (*global_new_min_key & 0x0000000000FFFF)){
+			fast_tree -> min = (*global_new_min_key & 0x0000000000FFFF);
+		}
+		else{
+			fast_tree -> min = (*global_new_max_key & 0x0000000000FFFF);
+		}
+	}
+	else if (fast_tree -> max == key){
+		if (key > (*global_new_max_key & 0x0000000000FFFF)){
+			fast_tree -> max = (*global_new_max_key & 0x0000000000FFFF);
+		}
+		else{
+			fast_tree -> max = (*global_new_min_key & 0x0000000000FFFF);
+		}
+	}
+
+
+	return 0;
+}
+
+
+int remove_fast_tree_nonmain_16(Fast_Tree_16 * fast_tree, uint16_t key, bool * tree_removed){
+
+	// OUTWARD ROOT 32 HAS ALREADY INITIALIZED TABLE FROM INIT_FAST_TREE()
+
+	*tree_removed = false;
+
+	uint8_t ind_8 = (key & IND_8_MASK) >> 8;
+	uint8_t off_8 = (key & OFF_8_MASK);
+
+	Fast_Tree_Outward_Leaf * inward_leaf_ref = NULL;
+	Fast_Tree_Outward_Leaf * outward_leaf_ref = &(fast_tree -> outward_leaf);
+
+	find_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, (void **) &inward_leaf_ref);
+
+	clear_bitvector(inward_leaf_ref -> bit_vector, off_8);
+	
+	
+	uint16_t new_min = key;
+	uint16_t new_max = key;
+	// Removing from outward tree implies we know that the inward tree exists
+
+	// we can remove this leaf if this was the last element left
+	if ((inward_leaf_ref -> min == off_8) && (inward_leaf_ref -> max == off_8)){
+
+		remove_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, NULL);
+
+		clear_bitvector(outward_leaf_ref -> bit_vector, ind_8);
+
+		Fast_Tree_Leaf * new_min_max_leaf;
+
+		// if this was the last leaf in the tree we should remove the tree
+		if ((outward_leaf_ref -> min == ind_8) && (outward_leaf_ref -> max == ind_8)){
+			destroy_fast_table(&(fast_tree -> inward_leaves));
+			*tree_removed = true;
+			return 0;
+		}
+		else if (outward_leaf_ref -> min == ind_8){
+			outward_leaf_ref -> min = lookup_bitvector_next(outward_leaf_ref -> bit_vector, ind_8);
+			find_fast_table(&(fast_tree -> inward_leaves), &outward_leaf_ref -> min, false, (void **) &new_min_max_leaf);
+			new_min = (uint16_t) (outward_leaf_ref -> min << 8) + (uint16_t) new_min_max_leaf -> min;
+		}
+		else if (outward_leaf_ref -> max == ind_8){
+			outward_leaf_ref -> max = lookup_bitvector_prev(outward_leaf_ref -> bit_vector, ind_8);
+			find_fast_table(&(fast_tree -> inward_leaves), &outward_leaf_ref -> max, false, (void **) &new_min_max_leaf);
+			new_max = (uint16_t) (outward_leaf_ref -> max << 8) + (uint16_t) new_min_max_leaf -> max;
+		}
+	}
+	else if (inward_leaf_ref -> min == off_8){
+		inward_leaf_ref -> min = lookup_bitvector_next(inward_leaf_ref -> bit_vector, off_8);
+		new_min = (uint16_t) (ind_8 << 8) + (uint16_t) inward_leaf_ref -> min;
+	}
+	else if (inward_leaf_ref -> max == off_8){
+		inward_leaf_ref -> max = lookup_bitvector_prev(inward_leaf_ref -> bit_vector, off_8);
+		new_max = (uint16_t) (ind_8 << 8) + (uint16_t) inward_leaf_ref -> max;
+	}
+
+	if (fast_tree -> min == key){
+		fast_tree -> min = new_min;
+	}
+	else if (fast_tree -> max == key){
+		fast_tree -> max = new_max;
+	}
+
+	return 0;
+}
+
+
+int remove_fast_tree_outward_16(Fast_Tree_Outward_Root_16 * fast_tree, uint16_t key, bool * tree_removed){
+
+	// OUTWARD ROOT 32 HAS ALREADY INITIALIZED TABLE FROM INIT_FAST_TREE()
+
+	*tree_removed = false;
+
+	uint8_t ind_8 = (key & IND_8_MASK) >> 8;
+	uint8_t off_8 = (key & OFF_8_MASK);
+
+	Fast_Tree_Outward_Leaf * inward_leaf_ref = NULL;
+	Fast_Tree_Outward_Leaf * outward_leaf_ref = &(fast_tree -> outward_leaf);
+
+	find_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, (void **) &inward_leaf_ref);
+
+	clear_bitvector(inward_leaf_ref -> bit_vector, off_8);
+	
+	// Removing from outward tree implies we know that the inward tree exists
+
+	// we can remove this leaf if this was the last element left
+	if ((inward_leaf_ref -> min == off_8) && (inward_leaf_ref -> max == off_8)){
+
+		remove_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, NULL);
+
+		clear_bitvector(outward_leaf_ref -> bit_vector, ind_8);
+
+		// if this was the last leaf in the tree we should remove the tree
+		if ((outward_leaf_ref -> min == ind_8) && (outward_leaf_ref -> max == ind_8)){
+			destroy_fast_table(&(fast_tree -> inward_leaves));
+			*tree_removed = true;
+			return 0;
+		}
+		else if (outward_leaf_ref -> min == ind_8){
+			outward_leaf_ref -> min = lookup_bitvector_next(outward_leaf_ref -> bit_vector, ind_8);
+		}
+		else if (outward_leaf_ref -> max == ind_8){
+			outward_leaf_ref -> max = lookup_bitvector_prev(outward_leaf_ref -> bit_vector, ind_8);
+		}
+	}
+	else if (inward_leaf_ref -> min == off_8){
+
+		inward_leaf_ref -> min = lookup_bitvector_next(inward_leaf_ref -> bit_vector, off_8);
+	}
+	else if (inward_leaf_ref -> max == off_8){
+		inward_leaf_ref -> max = lookup_bitvector_prev(inward_leaf_ref -> bit_vector, off_8);
+	}
+
+	return 0;
+}
+
+int remove_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key, uint64_t * global_new_min_key, uint64_t * global_new_max_key, bool * element_removed, bool * tree_removed, void ** prev_value){
+
+	
+	*tree_removed = false;
+
+	uint16_t ind_16 = (key & IND_16_MASK) >> 16;
+	uint16_t off_16 = (key & OFF_16_MASK);
+
+	Fast_Tree_16 * inward_tree_16_ref = NULL;
+
+	find_fast_table(&(fast_tree -> inward), &ind_16, false, (void **) &inward_tree_16_ref);
+	// not in the tree so we need to create
+	// also means that ind_32 wan't inserted into the outward root
+	if (!inward_tree_16_ref){
+		*element_removed = false;
+		return 0;
+	}
+
+	bool child_tree_removed = false;
+	int status = remove_fast_tree_16(root, inward_tree_16_ref, off_16, global_new_min_key, global_new_max_key, element_removed, &child_tree_removed, prev_value);
+
+	if (!element_removed){
+		return 0;
+	}
+
+	fast_tree -> cnt -= 1;
+
+	if (child_tree_removed){
+		// remove this tree from table
+		remove_fast_table(&(fast_tree -> inward), &ind_16, false, NULL);
+
+		// we need to remove ind_16 from the outward root as well
+		bool outward_removed = false;
+		remove_fast_tree_outward_16(&(fast_tree -> outward_root), ind_16, &outward_removed);
+		if (outward_removed){
+			destroy_fast_table(&(fast_tree -> inward));
+			*tree_removed = true;
+			return 0;
+		}
+	}
+
+	if (fast_tree -> min == key){
+		if (key < (*global_new_min_key & 0x000000FFFFFFFF)){
+			fast_tree -> min = (*global_new_min_key & 0x000000FFFFFFFF);
+		}
+		else{
+			fast_tree -> min = (*global_new_max_key & 0x000000FFFFFFFF);
+		}
+	}
+	else if (fast_tree -> max == key){
+		if (key > (*global_new_max_key & 0x000000FFFFFFFF)){
+			fast_tree -> max = (*global_new_max_key & 0x000000FFFFFFFF);
+		}
+		else{
+			fast_tree -> max = (*global_new_min_key & 0x000000FFFFFFFF);
+		}
+	}
+
+	return status;
+
+}
+
+int remove_fast_tree_outward_32(Fast_Tree_Outward_Root_32 * fast_tree, uint32_t key){
+
+	uint16_t ind_16 = (key & IND_16_MASK) >> 16;
+	uint16_t off_16 = (key & OFF_16_MASK);
+
+	Fast_Tree_16 * inward_tree_16_ref = NULL;
+
+	find_fast_table(&(fast_tree -> inward), &ind_16, false, (void **) &inward_tree_16_ref);
+
+	bool child_tree_removed;
+	int status = remove_fast_tree_nonmain_16(inward_tree_16_ref, off_16, &child_tree_removed);
+	
+	if (child_tree_removed){
+
+		bool outward_removed = false;
+		remove_fast_tree_outward_16(&(fast_tree -> outward_root), ind_16, &outward_removed);
+		if (outward_removed){
+			destroy_fast_table(&(fast_tree -> inward));
+			return 0;
+		}
+	}
+
+	return status;
+
+
+}
 
 // returns 0 on success -1 on error
-// fails is key is not in the tree
+// fails is key is already in the tree and overwrite set to false
+// if key was already in the tree and had a non-null value, then copies the previous value into prev_value
 int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void ** prev_value) {
 
+	*prev_value = NULL;
+
+	if ((fast_tree -> cnt == 0) || ((key < fast_tree -> min) || (key > fast_tree -> max))){	
+		return -1;
+	}	
 
 	uint32_t ind_32 = (key & IND_32_MASK) >> 32;
 	uint32_t off_32 = (key & OFF_32_MASK);
@@ -1752,335 +2108,44 @@ int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void ** prev_value) {
 	Fast_Tree_32 * inward_tree_32_ref = NULL;
 
 	find_fast_table(&(fast_tree -> inward), &ind_32, false, (void **) &inward_tree_32_ref);
-
+	// not in the tree so we need to create
+	// also means that ind_32 wan't inserted into the outward root
 	if (!inward_tree_32_ref){
 		return -1;
 	}
 
-	uint16_t ind_16 = (off_32 & IND_16_MASK) >> 16;
-	uint16_t off_16 = (off_32 & OFF_16_MASK);
-
-	Fast_Tree_16 * inward_tree_16_ref = NULL;
-
-	find_fast_table(&(inward_tree_32_ref -> inward), &ind_16, false, (void **) &inward_tree_16_ref);
-
-	if (!inward_tree_16_ref){
-		return -1;
-	}
-
-	uint8_t ind_8 = (off_16 & IND_8_MASK) >> 8;
-
-	Fast_Tree_Leaf ** fast_tree_leaf_ref = NULL;
-
-	find_fast_table(&(inward_tree_16_ref -> inward_leaves), &ind_8, false, (void **) &fast_tree_leaf_ref);
-
-	if (!fast_tree_leaf_ref){
-		return -1;
-	}
-
-	// we already checked that the reference was non-null, so we know leaf exists
-	Fast_Tree_Leaf * fast_tree_leaf = *fast_tree_leaf_ref;
-
-	uint8_t off_8 = (off_16 & OFF_8_MASK);
-	uint8_t next_key = lookup_bitvector_next(fast_tree_leaf -> bit_vector, off_8);
-
-	if (next_key != off_8){
-		return -1;
-	}
-
-
-	// NOW WE KNOW THAT KEY EXISTS
-	*prev_value = get_value_from_leaf(fast_tree_leaf, off_8);
-
-
-	// Can decrement the count off all the main trees now
-	fast_tree -> cnt -= 1;
-	inward_tree_32_ref -> cnt -= 1;
-	inward_tree_16_ref -> cnt -= 1;
-	fast_tree_leaf -> cnt -= 1;
-
-	// Removing from main leaf
-	clear_bitvector(fast_tree_leaf -> bit_vector, off_8);
-
-	// Storing these values in case the removed value
-	// was a minimum (so new minimum will be successor)
-	// or a maximum (so new maximum will be a predecessor)
+	bool child_tree_removed = false;
+	bool element_removed = false;
 
 	uint64_t global_new_min_key = key;
 	uint64_t global_new_max_key = key;
 
-	Fast_Tree_Leaf * prev_leaf = fast_tree_leaf -> prev;
-	Fast_Tree_Leaf * next_leaf = fast_tree_leaf -> next;
+	remove_fast_tree_32(fast_tree, inward_tree_32_ref, off_32, &global_new_min_key, &global_new_max_key, &element_removed, &child_tree_removed, prev_value);
 
-	if (next_leaf){
-		global_new_min_key = next_leaf -> base + next_leaf -> min;
+	if (!element_removed){
+		return -1;
 	}
 
-	if (prev_leaf){
-		global_new_max_key = prev_leaf -> base + prev_leaf -> max;
+	fast_tree -> cnt -= 1;
+
+	if (child_tree_removed){
+		remove_fast_tree_outward_32(&(fast_tree -> outward_root), ind_32);
 	}
 
-
-	// we know there is a still another value in this leaf, so
-	if (fast_tree_leaf -> cnt > 0){
-		if (fast_tree_leaf -> min == off_8){
-			fast_tree_leaf -> min = lookup_bitvector_next(fast_tree_leaf -> bit_vector, off_8);
-			global_new_min_key = fast_tree_leaf -> base + fast_tree_leaf -> min;
-		}
-		// we know this is an else if, because if it was both min/max then cnt would now equal 0
-		else if (fast_tree_leaf -> max == off_8){
-			fast_tree_leaf -> max = lookup_bitvector_prev(fast_tree_leaf -> bit_vector, off_8);
-			global_new_max_key = fast_tree_leaf -> base + fast_tree_leaf -> max;
-		}
-		else{
-			// we know that this was not a min or max of the leaf, so wouldn't be
-			// a min or max of higher levels and the leaf isn't being deleted. Thus we are done
-			return 0;
-		}
-	}
-	// NOW we know we are removing the leaf
-	else{
-
-		destroy_and_unlink_fast_tree_leaf(fast_tree, fast_tree_leaf);
-
-		// now we have to remove this leaf from the parent table
-		remove_fast_table(&(inward_tree_16_ref -> inward_leaves), &ind_8, false, NULL);
-		
-		
-		// We also have to remove the outward leaf
-
-		clear_bitvector(inward_tree_16_ref -> outward_leaf.bit_vector, ind_8);
-			
-		// if this was the only leaf part of this tree we need to remove the tree
-		
-		if ((inward_tree_16_ref -> outward_leaf.min == ind_8) && (inward_tree_16_ref -> outward_leaf.max == ind_8)){
-			// this implies that inward_tree_16_ref -> cnt == 0
-		}
-		else if (inward_tree_16_ref -> outward_leaf.min == ind_8){
-			inward_tree_16_ref -> outward_leaf.min = lookup_bitvector_next(inward_tree_16_ref -> outward_leaf.bit_vector, ind_8);
-		}
-		else if (inward_tree_16_ref -> outward_leaf.max == ind_8){
-			inward_tree_16_ref -> outward_leaf.max = lookup_bitvector_prev(inward_tree_16_ref -> outward_leaf.bit_vector, ind_8);
-		}
-	}
-
-
-	if (inward_tree_16_ref -> cnt > 0){
-
-		if (inward_tree_16_ref -> min == off_16){
-
-			if ((global_new_min_key != key) && ((global_new_min_key >> 16) == (key >> 16))){
-				inward_tree_16_ref -> min = global_new_min_key & (0x000000000000FFFF);
-			}
-			// if there wasn't a matching global new min key, but there is still an 
-			// element in this tree => we know that it means there is a global new max
-			// one element left and it will be the min+max
-			else{
-				inward_tree_16_ref -> min = global_new_max_key & (0x000000000000FFFF);
-			}
-
-
-		}
-		else if (inward_tree_16_ref -> max == off_16){
-
-			if ((global_new_max_key != key) && ((global_new_max_key >> 16) == (key >> 16))){
-				inward_tree_16_ref -> max = global_new_min_key & (0x000000000000FFFF);
-			}
-			else{
-				inward_tree_16_ref -> max = global_new_min_key & (0x000000000000FFFF);
-			}
-		}
-		else{
-			// we know that this was not a min or max of the 16 tree, so wouldn't be
-			// a min or max of higher levels and the leaf isn't being deleted. Thus we are done
-			return 0;
-		}
-	}
-	else{
-
-		destroy_fast_table(&(inward_tree_16_ref -> inward_leaves));
-
-		// now we have to remove this tree from the parent table
-		remove_fast_table(&(inward_tree_32_ref -> inward), &ind_16, false, NULL);
-
-		// We also have to remove reference to this tree this from the auxilary outward root
-		uint8_t ind_ind_8 = (ind_16 & IND_8_MASK) >> 8;
-		uint8_t ind_off_8 = (ind_16 & OFF_8_MASK);
-
-		Fast_Tree_Outward_Root_16 * outward_tree_16_ref = &(inward_tree_32_ref -> outward_root);
-
-		Fast_Tree_Outward_Leaf * outward_inward_leaf_ref;
-		find_fast_table(&(outward_tree_16_ref -> inward_leaves), &ind_ind_8, false, (void **) &outward_inward_leaf_ref);
-
-		// Removing from outward leaf
-		clear_bitvector(outward_inward_leaf_ref -> bit_vector, ind_off_8);
-
-		if ((outward_inward_leaf_ref -> min == ind_off_8) && (outward_inward_leaf_ref -> max == ind_off_8)){
-			// now we need to remove the ind_ind_8 table
-			remove_fast_table(&(outward_tree_16_ref -> inward_leaves), &ind_ind_8, false, NULL);
-
-			clear_bitvector(outward_tree_16_ref -> outward_leaf.bit_vector, ind_ind_8);
-			// now we removed this leaf so we need to potentially update the outer
-
-			// if this was the only 16-bit index in the 32-bit tree we should remove the tree
-			if ((outward_tree_16_ref -> outward_leaf.min == ind_ind_8) && (outward_tree_16_ref -> outward_leaf.max == ind_ind_8)){
-				destroy_fast_table(&(outward_tree_16_ref -> inward_leaves));
-			}
-			else if (outward_tree_16_ref -> outward_leaf.min == ind_ind_8){
-				outward_tree_16_ref -> outward_leaf.min = lookup_bitvector_next(outward_tree_16_ref -> outward_leaf.bit_vector, ind_ind_8);
-			}
-			else if (outward_tree_16_ref -> outward_leaf.max == ind_ind_8){
-				outward_tree_16_ref -> outward_leaf.max = lookup_bitvector_prev(outward_tree_16_ref -> outward_leaf.bit_vector, ind_ind_8);
-			}
-		}
-		else if (outward_inward_leaf_ref -> min == ind_off_8){
-			outward_inward_leaf_ref -> min = lookup_bitvector_next(outward_inward_leaf_ref -> bit_vector, ind_off_8);
-		}
-		else if (outward_inward_leaf_ref -> max == ind_off_8){
-			outward_inward_leaf_ref -> max = lookup_bitvector_prev(outward_inward_leaf_ref -> bit_vector, ind_off_8);
-		}
-	}
-	
-
-	if (inward_tree_32_ref -> cnt > 0){
-
-		if (inward_tree_32_ref -> min == off_32){
-
-			if ((global_new_min_key != key) && ((global_new_min_key >> 32) == (key >> 32))){
-				inward_tree_32_ref -> min = global_new_min_key & (0x00000000FFFFFFFF);
-			}
-			// if there wasn't a matching global new min key, but there is still an 
-			// element in this tree => we know that it means there is a global new max
-			// one element left and it will be the min+max
-			else{
-				inward_tree_32_ref -> min = global_new_max_key & (0x00000000FFFFFFFF);
-			}
-
-
-		}
-		else if (inward_tree_32_ref -> max == off_32){
-
-			if ((global_new_max_key != key) && ((global_new_max_key >> 32) == (key >> 32))){
-				inward_tree_32_ref -> max = global_new_min_key & (0x00000000FFFFFFFF);
-			}
-			else{
-				inward_tree_32_ref -> max = global_new_min_key & (0x00000000FFFFFFFF);
-			}
-		}
-		else{
-			// we know that this was not a min or max of the 32 tree, so wouldn't be
-			// a min or max of the main tree and the leaf isn't being deleted. Thus we are done
-			return 0;
-		}
-	}
-	else{
-		destroy_fast_table(&(inward_tree_32_ref -> inward));
-
-		// now we have to remove this tree from the parent table
-		remove_fast_table(&(fast_tree -> inward), &ind_32, false, NULL);
-
-		// We also have to remove reference to this tree this from the auxilary outward root
-		uint16_t ind_ind_16 = (ind_32 & IND_16_MASK) >> 16;
-		uint16_t ind_off_16 = (ind_32 & OFF_16_MASK);
-
-		Fast_Tree_Outward_Root_32 * outward_tree_32_ref = &(fast_tree -> outward_root);
-
-		Fast_Tree_16 * inward_nonmain_16_ref;
-
-		Fast_Tree_Outward_Root_16 * outward_outward_tree_16_ref = &(outward_tree_32_ref -> outward_root);
-
-		find_fast_table(&(outward_tree_32_ref -> inward), &ind_ind_16, false, (void **) &inward_nonmain_16_ref);
-
-		// we inserted ind_off_16 into this tree
-		inward_nonmain_16_ref -> cnt -= 1;
-
-		if (inward_nonmain_16_ref -> cnt == 0){
-
-			// we know we can destroy the lower levels without checking
-			destroy_fast_table(&(inward_nonmain_16_ref -> inward_leaves));
-			remove_fast_table(&(outward_tree_32_ref -> inward), &ind_ind_16, false, NULL);
-
-			// now need to remove ind_ind_16 from the outward_root 16
-			uint8_t ind_ind_ind_8 = (ind_ind_16 & IND_8_MASK) >> 8;
-			uint8_t ind_ind_off_8 = (ind_ind_16 & OFF_8_MASK);
-
-			Fast_Tree_Outward_Leaf * outward_outward_leaf_ref;
-
-			find_fast_table(&(outward_outward_tree_16_ref -> inward_leaves), &ind_ind_ind_8, false, (void **) &outward_outward_leaf_ref);
-
-			clear_bitvector(outward_outward_leaf_ref -> bit_vector, ind_ind_off_8);
-
-			if ((outward_outward_leaf_ref -> min == ind_ind_off_8) && (outward_outward_leaf_ref -> max == ind_ind_off_8)){
-				// now we need to remove the ind_ind_8 table
-				remove_fast_table(&(outward_outward_tree_16_ref -> inward_leaves), &ind_ind_ind_8, false, NULL);
-
-				clear_bitvector(outward_outward_tree_16_ref -> outward_leaf.bit_vector, ind_ind_ind_8);
-
-				// if this was the only 16-bit index in the 32-bit tree we should remove the tree
-				if ((outward_outward_tree_16_ref -> outward_leaf.min == ind_ind_ind_8) 
-						&& (outward_outward_tree_16_ref -> outward_leaf.max == ind_ind_ind_8)){
-					destroy_fast_table(&(outward_outward_tree_16_ref -> inward_leaves));
-				}
-				else if (outward_outward_tree_16_ref -> outward_leaf.min == ind_ind_ind_8) {
-					outward_outward_tree_16_ref -> outward_leaf.min = lookup_bitvector_next(outward_outward_tree_16_ref -> outward_leaf.bit_vector, ind_ind_ind_8);
-				}
-				else if (outward_outward_tree_16_ref -> outward_leaf.max == ind_ind_ind_8){
-					outward_outward_tree_16_ref -> outward_leaf.max = lookup_bitvector_prev(outward_outward_tree_16_ref -> outward_leaf.bit_vector, ind_ind_ind_8);
-				}
-			}
-			else if (outward_outward_leaf_ref -> min == ind_ind_off_8){
-				outward_outward_leaf_ref -> min = lookup_bitvector_next(outward_outward_leaf_ref -> bit_vector, ind_ind_off_8);
-			}
-			else if (outward_outward_leaf_ref -> max == ind_ind_off_8){
-				outward_outward_leaf_ref -> max = lookup_bitvector_prev(outward_outward_leaf_ref -> bit_vector, ind_ind_off_8);
-			}
-		}
-		else{
-
-			// now we aren't deleteing the nonmain_16 tree but we still might need to update min/max
-			int ret;
-			Fast_Tree_Result nonmain_search;
-			if (inward_nonmain_16_ref -> min == ind_off_16){
-
-				ret = search_next_fast_tree_nonmain_16(inward_nonmain_16_ref, ind_off_16 + 1, &nonmain_search);
-				// shoul dnever happen
-				if (unlikely(ret)){
-					fprintf(stderr, "Error: unexpected error within updating nonmain tree within removal\n");
-					return -1;
-				}
-				inward_nonmain_16_ref -> min = nonmain_search.key;
-			}
-			else if (inward_nonmain_16_ref -> max == ind_off_16){
-
-				ret = search_prev_fast_tree_nonmain_16(inward_nonmain_16_ref, ind_off_16 - 1, &nonmain_search);
-				// should never happen
-				if (unlikely(ret)){
-					fprintf(stderr, "Error: unexpected error within updating nonmain tree within removal\n");
-					return -1;
-				}
-				inward_nonmain_16_ref -> max = nonmain_search.key;
-			}
-
-		}
-	}
-
-	if (fast_tree -> cnt > 0){
-
-		if (fast_tree -> min == key){
-			fast_tree -> min = global_new_min_key;
-		}
-		else if (fast_tree -> max == key){
-			fast_tree -> max = global_new_max_key;
-		}
-	}
-	else{
+	if (fast_tree -> cnt == 0){
 		fast_tree -> min = TREE_MAX;
 		fast_tree -> max = 0;
+		return 0;
+	}
+
+	if (fast_tree -> min == key){
+		fast_tree -> min = global_new_min_key;
+	}
+	else if (fast_tree -> max == key){
+		fast_tree -> max = global_new_max_key;
 	}
 
 	return 0;
-
-
 }
 
 
