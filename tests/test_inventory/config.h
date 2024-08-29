@@ -31,13 +31,9 @@
 // the [0, 2^64] universe, we could size our tables and set load/shrink 
 // factors appropriately to better trade off memory and lookup times.
 
-// Also note: that the hash function within each table in the tree starts with the simple modulus
-// of the table size to get the bucket. Then we make "virtual room" for other colliding elements
-// so that many collisions will not stack up together by default, but rather be dispersed across the 
-// the indices of the array and leave NULL elements in between. 
-
-// If we assume uniform distribution of keys across the key-space
-// at each level (32, 16, 8, 8) then I believe this is the best we can do and no need
+// Note: that the hash function within each table in the tree is the simple modulus
+// of the table size. If we assume uniform distribution of keys across the key-space
+// at each level (32, 16, 8, 8) then this is the best we can do and no need
 // to be fancy. It takes care of linearly-clustered regions by default, unless there are unique 
 // patterns that exist between levels
 

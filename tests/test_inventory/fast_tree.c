@@ -23,38 +23,25 @@
 // lower 8 bits
 #define LEAF_KEY_MASK 0x00000000000000FF
 
-// Also note: that the hash function within each table in the tree starts with the simple modulus
-// of the table size to get the bucket. Then we make "virtual room" for other colliding elements
-// so that many collisions will not stack up together by default, but rather be dispersed across the 
-// the indices of the array and leave NULL elements in between. 
-
-// If we assume uniform distribution of keys across the key-space
-// at each level (32, 16, 8, 8) then I believe this is the best we can do and no need
+// Note: that the hash function within each table in the tree is the simple modulus
+// of the table size. If we assume uniform distribution of keys across the key-space
+// at each level (32, 16, 8, 8) then this is the best we can do and no need
 // to be fancy. It takes care of linearly-clustered regions by default, unless there are unique 
 // patterns that exist between levels
 
 uint64_t hash_func_modulus_32(void * key_ref, uint64_t table_size) {
 	uint32_t key = *((uint32_t *) key_ref);
-	uint64_t bucket = key % table_size;
-	uint64_t els_per_slot = ((1UL << 32) / table_size);
-	uint64_t hash_ind = (els_per_slot * bucket) % table_size;
-	return hash_ind;
+	return key % table_size;
 }
 
 uint64_t hash_func_modulus_16(void * key_ref, uint64_t table_size){
 	uint16_t key = *((uint16_t *) key_ref);
-	uint64_t bucket = key % table_size;
-	uint64_t els_per_slot = ((1UL << 16) / table_size);
-	uint64_t hash_ind = (els_per_slot * bucket) % table_size;
-	return hash_ind;
+	return key % table_size;
 }
 
 uint64_t hash_func_modulus_8(void * key_ref, uint64_t table_size){
 	uint8_t key = *((uint8_t *) key_ref);
-	uint64_t bucket = key % table_size;
-	uint64_t els_per_slot = ((1UL << 8) / table_size);
-	uint64_t hash_ind = (els_per_slot * bucket) % table_size;
-	return hash_ind;
+	return key % table_size;
 }
 
 
