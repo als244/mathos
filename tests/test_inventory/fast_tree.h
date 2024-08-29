@@ -122,7 +122,7 @@ struct fast_tree_outward_leaf {
 };
 
 struct fast_tree_outward_root_16 {
-	// table of 8-bit keys => fast_tree_8
+	// table of 8-bit keys => Fast_tree_Outward_Leaf
  	Fast_Table inward_leaves;
 	Fast_Tree_Outward_Leaf outward_leaf;
 };
@@ -251,9 +251,8 @@ struct fast_tree_leaf {
 	// Table of 8-bit keys => value of size
 	// specified in root
 	Fast_Table values;
-	// this is a deque item 
-	// whose pointer is to self
-	Deque_Item leaf;
+	Fast_Tree_Leaf * prev;
+	Fast_Tree_Leaf * next;
 	uint8_t cnt;
 	uint8_t min;
 	uint8_t max;
@@ -327,7 +326,7 @@ struct fast_tree {
 	// leaves of the tree, each of which
 	// can contain 256 key-value pairs within
 	// a contiguous range
-	Deque * ordered_leaves;
+	Fast_Tree_Leaf * ordered_leaves;
 	bool is_dict;
 };
 

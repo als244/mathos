@@ -137,7 +137,7 @@ int main(int argc, char * argv[]){
 	}
 
 
-	uint64_t search_key = 70;
+	uint64_t search_key = 1025;
 	Fast_Tree_Result search_result;
 	FastTreeSearchModifier search_type = FAST_TREE_EQUAL_OR_PREV;
 	
@@ -169,6 +169,37 @@ int main(int argc, char * argv[]){
 	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
 
 	elapsed_ns = timestamp_stop - timestamp_start;
+
+
+	printf("Removing key 1024...\n");
+
+	uint64_t remove_key = 1024;
+
+	prev_value = NULL;
+	ret = remove_fast_tree(fast_tree, remove_key, &prev_value);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: could not remove key\n");
+		return -1;
+	}
+
+	if (!prev_value){
+		fprintf(stderr, "Error: was expecting a previous value to be non-null\n");
+		return -1;
+	}
+
+	ret = search_fast_tree(fast_tree, search_key, search_type, &search_result);
+
+	found_key = search_result.key;
+	found_leaf = search_result.fast_tree_leaf;
+	found_deque = (Deque *) search_result.value;
+
+	printf("Search Key: %lu => Search result found key: %lu\n", search_key, found_key);
+
+	if (!found_deque){
+		fprintf(stderr, "Error: was expecting the value to be populated with deque, but returned null\n");
+		return -1;
+	}
 
 	printf("Simple test success!!\n\tElasped Search Time (ns): %lu\n\n", elapsed_ns);
 

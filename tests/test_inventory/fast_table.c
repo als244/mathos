@@ -417,13 +417,14 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 			// to the current key
 			void * table_value = (void *) (((uint64_t) cur_table_key) + key_size_bytes);
 
-
-			// now we want to copy the value and then can return
-			if (to_copy_value) {
-				memcpy(*ret_value, table_value, value_size_bytes);
-			}
-			else{
-				*ret_value = table_value;
+			if (ret_value){
+				// now we want to copy the value and then can return
+				if (to_copy_value) {
+					memcpy(*ret_value, table_value, value_size_bytes);
+				}
+				else{
+					*ret_value = table_value;
+				}
 			}
 
 			return cur_ind;
@@ -443,7 +444,7 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 	// We didn't find the element
 
 	// now can set the return value to null and return not found as -1
-	if (to_copy_value){
+	if (ret_value && to_copy_value){
 		*ret_value = NULL;
 	}
 	
