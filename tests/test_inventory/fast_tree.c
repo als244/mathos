@@ -1038,19 +1038,6 @@ int search_prev_fast_tree_16(Fast_Tree_16 * fast_tree, uint16_t search_key, Fast
 
 int search_prev_fast_tree_nonmain_16(Fast_Tree_16 * fast_tree, uint16_t search_key, Fast_Tree_Result * ret_search_result){
 
-	// We can return early if key is less than min or greater than max
-
-	// Don't want to return early if main tree, because we want to set the
-	// leaf and value within search result to prevent an additional traversa
-
-	if (search_key == fast_tree -> min){
-		return fast_tree -> min;
-	}
-
-	if (search_key >= fast_tree -> max){
-		return fast_tree -> max;
-	}
-
 	uint8_t ind_8 = (search_key & IND_8_MASK) >> 8;
 	uint8_t off_8 = (search_key & OFF_8_MASK);
 
@@ -1796,7 +1783,7 @@ void destroy_and_unlink_fast_tree_leaf(Fast_Tree * root, Fast_Tree_Leaf * fast_t
 	return;
 }
 
-int remove_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key, uint64_t * global_new_min_key, uint64_t * global_new_max_key, bool * element_removed, bool * tree_removed, void ** prev_value){
+int remove_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key, uint64_t * global_new_min_key, uint64_t * global_new_max_key, bool * element_removed, bool * tree_removed, void ** prev_value, uint16_t parent_ind){
 
 	// OUTWARD ROOT 32 HAS ALREADY INITIALIZED TABLE FROM INIT_FAST_TREE()
 
@@ -1863,21 +1850,22 @@ int remove_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 
 
 	if (fast_tree -> min == key){
-		// IF THERE WERE 2 ELEMENTS IN THE TREE BEFORE THEN MIN
-		// MIGHT NOT HAVE BEEN SET...?
-		if (key < (*global_new_min_key & 0x0000000000FFFF)){
-			fast_tree -> min = (*global_new_min_key & 0x0000000000FFFF);
+		// if there were only 2 items left then the minimum 
+		// might be part of a different roon, in which case the minimum
+		// should be set to the maximum
+		if ((((*global_new_min_key) >> 32) & IND_16_MASK) == parent_ind){
+			fast_tree -> min = *global_new_min_key & OFF_16_MASK;
 		}
 		else{
-			fast_tree -> min = (*global_new_max_key & 0x0000000000FFFF);
+			fast_tree -> min = *global_new_max_key & OFF_16_MASK;
 		}
 	}
 	else if (fast_tree -> max == key){
-		if (key > (*global_new_max_key & 0x0000000000FFFF)){
-			fast_tree -> max = (*global_new_max_key & 0x0000000000FFFF);
+		if ((((*global_new_max_key) >> 32) & IND_16_MASK) == parent_ind){
+			fast_tree -> max = *global_new_max_key & OFF_16_MASK;
 		}
 		else{
-			fast_tree -> max = (*global_new_min_key & 0x0000000000FFFF);
+			fast_tree -> max = *global_new_min_key & OFF_16_MASK;
 		}
 	}
 
@@ -2002,7 +1990,7 @@ int remove_fast_tree_outward_16(Fast_Tree_Outward_Root_16 * fast_tree, uint16_t 
 	return 0;
 }
 
-int remove_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key, uint64_t * global_new_min_key, uint64_t * global_new_max_key, bool * element_removed, bool * tree_removed, void ** prev_value){
+int remove_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key, uint64_t * global_new_min_key, uint64_t * global_new_max_key, bool * element_removed, bool * tree_removed, void ** prev_value, uint32_t parent_ind){
 
 	
 	*tree_removed = false;
@@ -2021,7 +2009,7 @@ int remove_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key
 	}
 
 	bool child_tree_removed = false;
-	int status = remove_fast_tree_16(root, inward_tree_16_ref, off_16, global_new_min_key, global_new_max_key, element_removed, &child_tree_removed, prev_value);
+	int status = remove_fast_tree_16(root, inward_tree_16_ref, off_16, global_new_min_key, global_new_max_key, element_removed, &child_tree_removed, prev_value, ind_16);
 
 	if (!element_removed){
 		return 0;
@@ -2044,19 +2032,22 @@ int remove_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key
 	}
 
 	if (fast_tree -> min == key){
-		if (key < (*global_new_min_key & 0x000000FFFFFFFF)){
-			fast_tree -> min = (*global_new_min_key & 0x000000FFFFFFFF);
+		// if there were only 2 items left then the minimum 
+		// might be part of a different roon, in which case the minimum
+		// should be set to the maximum
+		if ((*global_new_min_key & IND_32_MASK) == parent_ind){
+			fast_tree -> min = *global_new_min_key & OFF_32_MASK;
 		}
 		else{
-			fast_tree -> min = (*global_new_max_key & 0x000000FFFFFFFF);
+			fast_tree -> min = *global_new_max_key & OFF_32_MASK;
 		}
 	}
 	else if (fast_tree -> max == key){
-		if (key > (*global_new_max_key & 0x000000FFFFFFFF)){
-			fast_tree -> max = (*global_new_max_key & 0x000000FFFFFFFF);
+		if ((*global_new_max_key & IND_32_MASK) == parent_ind){
+			fast_tree -> max = *global_new_max_key & OFF_32_MASK;
 		}
 		else{
-			fast_tree -> max = (*global_new_min_key & 0x000000FFFFFFFF);
+			fast_tree -> max = *global_new_min_key & OFF_32_MASK;
 		}
 	}
 
@@ -2120,7 +2111,7 @@ int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void ** prev_value) {
 	uint64_t global_new_min_key = key;
 	uint64_t global_new_max_key = key;
 
-	remove_fast_tree_32(fast_tree, inward_tree_32_ref, off_32, &global_new_min_key, &global_new_max_key, &element_removed, &child_tree_removed, prev_value);
+	remove_fast_tree_32(fast_tree, inward_tree_32_ref, off_32, &global_new_min_key, &global_new_max_key, &element_removed, &child_tree_removed, prev_value, ind_32);
 
 	if (!element_removed){
 		return -1;

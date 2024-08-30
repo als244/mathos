@@ -368,7 +368,12 @@ int insert_fast_table(Fast_Table * fast_table, void * key, void * value) {
 // And so a memory copy will succeed
 uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, void ** ret_value){
 
+
+
 	if (fast_table -> items == NULL){
+		if (ret_value){
+			*ret_value = NULL;
+		}
 		return fast_table -> config -> max_size;
 	}
 
@@ -444,12 +449,9 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 	
 	// We didn't find the element
 
-	// now can set the return value to null and return not found as -1
-	if (ret_value && to_copy_value){
+	if (ret_value){
 		*ret_value = NULL;
-	}
-	
-	
+	}	
 
 	return fast_table -> config -> max_size;
 }

@@ -183,7 +183,7 @@ int main(int argc, char * argv[]){
 	}
 
 
-	uint64_t search_key = 200000;
+	uint64_t search_key = (1UL << 32) + 5;
 	Fast_Tree_Result search_result;
 	FastTreeSearchModifier search_type = FAST_TREE_EQUAL_OR_PREV;
 	
@@ -219,7 +219,7 @@ int main(int argc, char * argv[]){
 
 	printf("\nRemoving key 1024...\n\n");
 
-	uint64_t remove_key = 1024;
+	uint64_t remove_key = 222222;
 
 	prev_value = NULL;
 	ret = remove_fast_tree(fast_tree, remove_key, &prev_value);
