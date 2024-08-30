@@ -217,9 +217,9 @@ int main(int argc, char * argv[]){
 	elapsed_ns = timestamp_stop - timestamp_start;
 
 
-	printf("\nRemoving key 1024...\n\n");
-
 	uint64_t remove_key = 222222;
+
+	printf("\nRemoving key %lu...\n\n", remove_key);
 
 	prev_value = NULL;
 	ret = remove_fast_tree(fast_tree, remove_key, &prev_value);

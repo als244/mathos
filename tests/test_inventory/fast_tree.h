@@ -281,6 +281,14 @@ struct fast_tree_16 {
  };
 
 
+typedef struct fast_tree_stats {
+	uint32_t num_trees_32;
+	uint32_t num_trees_16;
+	uint64_t num_leaves;
+	uint32_t num_nonmain_trees_16;
+	uint64_t num_outward_leaves;
+} Fast_Tree_Stats;
+
 
 
 struct fast_tree {
@@ -322,11 +330,13 @@ struct fast_tree {
 	uint64_t cnt;
 	uint64_t min;
 	uint64_t max;
+	Fast_Tree_Stats tree_stats;
 	// doubly linked list of non-null
 	// leaves of the tree, each of which
 	// can contain 256 key-value pairs within
 	// a contiguous range
-	Fast_Tree_Leaf * ordered_leaves;
+	Fast_Tree_Leaf * min_leaf;
+	Fast_Tree_Leaf * max_leaf;
 	bool is_dict;
 };
 
