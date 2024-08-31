@@ -348,7 +348,7 @@ void link_fast_tree_leaf(Fast_Tree * root, Fast_Tree_Leaf * fast_tree_leaf){
 		ret = search_fast_tree(root, base - 1, FAST_TREE_EQUAL_OR_PREV, &leaf_search);
 		if (ret){
 			fast_tree_leaf -> prev = NULL;
-			if (root -> min){
+			if (root -> min_leaf){
 				fast_tree_leaf -> next = root -> min_leaf;
 				fast_tree_leaf -> next -> prev = fast_tree_leaf;
 			}
@@ -726,7 +726,13 @@ int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key
 		}
 
 		// Getting the pointer within the table
-		ret = find_fast_table(&(fast_tree -> inward), &ind_16, false, (void **) &inward_tree_16_ref);
+		find_fast_table(&(fast_tree -> inward), &ind_16, false, (void **) &inward_tree_16_ref);
+
+		// should never happen because we just inserted
+		if (unlikely(!inward_tree_16_ref)){
+			fprintf(stderr, "Error: cannot find inward_tree_16 that was just inserted\n");
+			return -1;
+		}
 	}
 	
 
@@ -777,7 +783,13 @@ int insert_fast_tree_outward_32(Fast_Tree * root, Fast_Tree_Outward_Root_32 * fa
 		}
 
 		// Getting the pointer within the table
-		ret = find_fast_table(&(fast_tree -> inward), &ind_16, false, (void **) &inward_tree_16_ref);
+		find_fast_table(&(fast_tree -> inward), &ind_16, false, (void **) &inward_tree_16_ref);
+
+		// should never happen because we just inserted
+		if (unlikely(!inward_tree_16_ref)){
+			fprintf(stderr, "Error: cannot find inward_tree_16 that was just inserted\n");
+			return -1;
+		}
 	}
 	
 	ret = insert_fast_tree_nonmain_16(root, inward_tree_16_ref, off_16);
@@ -825,7 +837,14 @@ int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_
 		}
 
 		// Getting the pointer within the table
-		ret = find_fast_table(&(fast_tree -> inward), &ind_32, false, (void **) &inward_tree_32_ref);
+		find_fast_table(&(fast_tree -> inward), &ind_32, false, (void **) &inward_tree_32_ref);
+
+		// should never happen because we just inserted
+		if (unlikely(!inward_tree_32_ref)){
+			fprintf(stderr, "Error: cannot find inward_tree_32 that was just inserted\n");
+			return -1;
+		}
+
 
 	}
 	
@@ -2128,12 +2147,12 @@ int remove_fast_tree_outward_32(Fast_Tree * root, Fast_Tree_Outward_Root_32 * fa
 
 		(root -> tree_stats).num_nonmain_trees_16 -= 1;
 
+		remove_fast_table(&(fast_tree -> inward), &ind_16, false, (void **) &inward_tree_16_ref);
+
 		bool outward_removed = false;
 		remove_fast_tree_outward_16(root, &(fast_tree -> outward_root), ind_16, &outward_removed);
-		if (outward_removed){
-			destroy_fast_table(&(fast_tree -> inward));
-			return 0;
-		}
+
+		// don't destroy the inward tree out outward_32, this is created at init time
 	}
 
 	return status;
@@ -2183,6 +2202,7 @@ int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void ** prev_value) {
 
 	if (child_tree_removed){
 		(fast_tree -> tree_stats).num_trees_32 -= 1;
+		remove_fast_table(&(fast_tree -> inward), &ind_32, false, (void **) &inward_tree_32_ref);
 		remove_fast_tree_outward_32(fast_tree, &(fast_tree -> outward_root), ind_32);
 	}
 

@@ -66,6 +66,8 @@ int init_fast_table(Fast_Table * fast_table, Fast_Table_Config * config) {
 void destroy_fast_table(Fast_Table * fast_table) {
 	free(fast_table -> is_empty_bit_vector);
 	free(fast_table -> items);
+	fast_table -> items = NULL;
+	fast_table -> is_empty_bit_vector = NULL;
 }
 
 // returns size upon failure to find slot. should never happen because checked if null
@@ -269,7 +271,6 @@ int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 // assumes the content of the key cannot be 0 of size key_size_bytes
 int insert_fast_table(Fast_Table * fast_table, void * key, void * value) {
 
-
 	uint64_t size = fast_table -> size;
 	uint64_t cnt = fast_table -> cnt;
 
@@ -367,8 +368,6 @@ int insert_fast_table(Fast_Table * fast_table, void * key, void * value) {
 // Assumes that memory of value_sized_bytes as already been allocated to ret_val
 // And so a memory copy will succeed
 uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, void ** ret_value){
-
-
 
 	if (fast_table -> items == NULL){
 		if (ret_value){
@@ -494,19 +493,20 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 
 	uint64_t items_to_check;
 	if (empty_ind < next_empty){
-		items_to_check = next_empty - empty_ind;
+		items_to_check = next_empty - empty_ind - 1;
 	}
 	// the next empty slot needs to be
 	// wrapped around
 	else{
-		items_to_check = (size - empty_ind) + next_empty + 1;
+		items_to_check = (size - empty_ind) + next_empty;
 	}
 
 	uint64_t i = 0;
-	uint64_t cur_ind = (empty_ind + 1) % size;
 	uint64_t hash_ind;
 	void * cur_table_key;
+	uint64_t cur_ind = (empty_ind + 1) % size;
 	void * empty_table_key = (void *) (((uint64_t) fast_table -> items) + (empty_ind * (key_size_bytes + value_size_bytes)));
+	
 	while (i < items_to_check){ 
 
 		cur_table_key = (void *) (((uint64_t) fast_table -> items) + (cur_ind * (key_size_bytes + value_size_bytes)));
@@ -542,6 +542,9 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 	fast_table -> cnt -= 1;
 
 	// clearing the entry for this insert_ind in the bit vector
+
+	// remove element from table
+	memset(empty_table_key, 0, key_size_bytes + value_size_bytes);
 
 	// the bucket's upper bits represent index into the bit vector elements
 	// and the low order 6 bits represent offset into element. 

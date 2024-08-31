@@ -231,19 +231,19 @@
 #define FAST_TREE_32_MIN_TABLE_SIZE 2
 // can contain up to 2^32 entires, when table reaches MAX size the re-hashing will have no collisions 
 // because of the modulus hash function across all 2^32 unique keys
-#define FAST_TREE_32_MAX_TABLE_SIZE 1 << 32
+#define FAST_TREE_32_MAX_TABLE_SIZE 1UL << 32
 #define FAST_TREE_32_LOAD_FACTOR 0.5
 #define FAST_TREE_32_SHRINK_FACTOR 0.25
 
 // can contain up to 2^16 entries
 #define FAST_TREE_16_MIN_TABLE_SIZE 2
-#define FAST_TREE_16_MAX_TABLE_SIZE 1 << 16
+#define FAST_TREE_16_MAX_TABLE_SIZE 1UL << 16
 #define FAST_TREE_16_LOAD_FACTOR 0.5
 #define FAST_TREE_16_SHRINK_FACTOR 0.25
 
 // can contain up to 2^8 entries
 #define FAST_TREE_OUTWARD_LEAF_MIN_TABLE_SIZE 2
-#define FAST_TREE_OUTWARD_LEAF_MAX_TABLE_SIZE 1 << 8
+#define FAST_TREE_OUTWARD_LEAF_MAX_TABLE_SIZE 1UL << 8
 #define FAST_TREE_OUTWARD_LEAF_LOAD_FACTOR 0.5
 #define FAST_TREE_OUTWARD_LEAF_SHRINK_FACTOR 0.25
 
@@ -253,7 +253,7 @@
 // and contains extra information such as 
 // base, another fast table, deque
 #define FAST_TREE_MAIN_LEAF_MIN_TABLE_SIZE 2
-#define FAST_TREE_MAIN_LEAF_MAX_TABLE_SIZE 1 << 8
+#define FAST_TREE_MAIN_LEAF_MAX_TABLE_SIZE 1UL << 8
 #define FAST_TREE_MAIN_LEAF_LOAD_FACTOR 0.5
 #define FAST_TREE_MAIN_LEAF_SHRINK_FACTOR 0.25
 
@@ -262,7 +262,7 @@
 // The value is the value that was inserted associated
 // with corresponding uint64_t key
 #define FAST_TREE_VALUE_MIN_TABLE_SIZE 2
-#define FAST_TREE_VALUE_MAX_TABLE_SIZE 1 << 8
+#define FAST_TREE_VALUE_MAX_TABLE_SIZE 1UL << 8
 #define FAST_TREE_VALUE_LOAD_FACTOR 0.5
 #define FAST_TREE_VALUE_SHRINK_FACTOR 0.25
 

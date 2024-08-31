@@ -364,6 +364,12 @@ Memory * init_backend_memory(Hsa_Memory * hsa_memory) {
 			return NULL;
 		}
 
+		ret = init_fast_table(range_lists_table, range_lists_table_config);
+		if (ret){
+			fprintf(stderr, "Error: unable to initialize range lists table\n");
+			return NULL;
+		}
+
 		mempools[i].range_lists_table = range_lists_table;
 
 		mempools[i].free_mem_ranges = init_fast_tree(true);

@@ -24,6 +24,7 @@ int main(int argc, char * argv[]){
 	
 	char * master_ip_addr, * self_ip_addr;
 
+	/*
 	if ((argc != 2) && (argc != 3)){
 		fprintf(stderr, "Error: Usage ./testWorker <master_ip_addr> <self_ip_addr>\n");
 		return -1;
@@ -34,6 +35,7 @@ int main(int argc, char * argv[]){
 	if (argc == 3){
 		self_ip_addr = argv[2];
 	}
+	*/
 
 
 	// 1.) Initialize HSA memory
@@ -73,6 +75,92 @@ int main(int argc, char * argv[]){
 		fprintf(stderr, "Error: failed to initialize backend memory\n");
 		return -1;
 	}
+
+
+	Mem_Reservation mem_reservation_test;
+
+	// allocate on device 0 and wanting chunk_size bytes;
+	mem_reservation_test.pool_id = 0;
+	mem_reservation_test.size_bytes = 100000; 
+
+
+	clock_gettime(CLOCK_MONOTONIC, &start);
+	ret = reserve_memory(memory, &mem_reservation_test);
+	clock_gettime(CLOCK_MONOTONIC, &stop);
+
+
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to reserve memory on pool id %d of size %lu\n", 
+					mem_reservation_test.pool_id, mem_reservation_test.size_bytes);
+		return -1;
+	}
+
+	printf("Reservation start chunk id: %lu\n", mem_reservation_test.start_chunk_id);
+
+	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
+	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
+	elapsed_ns = timestamp_stop - timestamp_start;
+
+	printf("\n\n\nElasped Reservation time (ns): %lu\n\n\n", elapsed_ns);
+
+
+
+	// allocate on device 0 and wanting chunk_size bytes;
+	mem_reservation_test.pool_id = 0;
+	mem_reservation_test.size_bytes = 100000; 
+
+	clock_gettime(CLOCK_MONOTONIC, &start);
+	ret = reserve_memory(memory, &mem_reservation_test);
+	clock_gettime(CLOCK_MONOTONIC, &stop);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to reserve memory on pool id %d of size %lu\n", 
+					mem_reservation_test.pool_id, mem_reservation_test.size_bytes);
+		return -1;
+	}
+
+	printf("Reservation start chunk id: %lu\n", mem_reservation_test.start_chunk_id);
+
+	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
+	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
+	elapsed_ns = timestamp_stop - timestamp_start;
+
+	printf("\n\n\nElasped Reservation time (ns): %lu\n\n\n", elapsed_ns);
+
+
+
+
+	exit(0);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

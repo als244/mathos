@@ -147,10 +147,10 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 		// also should remove the range lists table
 		Fast_List * table_prev_list = NULL;
 
-		ret = remove_fast_table(mempool.range_lists_table, &reserved_chunks, false, (void **) &table_prev_list);
+		remove_fast_table(mempool.range_lists_table, &reserved_chunks, false, (void **) &table_prev_list);
 
 		// should never happen
-		if (unlikely(ret)){
+		if (unlikely(!table_prev_list)){
 			fprintf(stderr, "Error: reserved range size was not in fast table\n");
 			return -1;
 		}
@@ -186,14 +186,14 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 
 		// we are modifying directly in the endpoint table
 
-		Mem_Range * mem_range_ref;
+		Mem_Range * mem_range_ref = NULL;
 
 		uint64_t reserved_end_chunk_id = start_chunk_id + reserved_chunks - 1;
 
-		ret = find_fast_table(free_endpoints, &reserved_end_chunk_id, false, (void **) &mem_range_ref);
+		find_fast_table(free_endpoints, &reserved_end_chunk_id, false, (void **) &mem_range_ref);
 
 		// this should never happen
-		if (unlikely(ret)){
+		if (unlikely(!mem_range_ref)){
 			fprintf(stderr, "Error: unable to find the end_chunk_id endpoint of %lu that needs to be modified after reservation\n", reserved_end_chunk_id);
 			return -1;
 		}
@@ -211,12 +211,11 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 	// (and the end chunk id endpoint if there are no excess chunks)
 
 
-	Mem_Range * mem_range;
+	Mem_Range * mem_range = NULL;
 
-	ret = remove_fast_table(free_endpoints, &start_chunk_id, false, (void **) &mem_range);
-
+	remove_fast_table(free_endpoints, &start_chunk_id, false, (void **) &mem_range);
 	// should never happen
-	if (unlikely(ret)){
+	if (unlikely(!mem_range)){
 		fprintf(stderr, "Error: unable to remove starting endpoint of %lu\n", start_chunk_id);
 		return -1;
 	}
@@ -231,12 +230,13 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 
 		uint64_t end_chunk_id = start_chunk_id + req_chunks - 1;
 
-		ret = remove_fast_table(free_endpoints, &end_chunk_id, false, (void **) &mem_range);
+		mem_range = NULL;
+		remove_fast_table(free_endpoints, &end_chunk_id, false, (void **) &mem_range);
 
 		// assert mem_range -> range_size = reserved_size == req_size
 
 		// should never happen
-		if (unlikely(ret)){
+		if (unlikely(!mem_range)){
 			fprintf(stderr, "Error: unable to remove ending endpoint of %lu\n", end_chunk_id);
 			return -1;
 		}
@@ -259,7 +259,7 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 
 // returns 0 upon success, otherwise error
 int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
-	
+
 	int ret;
 
 	int pool_id = mem_reservation -> pool_id;
