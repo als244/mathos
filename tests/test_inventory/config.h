@@ -213,7 +213,8 @@
 
 // each list represent a fixed memory range size, so we actually
 // know the maximum capacity, but this could be an undue waste of memory
-#define MEMORY_RANGE_LIST_DEFAULT_BUFFER_CAPACITY 8
+// setting higher can accelerate list operations because no need for malloc()/frees()
+#define MEMORY_RANGE_LIST_DEFAULT_BUFFER_CAPACITY 1
 
 
 #define MEMORY_RANGE_LISTS_MIN_TABLE_SIZE 256
