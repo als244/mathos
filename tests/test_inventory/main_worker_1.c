@@ -44,29 +44,22 @@ int main(int argc, char * argv[]){
 
 
 	Mem_Range range_1;
-	range_1.num_chunks = 70;
-	range_1.start_chunk_id = 0;
-
+	range_1.range_size = 70;
 
 	Mem_Range range_2;
-	range_2.num_chunks = 50;
-	range_2.start_chunk_id = 70;
+	range_2.range_size = 50;
 
 	Mem_Range range_3;
-	range_3.num_chunks = 70;
-	range_3.start_chunk_id = 120;
+	range_3.range_size = 70;
 
 	Mem_Range range_4;
-	range_4.num_chunks = 1024;
-	range_4.start_chunk_id = 220;
+	range_4.range_size = 1024;
 
 	Mem_Range range_5;
-	range_5.num_chunks = 222222;
-	range_5.start_chunk_id = 0;
+	range_5.range_size = 222222;
 
 	Mem_Range range_6;
-	range_6.num_chunks = (1UL << 32) + 222222;
-	range_6.start_chunk_id = 0;
+	range_6.range_size = (1UL << 32) + 222222;
 
 
 	Deque * mem_ranges_70 = init_deque(NULL);
@@ -183,9 +176,9 @@ int main(int argc, char * argv[]){
 	}
 
 
-	uint64_t search_key = (1UL << 32) + 5;
+	uint64_t search_key = 40;
 	Fast_Tree_Result search_result;
-	FastTreeSearchModifier search_type = FAST_TREE_EQUAL_OR_PREV;
+	FastTreeSearchModifier search_type = FAST_TREE_EQUAL_OR_NEXT;
 	
 
 	
@@ -217,7 +210,7 @@ int main(int argc, char * argv[]){
 	elapsed_ns = timestamp_stop - timestamp_start;
 
 
-	uint64_t remove_key = 222222;
+	uint64_t remove_key = 50;
 
 	printf("\nRemoving key %lu...\n\n", remove_key);
 
@@ -388,7 +381,7 @@ int main(int argc, char * argv[]){
 	mem_reservation_net_recv.size_bytes = chunk_size; 
 
 
-	// Will populate mem_reservation.num_chunks, mem_reservation.start_chunk_id, mem_reservation.buffer
+	// Will populate mem_reservation.range_size, mem_reservation.start_chunk_id, mem_reservation.buffer
 	
 	//struct timespec start, stop;
 

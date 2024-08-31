@@ -339,6 +339,7 @@ Memory * init_backend_memory(Hsa_Memory * hsa_memory) {
 
 
 	int ret;
+	uint8_t max_levels;
 	Mem_Range * full_range;
 	uint64_t num_chunks;
 	for (int i = 0; i < num_devices; i++){
@@ -352,80 +353,88 @@ Memory * init_backend_memory(Hsa_Memory * hsa_memory) {
 		// casting void * to uint64_t for convenience on pointer arithmetic
 		mempools[i].va_start_addr = (uint64_t) ((hsa_user_page_table -> virt_memories)[i]);
 
-		
+		// determine max levels
 
-		Fast_Table_Config * range_lists_table_config = save_fast_table_config(&hash_func_modulus_64, sizeof(uint64_t), sizeof(Fast_List *), 
-												MEMORY_RANGE_LISTS_MIN_TABLE_SIZE, num_chunks, MEMORY_RANGE_LISTS_LOAD_FACTOR, MEMORY_RANGE_LISTS_SHRINK_FACTOR);
+		// there are only num_chunks possible unique keys (because each key is the num_chunks of a range)
+		// ensure at least 1 level
+		max_levels = MY_MAX(1, log_uint64_base_2(num_chunks));
 
+		// use the constants defined in config.h for other parameters
 
-		Fast_Table * range_lists_table = (Fast_Table *) malloc(sizeof(Fast_Table));
-		if (!range_lists_table){
-			fprintf(stderr, "Error: malloc failed to allocate range_lists table container\n");
-			return NULL;
-		}
+		// TODO: Need to decide initial slab size
 
-		mempools[i].range_lists_table = range_lists_table;
+		// We know the maximum number of entries is num_chunks but this would be a huge waste of memory to preallocate everything
+		// for now, keeping simple and doing this...
 
-		mempools[i].free_mem_ranges = init_fast_tree(true);
+		mempools[i].free_mem_ranges = init_skiplist(&mem_range_skiplist_item_key_cmp, &mem_range_val_cmp, max_levels, 
+											MEMORY_SKIPLIST_LEVEL_FACTOR, MEMORY_SKIPLIST_MIN_ITEMS_TO_CHECK_REAP, MEMORY_SKIPLIST_MAX_ZOMBIE_RATIO, 
+											MEMORY_SKIPLIST_ITEM_SLAB_CAPACITY);
 
-		if (!mempools[i].free_mem_ranges){
-			fprintf(stderr, "Error: failure to initialize memory fast tree for device #%d\n", i);
+		if (mempools[i].free_mem_ranges == NULL){
+			fprintf(stderr, "Error: failure to initialize memory skiplist for device #%d\n", i);
 			// fatal error
 			return NULL;
 		}
 
-		// Now inserting the endpoints which will be used during memory release and merging
+		// Should have a slab allocator for memory ranges because they will come and go frequently
 
-		uint64_t endpoint_table_min_size = MEMORY_ENDPOINT_MIN_TABLE_SIZE;
-		if (endpoint_table_min_size > num_chunks){
-			endpoint_table_min_size = num_chunks;
-		}
-
-		Fast_Table_Config * endpoint_table_config = save_fast_table_config(&hash_func_modulus_64, sizeof(uint64_t), sizeof(Mem_Range), 
-												endpoint_table_min_size, num_chunks, MEMORY_ENDPOINT_LOAD_FACTOR, MEMORY_ENDPOINT_SHRINK_FACTOR);
-
-		if (!endpoint_table_config){
-			fprintf(stderr, "Error: failure to save memory endpoint table config\n");
+		// initial range to insert
+		// allocate a range and insert for every pool (the whole device)
+		// consider having a max range size so there is less congestion and chance
+		// of race conditions where mem reservation needs to retry. 
+		// Downside of setting upper bound on range size is that is lead could lead to 
+		// more fragmentation
+		full_range = (Mem_Range *) malloc(sizeof(Mem_Range));
+		if (full_range == NULL){
+			fprintf(stderr, "Error: malloc failed to allocate initial mem_range\n");
 			return NULL;
 		}
 
-		Fast_Table * endpoint_table = (Fast_Table *) malloc(sizeof(Fast_Table));
-		if (!endpoint_table){
-			fprintf(stderr, "Error: malloc failed to allocate fast table container for memory endpoint\n");
+		full_range -> num_chunks = num_chunks;
+		full_range -> start_chunk_id = 0;
+
+		ret = insert_item_skiplist(mempools[i].free_mem_ranges, full_range, full_range);
+		if (ret != 0){
+			fprintf(stderr, "Error: failed to insert initial full range into skiplist\n");
 			return NULL;
 		}
 
-		ret = init_fast_table(endpoint_table, endpoint_table_config);
-		if (ret){
-			fprintf(stderr, "Error: failure to init fast table for memory endpoint\n");
+
+		// Mem_Range_Endpoint is just a typedef of a uint64_t
+		// stores the num_chunks associated with endpoint
+		// 0 if not an endpoint or if reserved
+		mempools[i].endpoint_range_size = (uint64_t *) malloc(num_chunks * sizeof(uint64_t));
+		if (mempools[i].endpoint_range_size == NULL){
+			fprintf(stderr, "Error: malloc failed to allocate endpoint_range_size array for device #%d\n", i);
 			return NULL;
 		}
 
-		mempools[i].free_endpoints = endpoint_table;
+		// initialize mem_range_endpoints
+	
+		for (uint64_t chunk_id = 0; chunk_id < num_chunks; chunk_id++){
+			(mempools[i].endpoint_range_size)[chunk_id] = 0;
+		}
+
+		//	- for sensibility, but this initialization doesn't matter with only 1 range
+		//		- (because there will be no ranges left after 1st reservation)
+		//		- starts to matter when a range is taken, but then split up and put back
+		mempools[i].endpoint_range_size[0] = num_chunks;
+		mempools[i].endpoint_range_size[num_chunks - 1] = num_chunks;
 
 
-		Fast_List_Node * full_range_ref = add_free_mem_range(&(mempools[i]), 0, num_chunks);
-
-		if (ret){
-			fprintf(stderr, "Error: could not add initial free mem range for entire device of %d\n", i);
+		mempools[i].endpoint_locks = (pthread_mutex_t *) malloc(num_chunks * sizeof(pthread_mutex_t));
+		if (mempools[i].endpoint_locks == NULL){
+			fprintf(stderr, "Error: malloc failed to allocate endpoint locks array for devcie #%d\n", i);
 			return NULL;
 		}
 
-		// Need to add the original starting end_chunk_id
-
-		uint64_t final_chunk_id = num_chunks - 1;
-
-		Mem_Range full_mem_range;
-
-		full_mem_range.range_size = num_chunks;
-		full_mem_range.start_chunk_id_ref = full_range_ref;
-
-		ret = insert_fast_table(mempools[i].free_endpoints, &final_chunk_id, &full_mem_range);
-		if (ret){
-			fprintf(stderr, "Error: failure to insert the final endpoint into free endpoints\n");
-			return NULL;
+		for (uint64_t chunk_id = 0; chunk_id < num_chunks; chunk_id++){
+			ret = pthread_mutex_init(&((mempools[i].endpoint_locks)[chunk_id]), NULL);
+			if (ret != 0){
+				fprintf(stderr, "Error: failed to initialize endpoint lock on device #%d for chunk_id %lu\n", i, chunk_id);
+				return NULL;
+			}
 		}
-
 	}
 
 

@@ -23,6 +23,12 @@
 // lower 8 bits
 #define LEAF_KEY_MASK 0x00000000000000FF
 
+
+uint64_t hash_func_modulus_64(void * key_ref, uint64_t table_size) {
+	uint64_t key = *((uint64_t *) key_ref);
+	return key % table_size;
+}
+
 // Note: that the hash function within each table in the tree is the simple modulus
 // of the table size. If we assume uniform distribution of keys across the key-space
 // at each level (32, 16, 8, 8) then this is the best we can do and no need
@@ -308,7 +314,9 @@ Fast_Tree_Leaf * create_fast_tree_leaf(Fast_Tree * root, uint8_t key, void * val
 	}
 
 	// we just created this leaf so we know there was no previous value
-	*prev_value = NULL;
+	if (prev_value){
+		*prev_value = NULL;
+	}
 	
 	return fast_tree_leaf;
 
@@ -470,7 +478,7 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 			ret = find_fast_table(&(inward_leaf -> values), &off_8, false, &prev_value_table);
 			// if there was a value corresponding to this key before
 			if (ret != inward_leaf -> values.config -> max_size){
-				if (prev_value_table){
+				if (prev_value && prev_value_table){
 					*prev_value = *((void **) prev_value_table);
 				}
 				if (!to_overwrite){
@@ -478,7 +486,7 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 				}      
 				else{
 					// overwriting the old pointer with new pointer
-					if (prev_value_table && (value != NULL)){
+					if (prev_value && prev_value_table && (value != NULL)){
 						memcpy(prev_value_table, &value, sizeof(uintptr_t));
 					}
 					else {
@@ -502,7 +510,7 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 
 			// If we need to update the value table
 			if ((root -> is_dict > 0) && (value != NULL)){
-				ret = insert_fast_table(&(inward_leaf -> values), &off_8, value);
+				ret = insert_fast_table(&(inward_leaf -> values), &off_8, &value);
 				if (unlikely(ret != 0)){
 					fprintf(stderr, "Error: failure to insert value in the leaf's value table from 16\n");
 					return -1;
@@ -1608,6 +1616,7 @@ int search_next_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, Fast_Tree_
 	ret_search_result -> key = search_key;
 	ret_search_result -> value = NULL;
 
+
 	// Can immediately return because we know there will not be a next within the tree
 	if (search_key > fast_tree -> max){
 		return -1; 
@@ -1681,6 +1690,15 @@ int search_next_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, Fast_Tree_
 // sets the search result
 int search_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchModifier search_type, Fast_Tree_Result * ret_search_result) {
 	
+	// initally set search result
+	ret_search_result -> fast_tree_leaf = NULL;
+	ret_search_result -> key = search_key;
+	ret_search_result -> value = NULL;
+
+	if (fast_tree -> cnt == 0){
+		return -1;
+	}
+
 	int ret;
 
 	uint64_t found_key;
@@ -1689,51 +1707,52 @@ int search_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchM
 	Fast_Tree_Leaf * fast_tree_leaf;
 
 	switch(search_type){
-
-		// For the just equal case we can directly walk down the main tree
-		case FAST_TREE_EQUAL:
-			fast_tree_leaf = get_leaf(fast_tree, search_key);
-			if (!fast_tree_leaf){
-				ret_search_result -> fast_tree_leaf = NULL;
-				ret_search_result -> key = search_key;
-				ret_search_result -> value = NULL;
+		case FAST_TREE_MIN:
+			ret_search_result -> fast_tree_leaf = fast_tree -> min_leaf;
+			ret_search_result -> key = fast_tree -> min;			
+			ret_search_result -> value = get_value_from_leaf(fast_tree -> min_leaf, fast_tree -> min & LEAF_KEY_MASK);
+			ret = 0;
+			break;
+		case FAST_TREE_MAX:
+			ret_search_result -> fast_tree_leaf = fast_tree -> max_leaf;
+			ret_search_result -> key = fast_tree -> max;			
+			ret_search_result -> value = get_value_from_leaf(fast_tree -> max_leaf, fast_tree -> max & LEAF_KEY_MASK);
+			ret = 0;
+			break;
+		case FAST_TREE_PREV:
+			// trying to search prev on 0 will underflow so immediately return none
+			if (search_key == 0){
 				return -1;
 			}
-
-			// we know the leaf exists
-			// now we lookup the value based on lower 8 bits
-			leaf_key = (search_key & LEAF_KEY_MASK);
-			value = get_value_from_leaf(fast_tree_leaf, leaf_key);
-
-			ret_search_result -> fast_tree_leaf = fast_tree_leaf;
-			ret_search_result -> key = search_key;			
-			ret_search_result -> value = value;
-			ret = 0;
+			ret = search_prev_fast_tree(fast_tree, search_key - 1, ret_search_result);
 			break;
 		case FAST_TREE_NEXT:
 			// trying to search next on the maximum value will overflow so immediately return none
 			if (search_key == TREE_MAX){
-				ret_search_result -> fast_tree_leaf = NULL;
-				ret_search_result -> key = TREE_MAX;
-				ret_search_result -> value = NULL;
 				return -1;
 			}
 			// not equal so just call next on search key + 1
 			ret = search_next_fast_tree(fast_tree, search_key + 1, ret_search_result);
 			break;
+		// For the just equal case we can directly walk down the main tree
+		case FAST_TREE_EQUAL:
+			fast_tree_leaf = get_leaf(fast_tree, search_key);
+			if (!fast_tree_leaf){
+				return -1;
+			}
+			// we know the leaf exists
+			// now we lookup the value based on lower 8 bits
+			value = get_value_from_leaf(fast_tree_leaf, search_key & LEAF_KEY_MASK);
+			ret_search_result -> fast_tree_leaf = fast_tree_leaf;
+			ret_search_result -> key = search_key;			
+			ret_search_result -> value = value;
+			ret = 0;
+			break;
+		
 		case FAST_TREE_EQUAL_OR_NEXT:
 			ret = search_next_fast_tree(fast_tree, search_key, ret_search_result);
 			break;
-		case FAST_TREE_PREV:
-			// trying to search prev on 0 will underflow so immediately return none
-			if (search_key == 0){
-				ret_search_result -> fast_tree_leaf = NULL;
-				ret_search_result -> key = 0;
-				ret_search_result -> value = NULL;
-				return -1;
-			}
-			ret = search_prev_fast_tree(fast_tree, search_key - 1, ret_search_result);
-			break;
+		
 		case FAST_TREE_EQUAL_OR_PREV:
 			ret = search_prev_fast_tree(fast_tree, search_key, ret_search_result);
 			break;
@@ -1759,15 +1778,11 @@ int search_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchM
 				return -1;
 			}
 			ret_search_result -> fast_tree_leaf = fast_tree_leaf;
-			leaf_key = found_key & LEAF_KEY_MASK;
-			value = get_value_from_leaf(fast_tree_leaf, leaf_key);
-			ret_search_result -> value = value;
+			ret_search_result -> value = get_value_from_leaf(fast_tree_leaf, found_key & LEAF_KEY_MASK);
 		}
 		// if we got the correct leaf, but wrong key then value would be empty
 		else if (search_key != found_key){
-			leaf_key = found_key & LEAF_KEY_MASK;
-			value = get_value_from_leaf(ret_search_result -> fast_tree_leaf, leaf_key);
-			ret_search_result -> value = value;
+			ret_search_result -> value = get_value_from_leaf(ret_search_result -> fast_tree_leaf, found_key & LEAF_KEY_MASK);
 		}
 		// otherwise we found the key through main tree and then fast_tree_leaf and value
 		// have already been set
@@ -1843,7 +1858,9 @@ int remove_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 
 	fast_tree -> cnt -= 1;
 
-	*prev_value = get_value_from_leaf(main_leaf, off_8);
+	if (prev_value){
+		*prev_value = get_value_from_leaf(main_leaf, off_8);
+	}
 
 
 
@@ -2129,7 +2146,10 @@ int remove_fast_tree_outward_32(Fast_Tree * root, Fast_Tree_Outward_Root_32 * fa
 // if key was already in the tree and had a non-null value, then copies the previous value into prev_value
 int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void ** prev_value) {
 
-	*prev_value = NULL;
+	if (prev_value){
+		*prev_value = NULL;
+	}
+	
 
 	if ((fast_tree -> cnt == 0) || ((key < fast_tree -> min) || (key > fast_tree -> max))){	
 		return -1;

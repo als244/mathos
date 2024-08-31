@@ -202,22 +202,47 @@
 // so after the first isnertation they would immeidately grow to size 2 no matter what. When the table
 // becomes empty it gets freed and removed from the parent table.
 
+
+
+
+
+// MEMORY CONFIGURATION
+
+// this is to make allocations faster for lists
+// that containing starting chunk_id's of the same range size
+
+// each list represent a fixed memory range size, so we actually
+// know the maximum capacity, but this could be an undue waste of memory
+#define MEMORY_RANGE_LIST_DEFAULT_BUFFER_CAPACITY 8
+
+
+#define MEMORY_RANGE_LISTS_MIN_TABLE_SIZE 256
+#define MEMORY_RANGE_LISTS_LOAD_FACTOR 0.5
+#define MEMORY_RANGE_LISTS_SHRINK_FACTOR 0.25
+
+
+// the max table size is the number of chunks
+#define MEMORY_ENDPOINT_MIN_TABLE_SIZE 256
+#define MEMORY_ENDPOINT_LOAD_FACTOR 0.5
+#define MEMORY_ENDPOINT_SHRINK_FACTOR 0.25
+
+
+#define FAST_TREE_32_MIN_TABLE_SIZE 2
 // can contain up to 2^32 entires, when table reaches MAX size the re-hashing will have no collisions 
 // because of the modulus hash function across all 2^32 unique keys
-#define FAST_TREE_32_MIN_TABLE_SIZE 2
-#define FAST_TREE_32_MAX_TABLE_SIZE 0xFFFFFFF
+#define FAST_TREE_32_MAX_TABLE_SIZE 1 << 32
 #define FAST_TREE_32_LOAD_FACTOR 0.5
 #define FAST_TREE_32_SHRINK_FACTOR 0.25
 
 // can contain up to 2^16 entries
 #define FAST_TREE_16_MIN_TABLE_SIZE 2
-#define FAST_TREE_16_MAX_TABLE_SIZE 0xFFFF
+#define FAST_TREE_16_MAX_TABLE_SIZE 1 << 16
 #define FAST_TREE_16_LOAD_FACTOR 0.5
 #define FAST_TREE_16_SHRINK_FACTOR 0.25
 
 // can contain up to 2^8 entries
 #define FAST_TREE_OUTWARD_LEAF_MIN_TABLE_SIZE 2
-#define FAST_TREE_OUTWARD_LEAF_MAX_TABLE_SIZE 0xFF
+#define FAST_TREE_OUTWARD_LEAF_MAX_TABLE_SIZE 1 << 8
 #define FAST_TREE_OUTWARD_LEAF_LOAD_FACTOR 0.5
 #define FAST_TREE_OUTWARD_LEAF_SHRINK_FACTOR 0.25
 
@@ -227,7 +252,7 @@
 // and contains extra information such as 
 // base, another fast table, deque
 #define FAST_TREE_MAIN_LEAF_MIN_TABLE_SIZE 2
-#define FAST_TREE_MAIN_LEAF_MAX_TABLE_SIZE 0xFF
+#define FAST_TREE_MAIN_LEAF_MAX_TABLE_SIZE 1 << 8
 #define FAST_TREE_MAIN_LEAF_LOAD_FACTOR 0.5
 #define FAST_TREE_MAIN_LEAF_SHRINK_FACTOR 0.25
 
@@ -236,13 +261,15 @@
 // The value is the value that was inserted associated
 // with corresponding uint64_t key
 #define FAST_TREE_VALUE_MIN_TABLE_SIZE 2
-#define FAST_TREE_VALUE_MAX_TABLE_SIZE 0xFF
+#define FAST_TREE_VALUE_MAX_TABLE_SIZE 1 << 8
 #define FAST_TREE_VALUE_LOAD_FACTOR 0.5
 #define FAST_TREE_VALUE_SHRINK_FACTOR 0.25
 
 
-// MEMORY CONFIGURATION
 
+// Not using skiplist anymore...
+
+/*
 // higher level factor -> more memory usage, 
 //	but potentially more items to skip over (but also could lead to more traversing)
 #define MEMORY_SKIPLIST_LEVEL_FACTOR 0.5
@@ -263,6 +290,7 @@
 // Different option would be to a set a maximum range size, so there is less contention for breaking
 // up large ranges at the beginning before system stabilizes
 #define MEMORY_RESERVATION_ATTEMPT_CNT 3
+*/
 
 
 // NOTE: THE "MASTER" PROCESS AND ALL WORKERS NEED TO AGREE ON THIS CONFIG!

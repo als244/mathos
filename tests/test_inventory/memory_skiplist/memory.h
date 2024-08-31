@@ -3,26 +3,14 @@
 
 #include "common.h"
 #include "config.h"
+#include "skiplist.h"
 #include "utils.h"
-
-#include "fast_list.h"
-#include "fast_table.h"
-#include "fast_tree.h"
-
 
 #define SYSTEM_MEMPOOL_ID -1
 
-
-typedef enum backend_memory_type {
-	HSA_MEMORY,
-	CUDA_MEMORY
-} BackendMemoryType;
-
 typedef struct mem_range {
-	uint64_t range_size;
-	// this is a pointer to the node
-	// which contains the start_chunk_id
-	Fast_List_Node * start_chunk_id_ref;
+	uint64_t num_chunks;
+	uint64_t start_chunk_id;
 } Mem_Range;
 
 
@@ -35,21 +23,17 @@ typedef struct mempool {
 	// equivalent to chunk_size * num_chunks
 	uint64_t capacity_bytes;
 	uint64_t va_start_addr;
-	// mapping from range size => Fast_Lists of all mem_ranges of specific size
-	// each fast list will contain starting chunk id's with that assoicated
-	// size
-	// There is one list per range size and this gets inserted
-	// into the free_mem_ranges fast tree
-	Fast_Table * range_lists_table;
-	// mapping from requested range_size => equal or successor Fast_List
-	// wil be using FAST_TREE_EQUAL_OR_NEXT for searching this tree
-	Fast_Tree * free_mem_ranges;
-	// mapping from chunk id => mem_range
-	// used during release_memory() to determine if the released
-	// range should be merged
-	// Each mem_range with size > 1 chunk will get inserted
-	// into this table twice
-	Fast_Table * free_endpoints;
+	Skiplist * free_mem_ranges;
+	// size of num chunks
+	// need this so when releasing memory & 
+	// trying to merge contiguous free ranges
+	// can search skiplist with this key
+	// (only if num_chunks != 0 => endpoint of free range)
+	uint64_t * endpoint_range_size;
+	// acquired during releases to maintain contiguous range
+	// invariant within skiplists
+	// otherwise might not attempt to merge when it should have
+	pthread_mutex_t * endpoint_locks;
 } Mempool;
 
 
@@ -73,13 +57,11 @@ typedef struct mem_reservation {
 } Mem_Reservation;
 
 
+// USED TO INITIALIZE SKIPLISTS
 
-// SHOULD HAVE THIS HERE BUT FOR NOW FOR EASY BUILD
-// PURPOSES LEAVING THIS WITHIN THE BACKEND_MEMORY FILE ITSELF!
+int mem_range_skiplist_item_key_cmp(void * mem_range_skiplist_item, void * other_mem_range_skiplist_item);
+int mem_range_val_cmp(void * mem_range, void * other_mem_range);
 
-// Memory * init_backend_memory(void * backend_memory_ref, BackendMemoryType backend_memory_type);
-
-Fast_List_Node * add_free_mem_range(Mempool * mempool, uint64_t start_chunk_id, uint64_t range_size);
 
 
 // returns 0 upon success, otherwise error

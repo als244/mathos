@@ -13,11 +13,13 @@
 // to the queried key with respect
 // to either a search request or an update request
 typedef enum fast_tree_search_modifier {
-	FAST_TREE_EQUAL,
-	FAST_TREE_NEXT,
-	FAST_TREE_EQUAL_OR_NEXT,
+	FAST_TREE_MIN,
+	FAST_TREE_MAX,
 	FAST_TREE_PREV,
+	FAST_TREE_NEXT,
+	FAST_TREE_EQUAL,
 	FAST_TREE_EQUAL_OR_PREV,
+	FAST_TREE_EQUAL_OR_NEXT
 } FastTreeSearchModifier;
 
 
@@ -349,6 +351,7 @@ struct fast_tree {
 // at each level (32, 16, 8, 8) then this is the best we can do and no need
 // to be fancy. It takes care of linearly-clustered regions by default, unless there are unique 
 // patterns that exist between levels
+uint64_t hash_func_modulus_64(void * key_ref, uint64_t table_size);
 uint64_t hash_func_modulus_32(void * key_ref, uint64_t table_size);
 uint64_t hash_func_modulus_16(void * key_ref, uint64_t table_size);
 uint64_t hash_func_modulus_8(void * key_ref, uint64_t table_size);
