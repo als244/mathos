@@ -175,7 +175,7 @@ int main(int argc, char * argv[]){
 	
 	// HARDCODING THE RECEIVING IB DEVICE FOR NOW!
 	qp = (net_world -> self_net -> self_node -> endpoints)[2 * ib_device_id + 1].ibv_qp;
-	uint32_t lkey = (memory -> device_mempools[mem_reservation_net_recv.pool_id]).ib_dev_mrs[ib_device_id];
+	uint32_t lkey = (memory -> device_mempools[mem_reservation_net_recv.pool_id]).ib_dev_mrs[ib_device_id] -> lkey;
 
 	ret = post_recv_work_request(qp, (uint64_t) mem_reservation_net_recv.buffer, mem_reservation_net_recv.size_bytes, lkey, 0);
 	if (ret != 0){
