@@ -371,7 +371,7 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 
 	// Assume we aren't finding the element...
 	if (to_copy_value && ret_value){
-		ret_value = NULL;
+		memset((void *) ret_value, 0, sizeof(void *));
 	}
 	else if (ret_value){
 		*ret_value = NULL;
