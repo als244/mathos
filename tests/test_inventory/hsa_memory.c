@@ -354,7 +354,7 @@ Memory * init_backend_memory(Hsa_Memory * hsa_memory) {
 
 		
 
-		Fast_Table_Config * range_lists_table_config = save_fast_table_config(&hash_func_modulus_64, sizeof(uint64_t), sizeof(Fast_List *), 
+		Fast_Table_Config * range_lists_table_config = save_fast_table_config(&hash_func_64, sizeof(uint64_t), sizeof(Fast_List *), 
 												MEMORY_RANGE_LISTS_MIN_TABLE_SIZE, num_chunks, MEMORY_RANGE_LISTS_LOAD_FACTOR, MEMORY_RANGE_LISTS_SHRINK_FACTOR);
 
 
@@ -387,7 +387,7 @@ Memory * init_backend_memory(Hsa_Memory * hsa_memory) {
 			endpoint_table_min_size = num_chunks;
 		}
 
-		Fast_Table_Config * endpoint_table_config = save_fast_table_config(&hash_func_modulus_64, sizeof(uint64_t), sizeof(Mem_Range), 
+		Fast_Table_Config * endpoint_table_config = save_fast_table_config(&hash_func_64, sizeof(uint64_t), sizeof(Mem_Range), 
 												endpoint_table_min_size, num_chunks, MEMORY_ENDPOINT_LOAD_FACTOR, MEMORY_ENDPOINT_SHRINK_FACTOR);
 
 		if (!endpoint_table_config){
