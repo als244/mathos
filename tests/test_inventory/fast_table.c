@@ -492,6 +492,9 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 	uint64_t next_empty = get_next_ind_fast_table(is_empty_bit_vector, size, empty_ind, false);
 
 	uint64_t items_to_check;
+
+
+	// Now we are only checking AFTER the "removed" index
 	if (empty_ind < next_empty){
 		items_to_check = next_empty - empty_ind - 1;
 	}
@@ -511,7 +514,8 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 
 		cur_table_key = (void *) (((uint64_t) fast_table -> items) + (cur_ind * (key_size_bytes + value_size_bytes)));
 
-		hash_ind = (fast_table -> config -> hash_func)(key, size);
+		// get the hash index for the entry in the table to see if it could still be found
+		hash_ind = (fast_table -> config -> hash_func)(cur_table_key, size);
 
 		// Ref: https://stackoverflow.com/questions/9127207/hash-table-why-deletion-is-difficult-in-open-addressing-scheme
 

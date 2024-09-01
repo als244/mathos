@@ -119,6 +119,8 @@ int main(int argc, char * argv[]){
 
 
 
+
+
 	printf("\n\nSuccessfully started system. Everything online and ready to process...!\n\n");
 
 
@@ -132,19 +134,21 @@ int main(int argc, char * argv[]){
 
 
 	int num_floats = 100;
+
+	// All UD queue pair receives need to have sizeof(struct ibv_grh) added on to the request
+	// In reality we can just keep a seperate dead-zone for this as opposed to using 40-bytes
+	// per receive
+	int req_bytes = (num_floats * sizeof(float)) + sizeof(struct ibv_grh);
 	
 
 	Mem_Reservation mem_reservation_net_recv;
 	// allocate on device 0 and wanting chunk_size bytes;
 	mem_reservation_net_recv.pool_id = 0;
-	mem_reservation_net_recv.size_bytes = num_floats * sizeof(float); 
-
-
-	// Will populate mem_reservation.range_size, mem_reservation.start_chunk_id, mem_reservation.buffer
-	
-	//struct timespec start, stop;
+	mem_reservation_net_recv.size_bytes = req_bytes; 
 
 	clock_gettime(CLOCK_MONOTONIC, &start);
+
+	// Will populate mem_reservation.range_size, mem_reservation.start_chunk_id, mem_reservation.buffer
 	ret = reserve_memory(memory, &mem_reservation_net_recv);
 	clock_gettime(CLOCK_MONOTONIC, &stop);
 
@@ -153,6 +157,9 @@ int main(int argc, char * argv[]){
 					mem_reservation_net_recv.pool_id, mem_reservation_net_recv.size_bytes);
 		return -1;
 	}
+
+	printf("Req Results:\n\tReq Bytes: %lu\n\tStart Chunk ID: %lu\n\tNum Chunks: %lu\n\n", 
+				mem_reservation_net_recv.size_bytes, mem_reservation_net_recv.start_chunk_id, mem_reservation_net_recv.num_chunks);
 
 	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
 	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
@@ -167,8 +174,10 @@ int main(int argc, char * argv[]){
 	int ib_device_id = 0;
 	
 	// HARDCODING THE RECEIVING IB DEVICE FOR NOW!
-	struct ibv_qp * recv_qp = (net_world -> self_net -> self_node -> endpoints)[2 * ib_device_id + 1].ibv_qp;
-	uint32_t lkey = (memory -> device_mempools[mem_reservation_net_recv.pool_id]).ib_dev_mrs[ib_device_id] -> lkey;
+	struct ibv_qp * recv_qp = (net_world -> self_net -> self_node -> endpoints)[(2 * ib_device_id) + 1].ibv_qp;
+	uint32_t lkey = ((memory -> device_mempools[mem_reservation_net_recv.pool_id]).ib_dev_mrs[ib_device_id]) -> lkey;
+
+	printf("\nUsing Lkey: %u\n", lkey);
 
 	ret = post_recv_work_request(recv_qp, (uint64_t) mem_reservation_net_recv.buffer, mem_reservation_net_recv.size_bytes, lkey, 0);
 	if (ret != 0){
