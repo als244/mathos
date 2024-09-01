@@ -202,6 +202,8 @@ int register_device_memory_with_network(System * system){
 
 		}
 	}
+
+	return 0;
 }
 
 
