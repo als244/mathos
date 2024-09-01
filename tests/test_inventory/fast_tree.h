@@ -390,12 +390,12 @@ int search_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchM
 // returns 0 on success -1 on error
 // fails is key is already in the tree and overwrite set to false
 // if key was already in the tree and had a non-null value, then copies the previous value into prev_value
-int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_overwrite, void ** prev_value);
+int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_overwrite, void * prev_value);
 
 
 // returns 0 on success -1 on error
 // fails is key is not in the tree
-int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void ** prev_value);
+int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * prev_value);
 
 
 

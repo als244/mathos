@@ -118,7 +118,8 @@ Fast_List * remove_free_mem_range(Mempool * mempool, Mem_Range * mem_range, Fast
 		// assert treve_prev_list == range_list
 
 		// b.) remove from range lists table
-		Fast_List * table_prev_list;
+		Fast_List * table_prev_list = NULL;
+		
 		ret = remove_fast_table(range_lists_table, &range_size, (void **) &table_prev_list);
 
 		// should never happen
@@ -215,7 +216,7 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 
 
 		// also should remove the range lists table
-		Fast_List * table_prev_list;
+		Fast_List * table_prev_list = NULL;
 
 		ret = remove_fast_table(mempool.range_lists_table, &reserved_chunks, (void **) &table_prev_list);
 		// should never happen

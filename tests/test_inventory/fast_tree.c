@@ -379,7 +379,7 @@ void link_fast_tree_leaf(Fast_Tree * root, Fast_Tree_Leaf * fast_tree_leaf){
 
 
 // Called by 32 inserting into an Fast_Tree_16 associated with main tree
-int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key, void * value, bool to_overwrite, void ** prev_value, uint64_t base, bool * element_inserted, Fast_Tree_Leaf ** new_main_leaf){
+int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key, void * value, bool to_overwrite, void * prev_value, uint64_t base, bool * element_inserted, Fast_Tree_Leaf ** new_main_leaf){
 
 	if (fast_tree -> inward_leaves.items == NULL){
 		int init_ret = init_fast_table(&(fast_tree -> inward_leaves), root -> table_config_main_leaf);
@@ -433,10 +433,8 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 
 		*new_main_leaf = inward_leaf;
 
-		uintptr_t inward_leaf_ptr = (uintptr_t) inward_leaf;
-
 		// insert the pointer to the newly created/value added/linked leaf into the table so we will find this leaf again
-		ret = insert_fast_table(&(fast_tree -> inward_leaves), &ind_8, &inward_leaf_ptr);
+		ret = insert_fast_table(&(fast_tree -> inward_leaves), &ind_8, &inward_leaf);
 		if (unlikely(ret != 0)){
 			fprintf(stderr, "Error: failure to insert tree into table from 16\n");
 			return -1;
@@ -465,29 +463,32 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 
 		// insert off_8 into the inward leaf with value and return prev value
 		int in_bitvector = set_bitvector(inward_leaf -> bit_vector, off_8);
-		
-		void * prev_value_table = NULL;
 
 		// this Key was Already in the Tree
 		if (in_bitvector != 0){
 
 			*element_inserted = false;
-			
+				
 			// have prev_value_table be a pointer within the table, so we can overwrite it if that
 			// flag was set
+			void * prev_value_table = NULL;
+
 			ret = find_fast_table(&(inward_leaf -> values), &off_8, false, &prev_value_table);
 			// if there was a value corresponding to this key before
 			if (ret != inward_leaf -> values.config -> max_size){
+				// if there was a previous value and we want to save the previous value
+				// we should get the previous pointer (derefecing the table value) and copy it
+				// to where we want to save. All values in the tree are void *, so this is OK
 				if (prev_value && prev_value_table){
-					*prev_value = *((void **) prev_value_table);
+					memcpy(prev_value, *((void **) prev_value_table), sizeof(void *));
 				}
 				if (!to_overwrite){
 					return -1;
 				}      
 				else{
 					// overwriting the old pointer with new pointer
-					if (prev_value && prev_value_table && (value != NULL)){
-						memcpy(prev_value_table, &value, sizeof(uintptr_t));
+					if (prev_value_table && value){
+						memcpy(prev_value_table, &value, sizeof(void *));
 					}
 					else {
 						remove_fast_table(&(inward_leaf -> values), &off_8, NULL);
@@ -674,7 +675,7 @@ int insert_fast_tree_outward_16(Fast_Tree * root, Fast_Tree_Outward_Root_16 * fa
 
 }
 
-int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key, void * value, bool to_overwrite, void ** prev_value, uint64_t base, bool * element_inserted, Fast_Tree_Leaf ** new_main_leaf){
+int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key, void * value, bool to_overwrite, void * prev_value, uint64_t base, bool * element_inserted, Fast_Tree_Leaf ** new_main_leaf){
 
 	if (fast_tree -> inward.items == NULL){
 		// the cnt will be incremented within the next function call (insert_fast_tree_nonmain_16)
@@ -801,7 +802,7 @@ int insert_fast_tree_outward_32(Fast_Tree * root, Fast_Tree_Outward_Root_32 * fa
 // returns 0 on success -1 on error
 // fails is key is already in the tree and overwrite set to false
 // if key was already in the tree and had a non-null value, then copies the previous value into prev_value
-int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_overwrite, void ** prev_value) {
+int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_overwrite, void * prev_value) {
 
 	uint32_t ind_32 = (key & IND_32_MASK) >> 32;
 	uint32_t off_32 = (key & OFF_32_MASK);
@@ -1847,7 +1848,7 @@ void destroy_and_unlink_fast_tree_leaf(Fast_Tree * root, Fast_Tree_Leaf * fast_t
 	return;
 }
 
-int remove_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key, uint64_t * triggered_new_min_key, uint64_t * triggered_new_max_key, bool * element_removed, bool * tree_removed, void ** prev_value, uint16_t parent_ind){
+int remove_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key, uint64_t * triggered_new_min_key, uint64_t * triggered_new_max_key, bool * element_removed, bool * tree_removed, void * prev_value, uint16_t parent_ind){
 
 	// OUTWARD ROOT 32 HAS ALREADY INITIALIZED TABLE FROM INIT_FAST_TREE()
 
@@ -1879,16 +1880,10 @@ int remove_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 
 	fast_tree -> cnt -= 1;
 
-	if (prev_value){
-		*prev_value = get_value_from_leaf(main_leaf, off_8);
-	}
-
-	// remove the value from the leaf (if it exists)
-	// we already copied the reference to the value above
-	// (and all values must be pointers, so now we have it saved)
-	if (root -> is_dict){
-		remove_fast_table(&(main_leaf -> values), &off_8, NULL);
-	}
+	// if we want to save the previous value (i.e. the caller passed in non-null value)
+	// then we should copy the results to the derefrenced prev_value
+	// this function will handle if the table does not exist by default
+	remove_fast_table(&(main_leaf -> values), &off_8, prev_value);
 
 
 	if ((main_leaf -> min == off_8) && (main_leaf -> max == off_8)){
@@ -2070,7 +2065,7 @@ int remove_fast_tree_outward_16(Fast_Tree * root, Fast_Tree_Outward_Root_16 * fa
 	return 0;
 }
 
-int remove_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key, uint64_t * triggered_new_min_key, uint64_t * triggered_new_max_key, bool * element_removed, bool * tree_removed, void ** prev_value, uint32_t parent_ind){
+int remove_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key, uint64_t * triggered_new_min_key, uint64_t * triggered_new_max_key, bool * element_removed, bool * tree_removed, void * prev_value, uint32_t parent_ind){
 
 	
 	*tree_removed = false;
@@ -2171,12 +2166,7 @@ int remove_fast_tree_outward_32(Fast_Tree * root, Fast_Tree_Outward_Root_32 * fa
 // returns 0 on success -1 on error
 // fails is key is already in the tree and overwrite set to false
 // if key was already in the tree and had a non-null value, then copies the previous value into prev_value
-int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void ** prev_value) {
-
-	if (prev_value){
-		*prev_value = NULL;
-	}
-	
+int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * prev_value) {
 
 	if ((fast_tree -> cnt == 0) || ((key < fast_tree -> min) || (key > fast_tree -> max))){	
 		return -1;
