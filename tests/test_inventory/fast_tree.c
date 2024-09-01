@@ -490,7 +490,7 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 						memcpy(prev_value_table, &value, sizeof(uintptr_t));
 					}
 					else {
-						remove_fast_table(&(inward_leaf -> values), &off_8, false, NULL);
+						remove_fast_table(&(inward_leaf -> values), &off_8, NULL);
 					}
 				}
 			}
@@ -1002,7 +1002,10 @@ uint8_t lookup_bitvector_next(uint64_t * bit_vector, uint8_t key){
 }
 
 
-// Returns a copy of the value!
+// Because all values in the table are pointers, we can 
+// get a reference within the table and deference it
+// to get a staic pointer value that is returned
+
 // The value table might get resized so we don't want to to return a pointer
 // to something within the table!
 void * get_value_from_leaf(Fast_Tree_Leaf * fast_tree_leaf, uint8_t key){
@@ -1885,7 +1888,7 @@ int remove_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 	if ((main_leaf -> min == off_8) && (main_leaf -> max == off_8)){
 		destroy_and_unlink_fast_tree_leaf(root, main_leaf, triggered_new_min_key, triggered_new_max_key);
 
-		remove_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, NULL);
+		remove_fast_table(&(fast_tree -> inward_leaves), &ind_8, NULL);
 
 		(root -> tree_stats).num_leaves -= 1;
 
@@ -1965,7 +1968,7 @@ int remove_fast_tree_nonmain_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint
 	// we can remove this leaf if this was the last element left
 	if ((inward_leaf_ref -> min == off_8) && (inward_leaf_ref -> max == off_8)){
 
-		remove_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, NULL);
+		remove_fast_table(&(fast_tree -> inward_leaves), &ind_8, NULL);
 
 		(root -> tree_stats).num_outward_leaves -= 1;
 
@@ -2031,7 +2034,7 @@ int remove_fast_tree_outward_16(Fast_Tree * root, Fast_Tree_Outward_Root_16 * fa
 	// we can remove this leaf if this was the last element left
 	if ((inward_leaf_ref -> min == off_8) && (inward_leaf_ref -> max == off_8)){
 
-		remove_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, NULL);
+		remove_fast_table(&(fast_tree -> inward_leaves), &ind_8, NULL);
 
 		(root -> tree_stats).num_outward_leaves -= 1;
 
@@ -2090,7 +2093,7 @@ int remove_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key
 
 	if (child_tree_removed){
 		// remove this tree from table
-		remove_fast_table(&(fast_tree -> inward), &ind_16, false, NULL);
+		remove_fast_table(&(fast_tree -> inward), &ind_16, NULL);
 
 		(root -> tree_stats).num_trees_16 -= 1;
 
@@ -2146,7 +2149,7 @@ int remove_fast_tree_outward_32(Fast_Tree * root, Fast_Tree_Outward_Root_32 * fa
 
 		(root -> tree_stats).num_nonmain_trees_16 -= 1;
 
-		remove_fast_table(&(fast_tree -> inward), &ind_16, false, (void **) &inward_tree_16_ref);
+		remove_fast_table(&(fast_tree -> inward), &ind_16, NULL);
 
 		bool outward_removed = false;
 		remove_fast_tree_outward_16(root, &(fast_tree -> outward_root), ind_16, &outward_removed);
@@ -2154,7 +2157,7 @@ int remove_fast_tree_outward_32(Fast_Tree * root, Fast_Tree_Outward_Root_32 * fa
 		// don't destroy the inward tree out outward_32, this is created at init time
 	}
 
-	return status;
+	return 0;
 
 
 }
@@ -2201,7 +2204,7 @@ int remove_fast_tree(Fast_Tree * fast_tree, uint64_t key, void ** prev_value) {
 
 	if (child_tree_removed){
 		(fast_tree -> tree_stats).num_trees_32 -= 1;
-		remove_fast_table(&(fast_tree -> inward), &ind_32, false, (void **) &inward_tree_32_ref);
+		remove_fast_table(&(fast_tree -> inward), &ind_32, NULL);
 		remove_fast_tree_outward_32(fast_tree, &(fast_tree -> outward_root), ind_32);
 	}
 

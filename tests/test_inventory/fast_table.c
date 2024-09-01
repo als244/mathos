@@ -370,7 +370,10 @@ int insert_fast_table(Fast_Table * fast_table, void * key, void * value) {
 uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, void ** ret_value){
 
 	if (fast_table -> items == NULL){
-		if (ret_value){
+		if (to_copy_value && ret_value){
+			ret_value = NULL;
+		}
+		else if (ret_value){
 			*ret_value = NULL;
 		}
 		return fast_table -> config -> max_size;
@@ -424,8 +427,10 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 
 			if (ret_value){
 				// now we want to copy the value and then can return
+				// if we are copying then we assume the return value is just
+				// directly the pointer to copy to
 				if (to_copy_value) {
-					memcpy(*ret_value, table_value, value_size_bytes);
+					memcpy((void *) ret_value, table_value, value_size_bytes);
 				}
 				else{
 					*ret_value = table_value;
@@ -448,9 +453,12 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 	
 	// We didn't find the element
 
-	if (ret_value){
+	if (to_copy_value && ret_value){
+		ret_value = NULL;
+	}
+	else if (ret_value){
 		*ret_value = NULL;
-	}	
+	}
 
 	return fast_table -> config -> max_size;
 }
@@ -463,7 +471,7 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 // table and allocating new, smaller one)
 
 // if copy_val is set to true then copy back the item
-int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, void ** ret_value) {
+int remove_fast_table(Fast_Table * fast_table, void * key, void * ret_value) {
 
 
 	// remove is equivalent to find, except we need to also:
@@ -474,8 +482,9 @@ int remove_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value, v
 
 	// 1.) Search for item!
 
-	// if the item existed this will handle copying if we wanted to
-	uint64_t empty_ind = find_fast_table(fast_table, key, to_copy_value, ret_value);
+	// if the item existed this will handle copying
+	// because we are removing from the table we need to copy the value
+	uint64_t empty_ind = find_fast_table(fast_table, key, true, (void **) ret_value);
 
 	// item didn't exist so we immediately return
 	if (empty_ind == (fast_table -> config -> max_size)){

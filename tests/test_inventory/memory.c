@@ -118,8 +118,8 @@ Fast_List * remove_free_mem_range(Mempool * mempool, Mem_Range * mem_range, Fast
 		// assert treve_prev_list == range_list
 
 		// b.) remove from range lists table
-		Fast_List * table_prev_list = NULL;
-		ret = remove_fast_table(range_lists_table, &range_size, false, (void **) &table_prev_list);
+		Fast_List * table_prev_list;
+		ret = remove_fast_table(range_lists_table, &range_size, (void **) &table_prev_list);
 
 		// should never happen
 		if (unlikely(ret)){
@@ -215,12 +215,11 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 
 
 		// also should remove the range lists table
-		Fast_List * table_prev_list = NULL;
+		Fast_List * table_prev_list;
 
-		remove_fast_table(mempool.range_lists_table, &reserved_chunks, false, (void **) &table_prev_list);
-
+		ret = remove_fast_table(mempool.range_lists_table, &reserved_chunks, (void **) &table_prev_list);
 		// should never happen
-		if (unlikely(!table_prev_list)){
+		if (unlikely(ret)){
 			fprintf(stderr, "Error: reserved range size was not in fast table\n");
 			return -1;
 		}
@@ -281,11 +280,10 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 	// (and the end chunk id endpoint if there are no excess chunks)
 
 
-	Mem_Range * mem_range = NULL;
-
-	remove_fast_table(free_endpoints, &start_chunk_id, false, (void **) &mem_range);
+	Mem_Range mem_range;
+	ret = remove_fast_table(free_endpoints, &start_chunk_id, (void **) &mem_range);
 	// should never happen
-	if (unlikely(!mem_range)){
+	if (unlikely(ret)){
 		fprintf(stderr, "Error: unable to remove starting endpoint of %lu\n", start_chunk_id);
 		return -1;
 	}
@@ -300,13 +298,12 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 
 		uint64_t end_chunk_id = start_chunk_id + req_chunks - 1;
 
-		mem_range = NULL;
-		remove_fast_table(free_endpoints, &end_chunk_id, false, (void **) &mem_range);
+		ret = remove_fast_table(free_endpoints, &end_chunk_id, (void **) &mem_range);
 
 		// assert mem_range -> range_size = reserved_size == req_size
 
 		// should never happen
-		if (unlikely(!mem_range)){
+		if (unlikely(ret)){
 			fprintf(stderr, "Error: unable to remove ending endpoint of %lu\n", end_chunk_id);
 			return -1;
 		}
@@ -352,20 +349,28 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 
 	Fast_Table * free_endpoints = mempool.free_endpoints;
 
+	Mem_Range left_mem_range;
+	Mem_Range right_mem_range;
+
 	Mem_Range * left_merge = NULL;
 	Mem_Range * right_merge = NULL;
-
 	// If the surrounding -1 and +1 endpoints are free, we want to remove
 	// them and merge
 
 	if (start_chunk_id > 0){
 		uint64_t left_endpoint = start_chunk_id - 1;
-		remove_fast_table(free_endpoints, &left_endpoint, false, (void **) &left_merge);
+		ret = remove_fast_table(free_endpoints, &left_endpoint, (void **) &left_mem_range);
+		if (ret == 0){
+			left_merge = &left_mem_range;
+		}
 	}
 
 	if (end_chunk_id < mempool.num_chunks - 1){
 		uint64_t right_endpoint = end_chunk_id + 1;
-		remove_fast_table(free_endpoints, &right_endpoint, false, (void **) &right_merge);
+		ret = remove_fast_table(free_endpoints, &right_endpoint, (void **) &right_mem_range);
+		if (ret == 0){
+			right_merge = &right_mem_range;
+		}
 	}
 
 
@@ -417,7 +422,7 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 		// table, but if we had a left merge with size > 1 then this entry will already
 		// exist and we need to remove it (if size 1 then we already removed it above)
 		if (left_size > 1){
-			ret = remove_fast_table(free_endpoints, &new_start_id, false, (void **) &left_merge);
+			ret = remove_fast_table(free_endpoints, &new_start_id, (void **) &left_mem_range);
 			// should never happen
 			if (unlikely(ret)){
 				fprintf(stderr, "Error: failure to remove left endpoint from table\n");
@@ -519,7 +524,7 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 
 
 	}
-	
+
 	return 0;
 }
 
