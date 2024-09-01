@@ -133,18 +133,11 @@ int main(int argc, char * argv[]){
 
 	int num_floats = 100;
 	
-	struct ibv_pd * pd = (system -> net_world -> self_net -> dev_pds)[0];
-	struct ibv_qp * qp;
-	struct ibv_mr * mr;
-
-	int mr_access = IBV_ACCESS_LOCAL_WRITE;
-
 
 	Mem_Reservation mem_reservation_net_recv;
-
 	// allocate on device 0 and wanting chunk_size bytes;
 	mem_reservation_net_recv.pool_id = 0;
-	mem_reservation_net_recv.size_bytes = chunk_size; 
+	mem_reservation_net_recv.size_bytes = num_floats * sizeof(float); 
 
 
 	// Will populate mem_reservation.range_size, mem_reservation.start_chunk_id, mem_reservation.buffer
@@ -174,10 +167,10 @@ int main(int argc, char * argv[]){
 	int ib_device_id = 0;
 	
 	// HARDCODING THE RECEIVING IB DEVICE FOR NOW!
-	qp = (net_world -> self_net -> self_node -> endpoints)[2 * ib_device_id + 1].ibv_qp;
+	struct ibv_qp * recv_qp = (net_world -> self_net -> self_node -> endpoints)[2 * ib_device_id + 1].ibv_qp;
 	uint32_t lkey = (memory -> device_mempools[mem_reservation_net_recv.pool_id]).ib_dev_mrs[ib_device_id] -> lkey;
 
-	ret = post_recv_work_request(qp, (uint64_t) mem_reservation_net_recv.buffer, mem_reservation_net_recv.size_bytes, lkey, 0);
+	ret = post_recv_work_request(recv_qp, (uint64_t) mem_reservation_net_recv.buffer, mem_reservation_net_recv.size_bytes, lkey, 0);
 	if (ret != 0){
 		fprintf(stderr, "Error: unable to post recv request to the registered dma buf region\n");
 		return -1;
@@ -200,7 +193,7 @@ int main(int argc, char * argv[]){
 	
 	void * dptr_real = (void *) ((uint64_t) mem_reservation_net_recv.buffer + sizeof(struct ibv_grh));
 	void * buffer;
-	ret = hsa_copy_to_host_memory(hsa_memory, device_id, dptr_real, num_floats * sizeof(float), (void **) &buffer);
+	ret = hsa_copy_to_host_memory(hsa_memory, device_id, dptr_real, mem_reservation_net_recv.size_bytes, (void **) &buffer);
 	if (ret != 0){
 		fprintf(stderr, "Error failed to copy contents from device to host\n");
 		return -1;
