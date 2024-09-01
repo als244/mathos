@@ -1883,6 +1883,12 @@ int remove_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 		*prev_value = get_value_from_leaf(main_leaf, off_8);
 	}
 
+	// remove the value from the leaf (if it exists)
+	// we already copied the reference to the value above
+	// (and all values must be pointers, so now we have it saved)
+	if (root -> is_dict){
+		remove_fast_table(&(main_leaf -> values), &off_8, NULL);
+	}
 
 
 	if ((main_leaf -> min == off_8) && (main_leaf -> max == off_8)){
