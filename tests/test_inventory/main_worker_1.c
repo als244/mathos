@@ -74,194 +74,9 @@ int main(int argc, char * argv[]){
 	}
 
 
-	// REQUEST #1
-
-	Mem_Reservation mem_reservation_test;
-
-	// allocate on device 0 and wanting chunk_size bytes;
-	mem_reservation_test.pool_id = 0;
-	mem_reservation_test.size_bytes = 2 * chunk_size; 
-
-
-	printf("\n\n\n1.) Requesting %lu Bytes on Pool %d...\n", mem_reservation_test.size_bytes, mem_reservation_test.pool_id);
-
-	clock_gettime(CLOCK_MONOTONIC, &start);
-	ret = reserve_memory(memory, &mem_reservation_test);
-	clock_gettime(CLOCK_MONOTONIC, &stop);
-
-
-	if (ret != 0){
-		fprintf(stderr, "Error: failed to reserve memory 1 on pool id %d of size %lu\n", 
-					mem_reservation_test.pool_id, mem_reservation_test.size_bytes);
-		return -1;
-	}
-
-	// now we expect this to have start id 0
-	printf("\tStart Chunk ID: %lu\n\tNum Chunks: %lu\n", mem_reservation_test.start_chunk_id, mem_reservation_test.num_chunks);
-
-	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
-	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
-	elapsed_ns = timestamp_stop - timestamp_start;
-
-	printf("\n\tElasped Time (ns): %lu\n\n", elapsed_ns);
-
-
-
-
-	// REQUEST #2
-
-	Mem_Reservation mem_reservation_test_2;
-
-	mem_reservation_test_2.pool_id = 0;
-	mem_reservation_test_2.size_bytes = 2 * chunk_size;
-
-	printf("\n\n2.) Requesting %lu Bytes on Pool %d...\n", mem_reservation_test_2.size_bytes, mem_reservation_test_2.pool_id); 
-
-	clock_gettime(CLOCK_MONOTONIC, &start);
-	ret = reserve_memory(memory, &mem_reservation_test_2);
-	clock_gettime(CLOCK_MONOTONIC, &stop);
-
-	if (ret != 0){
-		fprintf(stderr, "Error: failed to reserve memory 2 on pool id %d of size %lu\n", 
-					mem_reservation_test_2.pool_id, mem_reservation_test_2.size_bytes);
-		return -1;
-	}
-
-	// now we expect this to have start id 2
-	printf("\tStart Chunk ID: %lu\n\tNum Chunks: %lu\n", mem_reservation_test_2.start_chunk_id, mem_reservation_test_2.num_chunks);
-
-	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
-	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
-	elapsed_ns = timestamp_stop - timestamp_start;
-
-	printf("\n\tElasped Time (ns): %lu\n\n", elapsed_ns);
-
-
-
-
-	// RELEASING #1
-
-	printf("\n\n3.) Releasing reservation...\n\tReleased Start Chunk ID: %lu\n\tReleased Num Chunks: %lu\n", mem_reservation_test.start_chunk_id, mem_reservation_test.num_chunks); 
-
-	clock_gettime(CLOCK_MONOTONIC, &start);
-	ret = release_memory(memory, &mem_reservation_test);
-	clock_gettime(CLOCK_MONOTONIC, &stop);
-
-	if (ret){
-		fprintf(stderr, "Error: release memory failed\n");
-		return -1;
-	}
-
-	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
-	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
-	elapsed_ns = timestamp_stop - timestamp_start;
-
-	printf("\n\tElasped Time (ns): %lu\n\n", elapsed_ns);
-
-
-
-
-
-
-	// REQUEST #3
-
-	Mem_Reservation mem_reservation_test_3;
-
-	mem_reservation_test_3.pool_id = 0;
-	mem_reservation_test_3.size_bytes = chunk_size; 
-
-	printf("\n\n4.) Requesting %lu Bytes on Pool %d...\n", mem_reservation_test_3.size_bytes, mem_reservation_test_3.pool_id); 
-
-	clock_gettime(CLOCK_MONOTONIC, &start);
-	ret = reserve_memory(memory, &mem_reservation_test_3);
-	clock_gettime(CLOCK_MONOTONIC, &stop);
-
-	if (ret != 0){
-		fprintf(stderr, "Error: failed to reserve memory 3 on pool id %d of size %lu\n", 
-					mem_reservation_test_3.pool_id, mem_reservation_test_3.size_bytes);
-		return -1;
-	}
-
-	// now we expect this to have start id 0
-	printf("\tStart Chunk ID: %lu\n\tNum Chunks: %lu\n", mem_reservation_test_3.start_chunk_id, mem_reservation_test_3.num_chunks);
-
-	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
-	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
-	elapsed_ns = timestamp_stop - timestamp_start;
-
-	printf("\n\tElasped Time (ns): %lu\n\n", elapsed_ns);
-
-
-
-
-
-
-	// REQUEST #4
-
-	Mem_Reservation mem_reservation_test_4;
-
-	mem_reservation_test_4.pool_id = 0;
-	mem_reservation_test_4.size_bytes = chunk_size; 
-
-	printf("\n\n5.) Requesting %lu Bytes on Pool %d...\n", mem_reservation_test_4.size_bytes, mem_reservation_test_4.pool_id);
-
-	clock_gettime(CLOCK_MONOTONIC, &start);
-	ret = reserve_memory(memory, &mem_reservation_test_4);
-	clock_gettime(CLOCK_MONOTONIC, &stop);
-
-	if (ret != 0){
-		fprintf(stderr, "Error: failed to reserve memory 4 on pool id %d of size %lu\n", 
-					mem_reservation_test_4.pool_id, mem_reservation_test_4.size_bytes);
-		return -1;
-	}
-
-	// now we expect this to have start id 0
-	printf("\tStart Chunk ID: %lu\n\tNum Chunks: %lu\n", mem_reservation_test_4.start_chunk_id, mem_reservation_test_4.num_chunks);
-
-	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
-	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
-	elapsed_ns = timestamp_stop - timestamp_start;
-
-	printf("\n\tElasped Time (ns): %lu\n\n\n", elapsed_ns);
-
-
-	exit(0);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
 
-	System * system = init_system(master_ip_addr, self_ip_addr);
+	System * system = init_system(master_ip_addr, self_ip_addr, memory);
 
 	if (system == NULL){
 		fprintf(stderr, "Error: failed to initialize system\n");
@@ -353,23 +168,17 @@ int main(int argc, char * argv[]){
 
 	printf("\n\n\nElasped Reservation time (ns): %lu\n\n\n", elapsed_ns);
 
-	mr = ibv_reg_mr(pd, mem_reservation_net_recv.buffer, mem_reservation_net_recv.size_bytes, mr_access);
-	if (mr == NULL){
-		fprintf(stderr, "Error: ibv_reg_mr failed\n");
-		return -1;
-	}
-
-
-	printf("Succeeded! Details:\n\tMR address: %p\n\tMR Lkey: %u\n\tDevice GEM Address: %p\n\n", 
-				mr -> addr, mr -> lkey, (void *)(uintptr_t) mem_reservation_net_recv.buffer);
-
-
 	
 	printf("Attempting to post receive request for GPU memory...\n");
 
-	qp = (net_world -> self_net -> self_node -> endpoints)[1].ibv_qp;
 
-	ret = post_recv_work_request(qp, (uint64_t) mem_reservation_net_recv.buffer, chunk_size, mr -> lkey, 0);
+	int ib_device_id = 0;
+	
+	// HARDCODING THE RECEIVING IB DEVICE FOR NOW!
+	qp = (net_world -> self_net -> self_node -> endpoints)[2 * ib_device_id + 1].ibv_qp;
+	uint32_t lkey = (memory -> device_mempools[mem_reservation_net_recv.pool_id]).ib_dev_mrs[ib_device_id];
+
+	ret = post_recv_work_request(qp, (uint64_t) mem_reservation_net_recv.buffer, mem_reservation_net_recv.size_bytes, lkey, 0);
 	if (ret != 0){
 		fprintf(stderr, "Error: unable to post recv request to the registered dma buf region\n");
 		return -1;

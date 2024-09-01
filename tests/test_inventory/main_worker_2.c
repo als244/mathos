@@ -23,7 +23,7 @@ int main(int argc, char * argv[]){
 
 	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
 
-	System * system = init_system(master_ip_addr, self_ip_addr);
+	System * system = init_system(master_ip_addr, self_ip_addr, NULL);
 
 	if (system == NULL){
 		fprintf(stderr, "Error: failed to initialize system\n");

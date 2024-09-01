@@ -1,7 +1,6 @@
 #include "sys.h"
 
-
-System * init_system(char * master_ip_addr, char * self_ip_addr){
+System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory){
 
 	int ret;
 
@@ -10,6 +9,9 @@ System * init_system(char * master_ip_addr, char * self_ip_addr){
 		fprintf(stderr, "Error: malloc failed to allocate system struct container\n");
 		return NULL;
 	}
+
+	// COULD INITIALIZE THIS HERE!!!
+	system -> memory = memory;
 
 	// 1.) Initialize empty exchange
 
@@ -145,12 +147,79 @@ int add_message_class_benchmark(System * system, CtrlMessageClass message_class,
 }
 
 
+// Register each compute device's memory region for all
+// rdma devices on system 
+//	(registering same region for different PDs is OK I think...?)
+int register_device_memory_with_network(System * system){
+
+	Net_World * net_world = system -> net_world;
+	Self_Net * self_net = net_world -> self_net;
+	struct ibv_pd ** ib_dev_pds = self_net -> dev_pds; 
+
+	Memory * memory = system -> memory;
+
+	int num_devices = memory -> num_devices;
+
+	int num_ib_devices = self_net -> num_ib_devices;
+	int mr_access = IBV_ACCESS_LOCAL_WRITE;
+
+
+	// SETTING THE num_ib_devices within the memory struct for convenience
+	memory -> num_ib_devices = num_ib_devices;
+
+
+	Mempool dev_mempool;
+	uint64_t dev_capacity_bytes;
+	void * dev_va_start_addr;
+
+	struct ibv_pd * pd;
+	struct ibv_mr * mr;
+
+	for (int i = 0; i < num_devices; i++){
+
+		dev_mempool = memory -> device_mempools[i];
+		dev_capacity_bytes = dev_mempool.capacity_bytes;
+		dev_va_start_addr = (void *) dev_mempool.va_start_addr;
+
+		// initialize the array to hold the lkeys
+		dev_mempool.ib_dev_mrs = (struct ibv_mr **) malloc(num_ib_devices * sizeof(struct ibv_mr *));
+		if (!dev_mempool.ib_dev_mrs){
+			fprintf(stderr, "Error: malloc failed to allocate container containing the ib mrs for compute device #%d\n", i);
+			return -1;
+		}
+
+		for (int ib_device_id = 0; ib_device_id < num_ib_devices; ib_device_id++){
+
+			pd = ib_dev_pds[ib_device_id];
+
+			mr = ibv_reg_mr(pd, dev_va_start_addr, dev_capacity_bytes, mr_access);
+			if (mr == NULL){
+				fprintf(stderr, "Error: ibv_reg_mr failed for compute device #%d and ib_device #%d\n", i, ib_device_id);
+				return -1;
+			}
+
+			dev_mempool.ib_dev_mrs[ib_device_id] = mr;
+
+		}
+	}
+}
+
+
 
 // This returns after min_init_nodes have been added to the net_world table
 // After calling this then can start to actually send/recv messages
 int start_system(System * system) {
 
 	int ret;
+
+	// Register Memory with Network Card
+
+	ret = register_device_memory_with_network(system);
+
+	if (ret){
+		fprintf(stderr, "Error: failure to register device memory with verbs...\n");
+		return -1;
+	}
 
 
 	Net_World * net_world = system -> net_world;

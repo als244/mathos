@@ -50,6 +50,16 @@ typedef struct mempool {
 	// Each mem_range with size > 1 chunk will get inserted
 	// into this table twice
 	Fast_Table * free_endpoints;
+
+	// each mempool gets a unique MR for all the ib_devices
+	// on system because needs seperate PDs for each device
+	// they all reference same [va_start_addr, va_start_addr + capacity_bytes]
+	// region but have unique mr -> lkey
+
+	// this is an array of size memory -> num_ib_devices
+	// this is allocated/initialized after the intial memory intiialzation
+	// and after the network intialization
+	struct ibv_mr ** ib_dev_mrs;
 } Mempool;
 
 
@@ -59,6 +69,10 @@ typedef struct memory {
 	Mempool * device_mempools;
 	// has pool id SYSTEM_MEMPOOL_ID
 	Mempool system_mempool;
+	// this is to reference each unique lkey for
+	// the different rdma devices referencing
+	// the same device pool
+	int num_ib_devices;
 } Memory;
 
 typedef struct mem_reservation {

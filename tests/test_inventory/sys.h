@@ -10,6 +10,8 @@
 #include "exchange_worker.h"
 #include "inventory_worker.h"
 
+#include "memory.h"
+
 
 typedef struct system {
 	Work_Pool * work_pool;
@@ -19,10 +21,11 @@ typedef struct system {
 	// should wait on before ready the results of the 
 	// throughput benchmark;
 	Deque * are_benchmarks_ready;
+	Memory * memory;
 } System;
 
 
-System * init_system(char * master_ip_addr, char * self_ip_addr);
+System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory);
 
 int add_message_class_benchmark(System * system, CtrlMessageClass message_class, uint64_t start_message_cnt, uint64_t end_message_cnt);
 
