@@ -67,7 +67,7 @@ int fast_tree_leaf_cmp(void * fast_tree_leaf, void * other_fast_tree_leaf){
 
 
 // this intializes a top level fast tree
-Fast_Tree * init_fast_tree(bool is_dict) {
+Fast_Tree * init_fast_tree() {
 
 	Fast_Tree * fast_tree = (Fast_Tree *) malloc(sizeof(Fast_Tree));
 	if (!fast_tree){
@@ -206,8 +206,6 @@ Fast_Tree * init_fast_tree(bool is_dict) {
 	(fast_tree -> tree_stats).num_nonmain_trees_16 = 0;
 	(fast_tree -> tree_stats).num_outward_leaves = 0;
 
-	fast_tree -> is_dict = is_dict;
-
 	return fast_tree;
 
 }
@@ -277,7 +275,7 @@ void clear_bitvector(uint64_t * bit_vector, uint8_t key){
 	//			for prev and succ (whose deque items can be then be linked)
 	//	 e.) If no prev setting root -> ordered_leaves -> head to be this newly created deque item
 	//			- and same for tail
-Fast_Tree_Leaf * create_fast_tree_leaf(Fast_Tree * root, uint8_t key, void * value, bool to_overwrite, void ** prev_value, uint64_t base){
+Fast_Tree_Leaf * create_fast_tree_leaf(Fast_Tree * root, uint8_t key, void * value, bool to_overwrite, void * prev_value, uint64_t base){
 
 	Fast_Tree_Leaf * fast_tree_leaf = (Fast_Tree_Leaf *) malloc(sizeof(Fast_Tree_Leaf));
 	if (unlikely(!fast_tree_leaf)){
@@ -296,7 +294,7 @@ Fast_Tree_Leaf * create_fast_tree_leaf(Fast_Tree * root, uint8_t key, void * val
 
 	// deal with inserting value
 	int ret;
-	if (root -> is_dict > 0){
+	if (value){
 		ret = init_fast_table(&(fast_tree_leaf -> values), root -> table_config_value);
 		if (unlikely(ret != 0)){
 			fprintf(stderr, "Error: failure to init value table in leaf\n");
@@ -314,10 +312,10 @@ Fast_Tree_Leaf * create_fast_tree_leaf(Fast_Tree * root, uint8_t key, void * val
 	}
 
 	// we just created this leaf so we know there was no previous value
-	if (prev_value){
-		*prev_value = NULL;
-	}
-	
+	// can copy null pointer back
+	memset(prev_value, 0, sizeof(void *));
+
+
 	return fast_tree_leaf;
 
 }
@@ -509,8 +507,20 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 				inward_leaf -> max = off_8;
 			}
 
-			// If we need to update the value table
-			if ((root -> is_dict > 0) && (value != NULL)){
+			
+
+
+			if (value){
+				// If we need to update the value table
+				// if value table does not exist we need to intialize it
+				if ((inward_leaf -> values).items == NULL){
+					ret = init_fast_table(&(inward_leaf -> values), root -> table_config_value);
+					if (unlikely(ret != 0)){
+						fprintf(stderr, "Error: failure to init value table in leaf\n");
+						return -1;
+					}
+				}
+
 				ret = insert_fast_table(&(inward_leaf -> values), &off_8, &value);
 				if (unlikely(ret != 0)){
 					fprintf(stderr, "Error: failure to insert value in the leaf's value table from 16\n");

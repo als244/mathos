@@ -372,7 +372,7 @@ Memory * init_backend_memory(Hsa_Memory * hsa_memory) {
 
 		mempools[i].range_lists_table = range_lists_table;
 
-		mempools[i].free_mem_ranges = init_fast_tree(true);
+		mempools[i].free_mem_ranges = init_fast_tree();
 
 		if (!mempools[i].free_mem_ranges){
 			fprintf(stderr, "Error: failure to initialize memory fast tree for device #%d\n", i);

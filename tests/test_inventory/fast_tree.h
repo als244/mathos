@@ -339,7 +339,6 @@ struct fast_tree {
 	// a contiguous range
 	Fast_Tree_Leaf * min_leaf;
 	Fast_Tree_Leaf * max_leaf;
-	bool is_dict;
 };
 
 
@@ -370,7 +369,7 @@ uint64_t hash_func_modulus_8(void * key_ref, uint64_t table_size);
 // functions are set to null
 
 
-Fast_Tree * init_fast_tree(bool is_dict);
+Fast_Tree * init_fast_tree();
 
 
 // ONLY TEMPORARILY EXPOSING THIS FUNCTION!
