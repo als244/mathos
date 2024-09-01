@@ -1,7 +1,7 @@
 #include "memory.h"
 
 
-Fast_List_Node * add_free_mem_range(Mempool * mempool, uint64_t start_chunk_id, uint64_t range_size){
+Fast_List_Node * insert_free_mem_range(Mempool * mempool, uint64_t start_chunk_id, uint64_t range_size){
 
 	int ret;
 
@@ -67,6 +67,76 @@ Fast_List_Node * add_free_mem_range(Mempool * mempool, uint64_t start_chunk_id, 
 
 
 	return start_chunk_id_ref;
+}
+
+
+Fast_List * remove_free_mem_range(Mempool * mempool, Mem_Range * mem_range, Fast_List * known_fast_list){
+
+	int ret;
+
+	Fast_Table * range_lists_table = mempool -> range_lists_table;
+	Fast_Tree * free_mem_ranges = mempool -> free_mem_ranges;
+
+	uint64_t range_size = mem_range -> range_size;
+	
+	Fast_List * range_list = NULL;
+
+	// can optionally pass in the known list to avoid lookup
+	// this can happen if left merge size == right merge size and we want to look up both
+	if (unlikely(known_fast_list)){
+		range_list = known_fast_list;
+	}
+	else{
+		find_fast_table(range_lists_table, &range_size, false, (void **) &range_list);
+
+		// should never happen
+		if (unlikely(!range_list)){
+			fprintf(stderr, "Error: couldn't find range list when trying to remove\n");
+			return NULL;
+		}
+	}
+
+	
+	Fast_List_Node * old_range_ref = mem_range -> start_chunk_id_ref;
+	remove_node_fast_list(range_list, old_range_ref);
+
+	// if this list is empty now, we need to remove the list and also remove from the tree
+	if (range_list -> cnt == 0){
+
+		
+
+		// a.) remove from tree
+		Fast_List * tree_prev_list = NULL;
+		ret = remove_fast_tree(free_mem_ranges, &range_size, &tree_prev_list);
+
+		// should never happen
+		if (unlikely(ret)){
+			fprintf(stderr, "Error: could not remove range size from fast tree after becoming empty\n");
+			return NULL;
+		}
+
+		// assert treve_prev_list == range_list
+
+		// b.) remove from range lists table
+		Fast_List * table_prev_list = NULL;
+		ret = remove_fast_table(range_lists_table, &range_size, false, (void **) &table_prev_list);
+
+		// should never happen
+		if (unlikely(ret)){
+			fprintf(stderr, "Error: could not remove left merged range size from fast table after becoming empty\n");
+			return NULL;
+		}
+
+		// assert table_prev_list == tree_prev_list == range_list
+
+		// c.) destroy the list
+		destroy_fast_list(range_list);
+
+		// d.) return null
+		return NULL;
+	}
+
+	return range_list;
 }
 
 
@@ -176,7 +246,7 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 		uint64_t excess_range_start_chunk_id = start_chunk_id + req_chunks;
 		
 		Fast_List_Node * excess_range_ref;
-		excess_range_ref = add_free_mem_range(&mempool, excess_range_start_chunk_id, excess_chunks);
+		excess_range_ref = insert_free_mem_range(&mempool, excess_range_start_chunk_id, excess_chunks);
 		if (unlikely(!excess_range_ref)){
 			fprintf(stderr, "Error: unable to add excess memory range of start id: %lu, size: %lu\n", excess_range_start_chunk_id, excess_chunks);
 			return -1;
@@ -273,22 +343,183 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 		mempool = (memory -> device_mempools)[pool_id];
 	}
 
+	uint64_t start_chunk_id = mem_reservation -> start_chunk_id;
+
+	uint64_t range_size = mem_reservation -> num_chunks;
+
+	uint64_t end_chunk_id = start_chunk_id + range_size- 1;
+
+
+	Fast_Table * free_endpoints = mempool.free_endpoints;
+
+	Mem_Range * left_merge = NULL;
+	Mem_Range * right_merge = NULL;
+
+	// If the surrounding -1 and +1 endpoints are free, we want to remove
+	// them and merge
+
+	if (start_chunk_id > 0){
+		uint64_t left_endpoint = start_chunk_id - 1;
+		remove_fast_table(free_endpoints, &left_endpoint, false, (void **) &left_merge);
+	}
+
+	if (end_chunk_id < mempool.num_chunks - 1){
+		uint64_t right_endpoint = end_chunk_id + 1;
+		remove_fast_table(free_endpoints, &right_endpoint, false, (void **) &right_merge);
+	}
+
+
+	// If we need to merge, then 
+	// we need get new start_id and new size
+	// and modify endpoint (if right merge exists)
+	// or add endpoint (if just left endpoint or no merge)
+
+	uint64_t new_size, new_start_id;
+	uint64_t left_size = 0;
+	uint64_t right_size = 0;
+	if (left_merge && right_merge){
+		left_size = left_merge -> range_size;
+		right_size = right_merge -> range_size;
+		new_size = left_size + range_size + right_size;
+		new_start_id = left_merge -> start_chunk_id_ref -> item;
+	}
+	else if (left_merge){
+		left_size = left_merge -> range_size;
+		new_size = left_size + range_size;
+		new_start_id = left_merge -> start_chunk_id_ref -> item;
+	}
+	else if (right_merge){
+		right_size = right_merge -> range_size;
+		new_size = range_size + right_size;
+		new_start_id = start_chunk_id;
+	}
+	else{
+		new_size = range_size;
+		new_start_id = start_chunk_id;
+	}
+
+
+	// Now need to deal with removing the prior ranges
+	Fast_Table * range_lists_table = mempool.range_lists_table;
 	Fast_Tree * free_mem_ranges = mempool.free_mem_ranges;
 
+	Fast_List * left_range_list = NULL;
+	Fast_List * right_range_list = NULL;
 
-	uint64_t start_chunk_id = mem_reservation -> start_chunk_id;
-	uint64_t num_chunks = mem_reservation -> num_chunks;
-	uint64_t end_chunk_id = start_chunk_id + num_chunks - 1;
-
-
-	uint64_t left_merge_num_chunks = 0;
-	uint64_t right_merge_num_chunks = 0;
+	Fast_List_Node * old_range_ref;
 
 
-	// LOOKUP ENDPOINT TABLE HERE!
+	if (left_merge){
+
+		left_range_list = remove_free_mem_range(&mempool, left_merge, NULL);
+
+		// when we add free mem range it will insert the start id to free_endpoints
+		// table, but if we had a left merge with size > 1 then this entry will already
+		// exist and we need to remove it (if size 1 then we already removed it above)
+		if (left_size > 1){
+			ret = remove_fast_table(free_endpoints, &new_start_id, false, (void **) &left_merge);
+			// should never happen
+			if (unlikely(ret)){
+				fprintf(stderr, "Error: failure to remove left endpoint from table\n");
+				return -1;
+			}
+
+		}
+
+		// if left_range_list == NULL => 
+		//	we removed left_merge -> range_size from range_lists_table + free_mem_ranges
+		//		and destroyed the list
+	}
+
+	if (right_merge){
+
+		// accelerate by not looking up if left was same size as right
+		// this case implies the left_range_list has not been deleted because there
+		// was another element of that size (the right range) when the left's was removed from list
+		if (unlikely(left_merge && (right_size == left_size))){
+			right_range_list = remove_free_mem_range(&mempool, right_merge, left_range_list);
+		}
+		else{
+			right_range_list = remove_free_mem_range(&mempool, right_merge, NULL);	
+		}
+
+		// if right_range_list == NULL => 
+		//	we removed right_merge -> range_size from range_lists_table + free_mem_ranges
+		//		and destroyed the list
+	}
 
 
 
-	return ret;
+	// Inserting free mem range causes:
+	//	a.) Adds new_start_id to the range_list associated with new_size:
+	//			- if this list did not exist, then creates list and adds to free_mem_ranges tree
+	//	b.) Adds new_start_id to free_endpoints table
+	// 	c.) Returns the pointer to the node within the range_list that we can then use when modifying
+	//		the right endpoint 
+
+	Fast_List_Node * merged_range_ref = insert_free_mem_range(&mempool, new_start_id, new_size);
+	// should never happen
+	if (unlikely(!merged_range_ref)){
+		fprintf(stderr, "Error: failure to add merged range\n");
+		return -1;
+	}
+
+	// now need to modify the right endpoint to point to this reference
+
+	Mem_Range merged_range;
+	merged_range.range_size = new_size;
+	merged_range.start_chunk_id_ref = merged_range_ref;
+
+
+	uint64_t new_right_endpoint = new_start_id + new_size - 1;
+
+	// if we didn't merge to the right we need to add right endpoint
+	if (!right_merge){
+
+		ret = insert_fast_table(free_endpoints, &new_right_endpoint, &merged_range);
+
+		// should never happen
+		if (unlikely(ret)){
+			fprintf(stderr, "Error: failure to insert new right endpoint\n");
+			return -1;
+		}
+	}
+	else{
+
+		// if the right merged endpoint was size 1 then we already removed 
+		// it originally and need to add it back
+		if (right_size == 1){
+
+			ret = insert_fast_table(free_endpoints, &new_right_endpoint, &merged_range);
+			
+			// should never happen
+			if (unlikely(ret)){
+				fprintf(stderr, "Error: failure to insert new right endpoint\n");
+				return -1;
+			}
+		}
+		// otherwise we just need to modify it 
+		else{
+
+			Mem_Range * mem_range_ref = NULL;
+			
+			find_fast_table(free_endpoints, &new_right_endpoint, false, (void **) &mem_range_ref);
+
+			// should never happen
+			if (unlikely(!mem_range_ref)){
+				fprintf(stderr, "Error: failure to find right endpoint in table when expected\n");
+				return -1;
+			}
+
+			// modifying the previous range to have merged values
+			mem_range_ref -> range_size = new_size;
+			mem_range_ref -> start_chunk_id_ref = merged_range_ref;
+
+		}
+
+
+	}
+	
+	return 0;
 }
 

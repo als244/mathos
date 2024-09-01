@@ -47,12 +47,9 @@ int main(int argc, char * argv[]){
 		fprintf(stderr, "Error: hsa_init_memory failed\n");
 	}
 
-	printf("Found %d HSA agents each with a mempool!\n", hsa_memory -> n_agents);
+	printf("\nFound %d HSA agents each with a mempool!\n\n", hsa_memory -> n_agents);
 
-
-	printf("Adding Device Memory and Preparing it for Verbs region...\n");
-
-
+	
 	// 2 MB Chunk Size
 	int device_id = 0;
 	uint64_t chunk_size = 1U << 16;
@@ -77,12 +74,16 @@ int main(int argc, char * argv[]){
 	}
 
 
+	// REQUEST #1
+
 	Mem_Reservation mem_reservation_test;
 
 	// allocate on device 0 and wanting chunk_size bytes;
 	mem_reservation_test.pool_id = 0;
-	mem_reservation_test.size_bytes = 100000; 
+	mem_reservation_test.size_bytes = 2 * chunk_size; 
 
+
+	printf("\n\n\n1.) Requesting %lu Bytes on Pool %d...\n", mem_reservation_test.size_bytes, mem_reservation_test.pool_id);
 
 	clock_gettime(CLOCK_MONOTONIC, &start);
 	ret = reserve_memory(memory, &mem_reservation_test);
@@ -90,44 +91,138 @@ int main(int argc, char * argv[]){
 
 
 	if (ret != 0){
-		fprintf(stderr, "Error: failed to reserve memory on pool id %d of size %lu\n", 
+		fprintf(stderr, "Error: failed to reserve memory 1 on pool id %d of size %lu\n", 
 					mem_reservation_test.pool_id, mem_reservation_test.size_bytes);
 		return -1;
 	}
 
-	printf("Reservation start chunk id: %lu\n", mem_reservation_test.start_chunk_id);
+	// now we expect this to have start id 0
+	printf("\tStart Chunk ID: %lu\n\tNum Chunks: %lu\n", mem_reservation_test.start_chunk_id, mem_reservation_test.num_chunks);
 
 	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
 	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
 	elapsed_ns = timestamp_stop - timestamp_start;
 
-	printf("\n\n\nElasped Reservation time (ns): %lu\n\n\n", elapsed_ns);
+	printf("\n\tElasped Time (ns): %lu\n\n", elapsed_ns);
 
 
 
-	// allocate on device 0 and wanting chunk_size bytes;
-	mem_reservation_test.pool_id = 0;
-	mem_reservation_test.size_bytes = 100000; 
+
+	// REQUEST #2
+
+	Mem_Reservation mem_reservation_test_2;
+
+	mem_reservation_test_2.pool_id = 0;
+	mem_reservation_test_2.size_bytes = 2 * chunk_size;
+
+	printf("\n\n2.) Requesting %lu Bytes on Pool %d...\n", mem_reservation_test_2.size_bytes, mem_reservation_test_2.pool_id); 
 
 	clock_gettime(CLOCK_MONOTONIC, &start);
-	ret = reserve_memory(memory, &mem_reservation_test);
+	ret = reserve_memory(memory, &mem_reservation_test_2);
 	clock_gettime(CLOCK_MONOTONIC, &stop);
 
 	if (ret != 0){
-		fprintf(stderr, "Error: failed to reserve memory on pool id %d of size %lu\n", 
-					mem_reservation_test.pool_id, mem_reservation_test.size_bytes);
+		fprintf(stderr, "Error: failed to reserve memory 2 on pool id %d of size %lu\n", 
+					mem_reservation_test_2.pool_id, mem_reservation_test_2.size_bytes);
 		return -1;
 	}
 
-	printf("Reservation start chunk id: %lu\n", mem_reservation_test.start_chunk_id);
+	// now we expect this to have start id 2
+	printf("\tStart Chunk ID: %lu\n\tNum Chunks: %lu\n", mem_reservation_test_2.start_chunk_id, mem_reservation_test_2.num_chunks);
 
 	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
 	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
 	elapsed_ns = timestamp_stop - timestamp_start;
 
-	printf("\n\n\nElasped Reservation time (ns): %lu\n\n\n", elapsed_ns);
+	printf("\n\tElasped Time (ns): %lu\n\n", elapsed_ns);
 
 
+
+
+	// RELEASING #1
+
+	printf("\n\n3.) Releasing reservation...\n\tReleased Start Chunk ID: %lu\n\tReleased Num Chunks: %lu\n", mem_reservation_test.start_chunk_id, mem_reservation_test.num_chunks); 
+
+	clock_gettime(CLOCK_MONOTONIC, &start);
+	ret = release_memory(memory, &mem_reservation_test);
+	clock_gettime(CLOCK_MONOTONIC, &stop);
+
+	if (ret){
+		fprintf(stderr, "Error: release memory failed\n");
+		return -1;
+	}
+
+	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
+	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
+	elapsed_ns = timestamp_stop - timestamp_start;
+
+	printf("\n\tElasped Time (ns): %lu\n\n", elapsed_ns);
+
+
+
+
+
+
+	// REQUEST #3
+
+	Mem_Reservation mem_reservation_test_3;
+
+	mem_reservation_test_3.pool_id = 0;
+	mem_reservation_test_3.size_bytes = chunk_size; 
+
+	printf("\n\n4.) Requesting %lu Bytes on Pool %d...\n", mem_reservation_test_3.size_bytes, mem_reservation_test_3.pool_id); 
+
+	clock_gettime(CLOCK_MONOTONIC, &start);
+	ret = reserve_memory(memory, &mem_reservation_test_3);
+	clock_gettime(CLOCK_MONOTONIC, &stop);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to reserve memory 3 on pool id %d of size %lu\n", 
+					mem_reservation_test_3.pool_id, mem_reservation_test_3.size_bytes);
+		return -1;
+	}
+
+	// now we expect this to have start id 0
+	printf("\tStart Chunk ID: %lu\n\tNum Chunks: %lu\n", mem_reservation_test_3.start_chunk_id, mem_reservation_test_3.num_chunks);
+
+	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
+	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
+	elapsed_ns = timestamp_stop - timestamp_start;
+
+	printf("\n\tElasped Time (ns): %lu\n\n", elapsed_ns);
+
+
+
+
+
+
+	// REQUEST #4
+
+	Mem_Reservation mem_reservation_test_4;
+
+	mem_reservation_test_4.pool_id = 0;
+	mem_reservation_test_4.size_bytes = chunk_size; 
+
+	printf("\n\n5.) Requesting %lu Bytes on Pool %d...\n", mem_reservation_test_4.size_bytes, mem_reservation_test_4.pool_id);
+
+	clock_gettime(CLOCK_MONOTONIC, &start);
+	ret = reserve_memory(memory, &mem_reservation_test_4);
+	clock_gettime(CLOCK_MONOTONIC, &stop);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to reserve memory 4 on pool id %d of size %lu\n", 
+					mem_reservation_test_4.pool_id, mem_reservation_test_4.size_bytes);
+		return -1;
+	}
+
+	// now we expect this to have start id 0
+	printf("\tStart Chunk ID: %lu\n\tNum Chunks: %lu\n", mem_reservation_test_4.start_chunk_id, mem_reservation_test_4.num_chunks);
+
+	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
+	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
+	elapsed_ns = timestamp_stop - timestamp_start;
+
+	printf("\n\tElasped Time (ns): %lu\n\n\n", elapsed_ns);
 
 
 	exit(0);

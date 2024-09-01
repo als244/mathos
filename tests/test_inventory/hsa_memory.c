@@ -148,8 +148,8 @@ int hsa_add_device_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t num_c
 
 	// 1.) Allocate device memory
 
-	printf("Allocating device memory.\n\tDevice ID: %d\n\tNum Chunks %lu\n\tChunk Size: %lu\n\n",
-				device_id, num_chunks, chunk_size);
+	printf("Allocating device memory...\n\tAgent ID: %d\n\tPool ID: %d\n\tNum Chunks %lu\n\tChunk Size: %lu\n\n",
+				agent_id, device_id, num_chunks, chunk_size);
 
 
 	// MUST BE A MULTIPLE OF ALLOC SIZE (either 4KB, 64KB, or 2MB)!!
@@ -410,7 +410,7 @@ Memory * init_backend_memory(Hsa_Memory * hsa_memory) {
 		mempools[i].free_endpoints = endpoint_table;
 
 
-		Fast_List_Node * full_range_ref = add_free_mem_range(&(mempools[i]), 0, num_chunks);
+		Fast_List_Node * full_range_ref = insert_free_mem_range(&(mempools[i]), 0, num_chunks);
 
 		if (ret){
 			fprintf(stderr, "Error: could not add initial free mem range for entire device of %d\n", i);

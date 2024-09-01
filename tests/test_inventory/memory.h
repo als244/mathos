@@ -79,8 +79,8 @@ typedef struct mem_reservation {
 
 // Memory * init_backend_memory(void * backend_memory_ref, BackendMemoryType backend_memory_type);
 
-Fast_List_Node * add_free_mem_range(Mempool * mempool, uint64_t start_chunk_id, uint64_t range_size);
-
+Fast_List_Node * insert_free_mem_range(Mempool * mempool, uint64_t start_chunk_id, uint64_t range_size);
+Fast_List * remove_free_mem_range(Mempool * mempool, Mem_Range * mem_range, Fast_List * known_range_list);
 
 // returns 0 upon success, otherwise error
 

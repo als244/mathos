@@ -1721,7 +1721,6 @@ int search_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeSearchM
 	int ret;
 
 	uint64_t found_key;
-	uint8_t leaf_key;
 	void * value;
 	Fast_Tree_Leaf * fast_tree_leaf;
 
