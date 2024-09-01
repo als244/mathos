@@ -24,7 +24,7 @@ int main(int argc, char * argv[]){
 	
 	char * master_ip_addr, * self_ip_addr;
 
-	/*
+
 	if ((argc != 2) && (argc != 3)){
 		fprintf(stderr, "Error: Usage ./testWorker <master_ip_addr> <self_ip_addr>\n");
 		return -1;
@@ -35,7 +35,6 @@ int main(int argc, char * argv[]){
 	if (argc == 3){
 		self_ip_addr = argv[2];
 	}
-	*/
 
 
 	// 1.) Initialize HSA memory
