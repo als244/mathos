@@ -168,7 +168,7 @@ int register_device_memory_with_network(System * system){
 	memory -> num_ib_devices = num_ib_devices;
 
 
-	Mempool dev_mempool;
+	Mempool * dev_mempool;
 	uint64_t dev_capacity_bytes;
 	void * dev_va_start_addr;
 
@@ -177,13 +177,13 @@ int register_device_memory_with_network(System * system){
 
 	for (int i = 0; i < num_devices; i++){
 
-		dev_mempool = memory -> device_mempools[i];
-		dev_capacity_bytes = dev_mempool.capacity_bytes;
-		dev_va_start_addr = (void *) dev_mempool.va_start_addr;
+		dev_mempool = &(memory -> device_mempools[i]);
+		dev_capacity_bytes = dev_mempool -> capacity_bytes;
+		dev_va_start_addr = (void *) dev_mempool -> va_start_addr;
 
 		// initialize the array to hold the lkeys
-		dev_mempool.ib_dev_mrs = (struct ibv_mr **) malloc(num_ib_devices * sizeof(struct ibv_mr *));
-		if (!dev_mempool.ib_dev_mrs){
+		dev_mempool -> ib_dev_mrs = (struct ibv_mr **) malloc(num_ib_devices * sizeof(struct ibv_mr *));
+		if (!(dev_mempool -> ib_dev_mrs)){
 			fprintf(stderr, "Error: malloc failed to allocate container containing the ib mrs for compute device #%d\n", i);
 			return -1;
 		}
@@ -198,7 +198,7 @@ int register_device_memory_with_network(System * system){
 				return -1;
 			}
 
-			dev_mempool.ib_dev_mrs[ib_device_id] = mr;
+			(dev_mempool -> ib_dev_mrs)[ib_device_id] = mr;
 
 		}
 	}
