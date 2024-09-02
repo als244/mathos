@@ -2,7 +2,7 @@
 
 
 
-Inventory * init_inventory(int num_compute_pools, Mempool ** compute_pools, uint64_t min_fingerprints, uint64_t max_fingerprints) {
+Inventory * init_inventory(Memory * memory, uint64_t min_fingerprints, uint64_t max_fingerprints) {
 
 	fprintf(stderr, "Unimplmented error: init_inventory\n");
 	return NULL;
@@ -30,7 +30,7 @@ int do_inventory_function(Inventory * inventory, Ctrl_Message * ctrl_message, ui
 // Allocates an object location and populates it with the mem_reservation returned from reserve_memory
 // Inserts the object location into object -> locations
 // Populates ret_obj_location
-int reserve_object(Inventory * inventory, int pool_id, uint8_t * fingerprint, uint64_t size_bytes, Obj_Location * ret_obj_location){
+int reserve_object(Inventory * inventory, uint8_t * fingerprint, int pool_id, uint64_t size_bytes, int num_backup_pools, int * backup_pool_ids, int mem_client_id, Obj_Location * ret_obj_location) {
 
 	fprintf(stderr, "Unimplmented error: reserve_object\n");
 	return -1;
@@ -42,7 +42,7 @@ int reserve_object(Inventory * inventory, int pool_id, uint8_t * fingerprint, ui
 // Once object at location is found, call release_memory upon obj_location -> reservation
 // Remove obj_location from object -> locations and free obj_location struct. 
 // If object -> locations now is empty, remove object from inventory -> fingerprints and free object struct
-int release_object(Inventory * inventory, int pool_id, uint8_t * fingerprint) {
+int release_object(Inventory * inventory, uint8_t * fingerprint, Obj_Location * obj_location, int mem_client_id) {
 
 	fprintf(stderr, "Unimplmented error: release_object\n");
 	return -1;
@@ -52,7 +52,7 @@ int release_object(Inventory * inventory, int pool_id, uint8_t * fingerprint) {
 
 
 // Release object from all pools, and remove from inventory -> fingerprints and free object struct
-int destroy_object(Inventory * inventory, uint8_t * fingerprint) {
+int destroy_object(Inventory * inventory, uint8_t * fingerprint, int mem_client_id) {
 
 	fprintf(stderr, "Unimplmented error: destroy_object\n");
 	return -1;
