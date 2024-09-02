@@ -11,6 +11,7 @@
 #include "inventory_worker.h"
 
 #include "memory.h"
+#include "memory_server.h"
 
 
 typedef struct system {
@@ -22,6 +23,7 @@ typedef struct system {
 	// throughput benchmark;
 	Deque * are_benchmarks_ready;
 	Memory * memory;
+	pthread_t memory_server;
 } System;
 
 

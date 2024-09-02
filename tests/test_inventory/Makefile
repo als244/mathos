@@ -25,10 +25,10 @@ master_worker.o: master_worker.c
 
 ## WORKER PROGRAM
 
-testWorker1: main_worker_1.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o hsa_memory.o rocblas_funcs.o
+testWorker1: main_worker_1.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o hsa_memory.o rocblas_funcs.o
 	${CC} ${CFLAGS} ${HSA_CFLAGS} $^ -o $@ -I $(HSA_INCLUDE) -pthread -libverbs -lcrypto -L $(HSA_LIB) -lamdhip64 -lrocblas
 
-testWorker2: main_worker_2.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o
+testWorker2: main_worker_2.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o
 	${CC} ${CFLAGS} $^ -o $@ -pthread -libverbs -lcrypto
 
 join_net.o: join_net.c
@@ -47,6 +47,12 @@ exchange_worker.o: exchange_worker.c
 	${CC} ${CFLAGS} -c $^
 
 memory.o: memory.c
+	${CC} ${CFLAGS} -c $^
+
+memory_server.o: memory_server.c
+	${CC} ${CFLAGS} -c $^
+
+memory_client.o: memory_client.c
 	${CC} ${CFLAGS} -c $^
 
 inventory.o: inventory.c

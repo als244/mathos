@@ -351,6 +351,11 @@ Memory * init_backend_memory(Hsa_Memory * hsa_memory) {
 		mempools[i].capacity_bytes = num_chunks * mempools[i].chunk_size;
 		// casting void * to uint64_t for convenience on pointer arithmetic
 		mempools[i].va_start_addr = (uint64_t) ((hsa_user_page_table -> virt_memories)[i]);
+		mempools[i].total_free_chunks = num_chunks;
+
+		mempools[i].op_stats.num_reservations = 0;
+		mempools[i].op_stats.num_releases = 0;
+		mempools[i].op_stats.num_oom_seen = 0;
 
 		
 

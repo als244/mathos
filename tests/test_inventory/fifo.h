@@ -57,6 +57,9 @@ uint64_t consume_and_reproduce_batch_fifo(Fifo * fifo, uint64_t num_items, void 
 // returns the number of items consumed
 uint64_t consume_all_fifo(Fifo * fifo, void * ret_items);
 
+// if there are 0 items, immediately returns
+uint64_t consume_all_nonblock_fifo(Fifo * fifo, void * ret_items);
+
 
 // NOTE: be cautious with using these
 // 	- they are used for slabs to have better amortized allocation times

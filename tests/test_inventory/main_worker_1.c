@@ -14,6 +14,8 @@
 #include "fast_table.h"
 #include "fast_tree.h"
 
+#include "memory_client.h"
+
 int main(int argc, char * argv[]){
 
 
@@ -133,6 +135,9 @@ int main(int argc, char * argv[]){
 	}
 
 
+	Mem_Op_Timestamps mem_op_timestamps;
+
+
 	int num_floats = 100;
 
 	// All UD queue pair receives need to have sizeof(struct ibv_grh) added on to the request
@@ -143,16 +148,18 @@ int main(int argc, char * argv[]){
 
 	Mem_Reservation mem_reservation_net_recv;
 	// allocate on device 0 and wanting chunk_size bytes;
+	mem_reservation_net_recv.mem_client_id = 0;
 	mem_reservation_net_recv.pool_id = 0;
 	mem_reservation_net_recv.size_bytes = req_bytes; 
-
-	clock_gettime(CLOCK_MONOTONIC, &start);
+	mem_reservation_net_recv.num_backup_pools = 0;
 
 	// Will populate mem_reservation.range_size, mem_reservation.start_chunk_id, mem_reservation.buffer
-	ret = reserve_memory(memory, &mem_reservation_net_recv);
-	clock_gettime(CLOCK_MONOTONIC, &stop);
 
-	if (ret != 0){
+	clock_gettime(CLOCK_MONOTONIC, &start);
+	void * recv_buffer = reserve_memory(memory, &mem_reservation_net_recv, &mem_op_timestamps);
+	clock_gettime(CLOCK_MONOTONIC, &stop);
+	
+	if (!recv_buffer){
 		fprintf(stderr, "Error: failed to reserve memory on pool id %d of size %lu\n", 
 					mem_reservation_net_recv.pool_id, mem_reservation_net_recv.size_bytes);
 		return -1;
@@ -222,13 +229,15 @@ int main(int argc, char * argv[]){
 	
 	Mem_Reservation mem_reservation_func_out;
 
+	mem_reservation_func_out.mem_client_id = 0;
 	mem_reservation_func_out.pool_id = 0;
 	mem_reservation_func_out.size_bytes = chunk_size;
+	mem_reservation_func_out.num_backup_pools = 0;
 
 	clock_gettime(CLOCK_MONOTONIC, &start);
-	ret = reserve_memory(memory, &mem_reservation_func_out);
+	void * func_out_buffer = reserve_memory(memory, &mem_reservation_func_out, &mem_op_timestamps);
 	clock_gettime(CLOCK_MONOTONIC, &stop);
-	if (ret != 0){
+	if (!func_out_buffer){
 		fprintf(stderr, "Error: failed to reserve memory on device %d of size %lu\n", 
 					mem_reservation_func_out.pool_id, mem_reservation_func_out.size_bytes);
 		return -1;

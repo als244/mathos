@@ -11,6 +11,8 @@ System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory
 	}
 
 	// COULD INITIALIZE THIS HERE!!!
+	// (i.e. have an init_backend_memory() call here that makes sense)
+	// probably a function pointer for each backend...??
 	system -> memory = memory;
 
 	// 1.) Initialize empty exchange
@@ -207,16 +209,13 @@ int register_device_memory_with_network(System * system){
 }
 
 
+int start_memory(System * system){
 
-// This returns after min_init_nodes have been added to the net_world table
-// After calling this then can start to actually send/recv messages
-int start_system(System * system) {
+	// a.) register memory regions
+	//		- one region per device (entire device)
+	//			- gets registered for all IB devices (i.e. for each ibv_context == protection domain)
 
-	int ret;
-
-	// Register Memory with Network Card
-
-	ret = register_device_memory_with_network(system);
+	int ret = register_device_memory_with_network(system);
 
 	if (ret){
 		fprintf(stderr, "Error: failure to register device memory with verbs...\n");
@@ -224,10 +223,69 @@ int start_system(System * system) {
 	}
 
 
+	// b.) Initilaize the memory operations fifo that
+	// 		other threads will use to perform memory ops
+	//		(makes life simpler + better to have a single thread
+	// 		repsonbile for reservations / releasing => no need for locking/contention
+	//		+ caching benefits for the memory metadata structures)
+
+	Memory * memory = system -> memory;
+
+	int num_devices = memory -> num_devices;
+
+	// including the system memory mempool
+	int num_mempools = num_devices + 1;
+
+	Fifo ** mem_op_fifos = (Fifo **) malloc(num_mempools * sizeof(Fifo *));
+	if (!mem_op_fifos){
+		fprintf(stderr, "Error: malloc failed to allocate container for memory ops fifo\n");
+		return -1;
+	}
+
+	for (int i = 0; i < num_mempools; i++){
+		mem_op_fifos[i] = init_fifo(MEMORY_OPS_BUFFER_MAX_REQUESTS_PER_MEMPOOL, sizeof(Mem_Op *));
+		if (!mem_op_fifos[i]){
+			fprintf(stderr, "Error: failure to initialize memory ops fifo for mempool %d\n", i);
+			return -1;
+		}
+	}
+
+	memory -> mem_op_fifos = mem_op_fifos;
+
+
+	// c.) Need to spwan memory thread
+	//		- for now just having a singluar thread, 
+	//			but we could do 1 master thread (to handle conflicts) and then 1 thread per mempool
+	pthread_create(&(system -> memory_server), NULL, run_memory_server, (void *) memory);
+
+	return 0;
+}
+
+
+// This returns after min_init_nodes have been added to the net_world table
+// After calling this then can start to actually send/recv messages
+int start_system(System * system) {
+
+	int ret;
+
+	// 1.) Start Memory Server
+
+	// a.) Register All device memory with Network Card
+	// b.) Setup Memory Operation fifo
+	// c.) Spawn memory thread
+
+	ret = start_memory(system);
+
+	if (ret){
+		fprintf(stderr, "Error: failure to setup memory...\n");
+		return -1;
+	}
+
+
 	Net_World * net_world = system -> net_world;
 	Work_Pool * work_pool = system -> work_pool;
 
-	// 8.) Spawn all worker threads
+	// 2.) Spawn all worker threads
 
 	// For each work class populate their worker argument
 
@@ -238,14 +296,15 @@ int start_system(System * system) {
 	}
 
 	
-	// 9.) Start all the completition queue handler threads for the network
+	// 3.) Start all the completition queue handler threads for the network
+	
 	ret = activate_cq_threads(net_world, work_pool);
 	if (ret != 0){
 		fprintf(stderr, "Error: failure activing cq threads\n");
 		return -1;
 	}
 
-	// 10.) wait until min_init_nodes (besides master) have been added to the net_world -> nodes table
+	// 4.) wait until min_init_nodes (besides master) have been added to the net_world -> nodes table
 	sem_wait(&(net_world -> is_init_ready));
 
 	return 0;

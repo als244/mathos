@@ -208,6 +208,18 @@
 
 // MEMORY CONFIGURATION
 
+// if a request cannot be satisfied on a given pool, then client
+// can specify if they want reservation to be retried on other
+// pools and can specify up this MEMORY_MAX_BACKUP_POOLS for retrying
+#define MEMORY_MAX_BACKUP_POOLS 16
+
+// this is the size of the Fifo where non-memory threads will produce
+// on, and that memory thread will consume on
+
+// setting this higher is just an optimization to prevent contention
+// for multiple clients submitting to same mempool fifo
+#define MEMORY_OPS_BUFFER_MAX_REQUESTS_PER_MEMPOOL 64
+
 // this is to make allocations faster for lists
 // that containing starting chunk_id's of the same range size
 

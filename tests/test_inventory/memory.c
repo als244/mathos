@@ -107,7 +107,7 @@ Fast_List * remove_free_mem_range(Mempool * mempool, Mem_Range * mem_range, Fast
 
 		// a.) remove from tree
 		Fast_List * tree_prev_list = NULL;
-		ret = remove_fast_tree(free_mem_ranges, &range_size, &tree_prev_list);
+		ret = remove_fast_tree(free_mem_ranges, range_size, &tree_prev_list);
 
 		// should never happen
 		if (unlikely(ret)){
@@ -146,35 +146,34 @@ Fast_List * remove_free_mem_range(Mempool * mempool, Mem_Range * mem_range, Fast
 // checks to see if enough chunks if available (otherwise error), if so dequeues chunks from free list
 // and puts them in the mem_reservation chunk_ids list
 // Then populates ret_mem_reservation (assumes memory was already allocated for this struct, most liklely from stack and pointer ref)
-int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
+MemOpStatus do_reserve_memory(Mempool * mempool, Mem_Reservation * mem_reservation){
 
 	int ret;
 
-	int pool_id = mem_reservation -> pool_id;
 	uint64_t size_bytes = mem_reservation -> size_bytes;
-
-	Mempool mempool;
 	
-	if (pool_id == SYSTEM_MEMPOOL_ID){
-		mempool = memory -> system_mempool;
-	}
-	else{
-		mempool = (memory -> device_mempools)[pool_id];
-	}
-	
-	uint64_t chunk_size = mempool.chunk_size;
+	uint64_t chunk_size = mempool -> chunk_size;
 	// ensure we request enough chunks to satisfy request
 	uint64_t req_chunks = MY_CEIL(size_bytes, chunk_size);
 
-	Fast_Tree * free_mem_ranges = mempool.free_mem_ranges;
+	printf("DOING RESERVE MEMORY: Size Bytes: %lu, Req Chunks: %lu\n\n", size_bytes, req_chunks);
+
+	Fast_Tree * free_mem_ranges = mempool -> free_mem_ranges;
+
+	// see if this request would be OOM
+	if ((req_chunks > mempool -> total_free_chunks) || (req_chunks > free_mem_ranges -> max)){
+		fprintf(stderr, "OOM on Pool id: %d. No range >= %lu chunks. Total free chunks: %lu. Max range: %lu\n", mempool -> pool_id, req_chunks, mempool -> total_free_chunks, free_mem_ranges -> max);
+		(mempool -> op_stats).num_oom_seen += 1;
+		return MEMORY_POOL_OOM;
+	}
 
 	Fast_Tree_Result mem_req_next;
-
 	ret = search_fast_tree(free_mem_ranges, req_chunks, FAST_TREE_EQUAL_OR_NEXT, &mem_req_next);
 
+	// should never happen, we already check that request size is <= max
 	if (unlikely(ret)){
-		fprintf(stderr, "Error: no range >= %lu chunks\n", req_chunks);
-		return -1;
+		fprintf(stderr, "Error: already checked that request chunk is less than max, but no valid range found in tree\n");
+		return MEMORY_SYSTEM_ERROR;
 	}
 
 	uint64_t reserved_chunks = mem_req_next.key;
@@ -184,7 +183,7 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 	// should never happen
 	if (unlikely(!reserved_chunks_list)){
 		fprintf(stderr, "Error: fast tree returned a key of %lu reserved chunks, but no list attached\n", reserved_chunks);
-		return -1;
+		return MEMORY_SYSTEM_ERROR;
 	}
 
 
@@ -195,7 +194,7 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 	// should never happen
 	if (unlikely(ret)){
 		fprintf(stderr, "Error: expected a value in the fast list after getting result from tree, but empty list\n");
-		return -1;
+		return MEMORY_SYSTEM_ERROR;
 	}
 
 	// if that was the last element in memory range then list will be 
@@ -209,7 +208,7 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 		// should never happen
 		if (unlikely(ret)){
 			fprintf(stderr, "Error: reserved range size was not in the fast tree\n");
-			return -1;
+			return MEMORY_SYSTEM_ERROR;
 		}
 
 		// assert tree_prev_list == reserved_chunks_list
@@ -218,11 +217,11 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 		// also should remove the range lists table
 		Fast_List * table_prev_list = NULL;
 
-		ret = remove_fast_table(mempool.range_lists_table, &reserved_chunks, (void **) &table_prev_list);
+		ret = remove_fast_table(mempool -> range_lists_table, &reserved_chunks, (void **) &table_prev_list);
 		// should never happen
 		if (unlikely(ret)){
 			fprintf(stderr, "Error: reserved range size was not in fast table\n");
-			return -1;
+			return MEMORY_SYSTEM_ERROR;
 		}
 
 		// assert table_prev_list == tree_prev_list == reserved_chunks_list
@@ -235,7 +234,7 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 
 
 
-	Fast_Table * free_endpoints = mempool.free_endpoints;
+	Fast_Table * free_endpoints = mempool -> free_endpoints;
 
 	uint64_t excess_chunks = reserved_chunks - req_chunks;
 
@@ -246,10 +245,10 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 		uint64_t excess_range_start_chunk_id = start_chunk_id + req_chunks;
 		
 		Fast_List_Node * excess_range_ref;
-		excess_range_ref = insert_free_mem_range(&mempool, excess_range_start_chunk_id, excess_chunks);
+		excess_range_ref = insert_free_mem_range(mempool, excess_range_start_chunk_id, excess_chunks);
 		if (unlikely(!excess_range_ref)){
 			fprintf(stderr, "Error: unable to add excess memory range of start id: %lu, size: %lu\n", excess_range_start_chunk_id, excess_chunks);
-			return -1;
+			return MEMORY_SYSTEM_ERROR;
 		}
 
 		// now need to modify the original endpoint's mem_range
@@ -265,7 +264,7 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 		// this should never happen
 		if (unlikely(!mem_range_ref)){
 			fprintf(stderr, "Error: unable to find the end_chunk_id endpoint of %lu that needs to be modified after reservation\n", reserved_end_chunk_id);
-			return -1;
+			return MEMORY_SYSTEM_ERROR;
 		}
 
 		mem_range_ref -> range_size = excess_chunks;
@@ -286,7 +285,7 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 	// should never happen
 	if (unlikely(ret)){
 		fprintf(stderr, "Error: unable to remove starting endpoint of %lu\n", start_chunk_id);
-		return -1;
+		return MEMORY_SYSTEM_ERROR;
 	}
 
 	// assert mem_range -> range_size = reserved_size
@@ -306,7 +305,7 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 		// should never happen
 		if (unlikely(ret)){
 			fprintf(stderr, "Error: unable to remove ending endpoint of %lu\n", end_chunk_id);
-			return -1;
+			return MEMORY_SYSTEM_ERROR;
 		}
 
 
@@ -315,9 +314,13 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 	mem_reservation -> num_chunks = req_chunks;
 	mem_reservation -> start_chunk_id = start_chunk_id;
 	// This is a pointer that can now be used by the caller
-	mem_reservation -> buffer = (void *) (mempool.va_start_addr + start_chunk_id * mempool.chunk_size);
+	mem_reservation -> buffer = (void *) (mempool -> va_start_addr + start_chunk_id * mempool -> chunk_size);
 
-	return 0;
+	mempool -> total_free_chunks -= req_chunks;
+
+	(mempool -> op_stats).num_reservations += 1;
+
+	return MEMORY_SUCCESS;
 
 
 
@@ -326,20 +329,10 @@ int reserve_memory(Memory * memory, Mem_Reservation * mem_reservation){
 }
 
 // returns 0 upon success, otherwise error
-int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
+MemOpStatus do_release_memory(Mempool * mempool, Mem_Reservation * mem_reservation) {
 
 	int ret;
 
-	int pool_id = mem_reservation -> pool_id;
-
-	Mempool mempool;
-	
-	if (pool_id == SYSTEM_MEMPOOL_ID){
-		mempool = memory -> system_mempool;
-	}
-	else{
-		mempool = (memory -> device_mempools)[pool_id];
-	}
 
 	uint64_t start_chunk_id = mem_reservation -> start_chunk_id;
 
@@ -348,7 +341,7 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 	uint64_t end_chunk_id = start_chunk_id + range_size- 1;
 
 
-	Fast_Table * free_endpoints = mempool.free_endpoints;
+	Fast_Table * free_endpoints = mempool -> free_endpoints;
 
 	Mem_Range left_mem_range;
 	Mem_Range right_mem_range;
@@ -358,19 +351,24 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 	// If the surrounding -1 and +1 endpoints are free, we want to remove
 	// them and merge
 
+	uint64_t left_size = 0;
+	uint64_t right_size = 0;
+
 	if (start_chunk_id > 0){
 		uint64_t left_endpoint = start_chunk_id - 1;
 		ret = remove_fast_table(free_endpoints, &left_endpoint, (void **) &left_mem_range);
 		if (ret == 0){
 			left_merge = &left_mem_range;
+			left_size = left_merge -> range_size;
 		}
 	}
 
-	if (end_chunk_id < mempool.num_chunks - 1){
+	if (end_chunk_id < (mempool -> num_chunks - 1)){
 		uint64_t right_endpoint = end_chunk_id + 1;
 		ret = remove_fast_table(free_endpoints, &right_endpoint, (void **) &right_mem_range);
 		if (ret == 0){
 			right_merge = &right_mem_range;
+			right_size = right_merge -> range_size;
 		}
 	}
 
@@ -381,21 +379,16 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 	// or add endpoint (if just left endpoint or no merge)
 
 	uint64_t new_size, new_start_id;
-	uint64_t left_size = 0;
-	uint64_t right_size = 0;
+	
 	if (left_merge && right_merge){
-		left_size = left_merge -> range_size;
-		right_size = right_merge -> range_size;
 		new_size = left_size + range_size + right_size;
 		new_start_id = left_merge -> start_chunk_id_ref -> item;
 	}
 	else if (left_merge){
-		left_size = left_merge -> range_size;
 		new_size = left_size + range_size;
 		new_start_id = left_merge -> start_chunk_id_ref -> item;
 	}
 	else if (right_merge){
-		right_size = right_merge -> range_size;
 		new_size = range_size + right_size;
 		new_start_id = start_chunk_id;
 	}
@@ -406,18 +399,13 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 
 
 	// Now need to deal with removing the prior ranges
-	Fast_Table * range_lists_table = mempool.range_lists_table;
-	Fast_Tree * free_mem_ranges = mempool.free_mem_ranges;
-
 	Fast_List * left_range_list = NULL;
 	Fast_List * right_range_list = NULL;
-
-	Fast_List_Node * old_range_ref;
 
 
 	if (left_merge){
 
-		left_range_list = remove_free_mem_range(&mempool, left_merge, NULL);
+		left_range_list = remove_free_mem_range(mempool, left_merge, NULL);
 
 		// when we add free mem range it will insert the start id to free_endpoints
 		// table, but if we had a left merge with size > 1 then this entry will already
@@ -427,7 +415,7 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 			// should never happen
 			if (unlikely(ret)){
 				fprintf(stderr, "Error: failure to remove left endpoint from table\n");
-				return -1;
+				return MEMORY_SYSTEM_ERROR;
 			}
 
 		}
@@ -443,10 +431,10 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 		// this case implies the left_range_list has not been deleted because there
 		// was another element of that size (the right range) when the left's was removed from list
 		if (unlikely(left_merge && (right_size == left_size))){
-			right_range_list = remove_free_mem_range(&mempool, right_merge, left_range_list);
+			right_range_list = remove_free_mem_range(mempool, right_merge, left_range_list);
 		}
 		else{
-			right_range_list = remove_free_mem_range(&mempool, right_merge, NULL);	
+			right_range_list = remove_free_mem_range(mempool, right_merge, NULL);	
 		}
 
 		// if right_range_list == NULL => 
@@ -463,11 +451,11 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 	// 	c.) Returns the pointer to the node within the range_list that we can then use when modifying
 	//		the right endpoint 
 
-	Fast_List_Node * merged_range_ref = insert_free_mem_range(&mempool, new_start_id, new_size);
+	Fast_List_Node * merged_range_ref = insert_free_mem_range(mempool, new_start_id, new_size);
 	// should never happen
 	if (unlikely(!merged_range_ref)){
 		fprintf(stderr, "Error: failure to add merged range\n");
-		return -1;
+		return MEMORY_SYSTEM_ERROR;
 	}
 
 	// now need to modify the right endpoint to point to this reference
@@ -487,7 +475,7 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 		// should never happen
 		if (unlikely(ret)){
 			fprintf(stderr, "Error: failure to insert new right endpoint\n");
-			return -1;
+			return MEMORY_SYSTEM_ERROR;
 		}
 	}
 	else{
@@ -501,7 +489,7 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 			// should never happen
 			if (unlikely(ret)){
 				fprintf(stderr, "Error: failure to insert new right endpoint\n");
-				return -1;
+				return MEMORY_SYSTEM_ERROR;
 			}
 		}
 		// otherwise we just need to modify it 
@@ -514,7 +502,7 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 			// should never happen
 			if (unlikely(!mem_range_ref)){
 				fprintf(stderr, "Error: failure to find right endpoint in table when expected\n");
-				return -1;
+				return MEMORY_SYSTEM_ERROR;
 			}
 
 			// modifying the previous range to have merged values
@@ -522,12 +510,15 @@ int release_memory(Memory * memory, Mem_Reservation * mem_reservation) {
 			mem_range_ref -> start_chunk_id_ref = merged_range_ref;
 
 		}
-
-
 	}
 
-	return 0;
+	mempool -> total_free_chunks += range_size;
+
+	(mempool -> op_stats).num_releases += 1;
+
+	return MEMORY_SUCCESS;
 }
+
 
 // BELOW IS THE EXAMPLE INIT_BACKEND_MEMORY FOR HSA_MEMORY..!
 
