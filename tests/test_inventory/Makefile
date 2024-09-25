@@ -1,6 +1,6 @@
 CC = gcc
 
-CFLAGS = -g -std=c99 -Wall -pedantic -fno-omit-frame-pointer
+CFLAGS = -g -std=c99 -Wall -pedantic
 
 HSA_CFLAGS = -D__HIP_PLATFORM_AMD__ 
 
