@@ -62,8 +62,7 @@ int main(int argc, char * argv[]){
 	// use receive queue on 0th port for "data" (which is tied to recv not srq)
 	struct ibv_cq_ex * cq = (net_world -> self_net -> cq_recv_collection)[0][1];
 
-	// Wait for other node to prepare memory and post recv
-	sleep(3);
+	
 
 
 	
@@ -96,6 +95,10 @@ int main(int argc, char * argv[]){
 
 	// sender
 	if (net_world -> self_node_id == 1){
+
+		printf("Sleeping to let other side post recvs...\n");
+		// Wait for other node to prepare memory and post recv
+		sleep(5);
 
 		data = malloc(num_items * item_length);
 		ret = register_virt_memory(pd, (void *) data, num_items * item_length, &mr);
@@ -134,7 +137,10 @@ int main(int argc, char * argv[]){
 		}
 
 
-		printf("Sending %lu bytes...\n", n_bytes);
+		printf("Sending %lu bytes...\n\n\tTo remote_node: %u\n\tRemote Qp Num: %u\n\tRemote Qkey: %u\n\tRemote Port Ind: %u\n\n", 
+					n_bytes, remote_node_id, remote_qp_num, remote_qkey, remote_node_port_ind);
+		
+
 		struct timespec start, stop;
 		clock_gettime(CLOCK_MONOTONIC, &start);
 		ret = post_send_batch_work_request(qp, num_items, (uint64_t) data, item_length, lkey, wr_id_start, ah, remote_qp_num, remote_qkey);
@@ -142,6 +148,8 @@ int main(int argc, char * argv[]){
 			fprintf(stderr, "Error: failure to send batch of data\n");
 			return -1;
 		}
+
+		printf("Posted sends now blocking for confirmation...\n");
 
 		ret = block_for_wr_comp(cq, 0);
 		clock_gettime(CLOCK_MONOTONIC, &stop);
@@ -186,10 +194,12 @@ int main(int argc, char * argv[]){
 
 		remote_node_port_ind = (remote_node -> endpoints)[1].remote_node_port_ind;
 
+		ah = (remote_node -> ports)[remote_node_port_ind].address_handles[0];
+
 
 		lkey = mr -> lkey;
 
-		printf("Receiving %lu bytes...\n", n_bytes);
+		printf("Receiving %lu bytes...(%lu wrs)\n", n_bytes, num_items);
 
 		ret = post_recv_batch_work_requests(qp, num_items, (uint64_t) data, item_length, lkey, 1);
 		if (ret != 0){
