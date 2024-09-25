@@ -635,7 +635,7 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 
 
 	// 5.) Create Channels for each srq
-	Ctrl_Channel ** recv_ctrl_channels = (Ctrl_Channel **) malloc(sizeof(Ctrl_Channel *));
+	Ctrl_Channel ** recv_ctrl_channels = (Ctrl_Channel **) malloc(num_devices * sizeof(Ctrl_Channel *));
 	if (recv_ctrl_channels == NULL){
 		fprintf(stderr, "Error: malloc failed for allocating dev_shared_recv_channels\n");
 		return NULL;
