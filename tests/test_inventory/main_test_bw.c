@@ -96,7 +96,7 @@ int main(int argc, char * argv[]){
 
 		printf("Sleeping to let other side post recvs...\n");
 		// Wait for other node to prepare memory and post recv
-		sleep(5);
+		sleep(2);
 
 		data = malloc(num_items * item_length);
 		ret = register_virt_memory(pd, (void *) data, num_items * item_length, &mr);
