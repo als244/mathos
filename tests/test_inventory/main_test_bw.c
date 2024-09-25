@@ -161,7 +161,7 @@ int main(int argc, char * argv[]){
 
 		uint64_t elapsed_ns = timestamp_stop - timestamp_start;
 
-		double throughput_gb_sec = elapsed_ns / n_bytes;
+		double throughput_gb_sec = (8 * n_bytes) / elapsed_ns;
 
 		printf("\nStats:\n\tData Size: %lu\n\tElapsed Time (ns): %lu\n\tThroughput Gb/s: %.3f\n\n", n_bytes, elapsed_ns, throughput_gb_sec);
 	}
