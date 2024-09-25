@@ -214,6 +214,42 @@ int post_send_work_request(struct ibv_qp * qp, uint64_t addr, uint32_t length, u
 	return 0;
 }
 
+int post_send_batch_work_request(struct ibv_qp * qp, uint64_t num_items, uint64_t addr_start, uint32_t item_length, uint32_t lkey, uint64_t wr_id_start, struct ibv_ah * ah, uint32_t remote_qp_num, uint32_t remote_qkey){
+
+	struct ibv_qp_ex * qp_ex = ibv_qp_to_qp_ex(qp);
+	ibv_wr_start(qp_ex);
+
+	uint64_t remain_items = num_items;
+	uint64_t cur_wr_id = wr_id_start;
+	uint64_t cur_addr = addr_start;
+	while (remain_items > 0){
+		qp_ex -> wr_id = cur_wr_id;
+		qp_ex -> wr_flags = 0;
+		ibv_wr_send(qp_ex);
+
+		ibv_wr_set_sge(qp_ex, lkey, cur_addr, item_length);
+
+		// UD Details (Address Header/Remote QP Num)
+		// retrieved from send_dest
+		// send_dest was created from get_send_dest within net.c
+		ibv_wr_set_ud_addr(qp_ex, ah, remote_qp_num, remote_qkey);
+
+		cur_addr += item_length;
+		cur_wr_id += 1;
+		remain_items -= 1;
+	}
+
+	/* can send discontiguous buffers by using ibv_wr_set_sge_list() */
+	int ret = ibv_wr_complete(qp_ex);
+
+	if (ret != 0){
+		fprintf(stderr, "Error: issue with ibv_wr_complete\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 
 
 int block_for_wr_comp(struct ibv_cq_ex * cq, uint64_t target_wr_id){
@@ -396,4 +432,78 @@ int poll_cq(struct ibv_cq_ex * cq, uint64_t duration_ns) {
 	ibv_end_poll(cq);
 
 	return 0;
+}
+
+
+uint64_t block_for_batch_wr_comp(struct ibv_cq_ex * cq, uint64_t num_completetions){
+
+	int ret;
+
+	struct ibv_poll_cq_attr poll_qp_attr = {};
+	ret = ibv_start_poll(cq, &poll_qp_attr);
+
+	// If Error after start, do not call "end_poll"
+	if ((ret != 0) && (ret != ENOENT)){
+		fprintf(stderr, "Error: could not start poll for completition queue\n");
+		return 0;
+	}
+
+	// if ret = 0, then ibv_start_poll already consumed an item
+	int seen_new_completition;
+
+	int is_done = 0;
+	
+	enum ibv_wc_status status;
+	uint64_t wr_id;
+
+	uint8_t channel_type;
+	uint8_t ib_device_id;
+	uint32_t endpoint_id;
+
+	uint64_t seen_completitions = 0;
+
+	while (seen_completitions < num_completetions){
+
+		// return is 0 if a new item was cosumed, otherwise it equals ENOENT
+		if (ret == 0){
+			seen_new_completition = 1;
+		}
+		else{
+			seen_new_completition = 0;
+		}
+		
+		// Consume the completed work request
+		wr_id = cq -> wr_id;
+		status = cq -> status;
+		// other fields as well...
+		if (seen_new_completition){
+			/* DO SOMETHING WITH wr_id! */
+			printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
+
+			decode_wr_id(wr_id, &channel_type, &ib_device_id, &endpoint_id);
+
+			printf("Decoding of wr_id:\n\tChannel Type: %u\n\tIB Device ID: %u\n\tEndpoint Ind: %u\n\n", channel_type, ib_device_id, endpoint_id);
+
+			if (status != IBV_WC_SUCCESS){
+				fprintf(stderr, "Error: work request id %lu had error\n", wr_id);
+				return seen_completitions;
+			}
+
+			seen_completitions += 1;
+		}
+
+		// Check for next completed work request...
+		ret = ibv_next_poll(cq);
+
+		if ((ret != 0) && (ret != ENOENT)){
+			// If Error after next, call "end_poll"
+			ibv_end_poll(cq);
+			fprintf(stderr, "Error: could not do next poll for completition queue\n");
+			return seen_completitions;
+		}
+	}
+
+	ibv_end_poll(cq);
+
+	return seen_completitions;
 }

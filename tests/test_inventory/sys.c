@@ -274,11 +274,14 @@ int start_system(System * system) {
 	// b.) Setup Memory Operation fifo
 	// c.) Spawn memory thread
 
-	ret = start_memory(system);
 
-	if (ret){
-		fprintf(stderr, "Error: failure to setup memory...\n");
-		return -1;
+	if (system -> memory){
+		ret = start_memory(system);
+
+		if (ret){
+			fprintf(stderr, "Error: failure to setup memory...\n");
+			return -1;
+		}
 	}
 
 
