@@ -338,9 +338,13 @@
 #define SRQ_MAX_WR 1U << 14
 #define SRQ_MAX_SGE 2
 
-#define QP_MAX_SEND_WR 1U << 10
+// BEFORE WAS SET TO 1U << 10
+// setting higher to test for BW in app settings
+#define QP_MAX_SEND_WR 1U << 14
 #define QP_MAX_SEND_SGE 2
 
+// BEFORE WAS SET TO 1U << 8
+// setting higher to test for BW in app settings
 #define QP_MAX_RECV_WR 1U << 14
 #define QP_MAX_RECV_SGE 2
 
