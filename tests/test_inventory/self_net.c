@@ -418,6 +418,7 @@ Self_Node * init_self_node(Self_Net * self_net, int num_endpoint_types, Endpoint
 
 	uint32_t num_ports = 0;
 	for (int i = 0; i < num_ib_devices; i++){
+		printf("Device #%d has %d ports\n", i, num_ports_per_dev[i]);
 		num_ports += num_ports_per_dev[i];
 	}
 	printf("Total number of ports: %u\n", num_ports);
@@ -597,7 +598,7 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 			return NULL;
 		}
 
-		num_ports_per_dev[i] = dev_attr.phys_port_cnt;
+		num_ports_per_dev[i] = (int) dev_attr.phys_port_cnt;
 		printf("Device #%d has %d ports\n", i, dev_attr.phys_port_cnt);
 	}
 
