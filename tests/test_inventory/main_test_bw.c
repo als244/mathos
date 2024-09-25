@@ -65,15 +65,13 @@ int main(int argc, char * argv[]){
 	
 
 
-	
 
-	char is_complete;
-	ret = register_virt_memory(pd, (void *) &is_complete, 1, &complete_mr);
+	void * complete = malloc(1 + sizeof(ibv_grh));
+	ret = register_virt_memory(pd, (void *) complete, 1 + sizeof(ibv_grh), &complete_mr);
 	if (ret != 0){
 		fprintf(stderr, "Error: failed to register int buffer region in system mem on sender side\n");
 		return -1;
 	}
-
 
 	uint32_t complete_lkey = complete_mr -> lkey;
 
@@ -129,8 +127,8 @@ int main(int argc, char * argv[]){
 
 		ah = (remote_node -> ports)[remote_node_port_ind].address_handles[0];
 
-
-		ret = post_recv_work_request(qp, (uint64_t) &is_complete, 1, complete_lkey, 0);
+		void *
+		ret = post_recv_work_request(qp, (uint64_t) complete, 1 + sizeof(struct ibv_grh), complete_lkey, 0);
 		if (ret != 0){
 			fprintf(stderr, "Error: failure to post wr request for hearing back when complete\n");
 			return -1;
@@ -149,7 +147,7 @@ int main(int argc, char * argv[]){
 			return -1;
 		}
 
-		printf("Posted sends now blocking for confirmation...\n");
+		printf("Posted sends! Now blocking for confirmation...\n");
 
 		ret = block_for_wr_comp(cq, 0);
 		clock_gettime(CLOCK_MONOTONIC, &stop);
@@ -199,7 +197,7 @@ int main(int argc, char * argv[]){
 
 		lkey = mr -> lkey;
 
-		printf("Receiving %lu bytes...(%lu wrs)\n", n_bytes, num_items);
+		printf("Receiving %lu bytes...\n", n_bytes, num_items);
 
 		ret = post_recv_batch_work_requests(qp, num_items, (uint64_t) data, item_length, lkey, 1);
 		if (ret != 0){
@@ -215,9 +213,11 @@ int main(int argc, char * argv[]){
 			return -1;
 		}
 
-		printf("Sending confirmation to sender...\n");
+		printf("Sending confirmation to original sender:\n\tTo remote_node: %u\n\tRemote Qp Num: %u\n\tRemote Qkey: %u\n\tRemote Port Ind: %u\n\n", 
+					n_bytes, remote_node_id, remote_qp_num, remote_qkey, remote_node_port_ind);
 
-		ret = post_send_work_request(qp, (uint64_t) &is_complete, 1, complete_lkey, 0, ah, remote_qp_num, remote_qkey);
+		is_complete = 1;
+		ret = post_send_work_request(qp, (uint64_t) complete, 1, complete_lkey, 0, ah, remote_qp_num, remote_qkey);
 		if (ret != 0){
 			fprintf(stderr, "Error: failure to post send wr request for confirmation\n");
 			return -1;
