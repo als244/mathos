@@ -596,7 +596,7 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 		}
 
 		num_ports_per_dev[i] = dev_attr.phys_port_cnt;
-		print("Device #%d has %d ports\n", dev_attr.phys_port_cnt);
+		printf("Device #%d has %d ports\n", dev_attr.phys_port_cnt);
 	}
 
 	self_net -> num_ports_per_dev = num_ports_per_dev;
