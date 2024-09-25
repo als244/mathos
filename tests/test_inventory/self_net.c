@@ -146,7 +146,6 @@ Self_Port * init_all_ports(Self_Net * self_net, uint32_t num_ports, int num_endp
 
 	for (int device_id = 0; device_id < num_ib_devices; device_id++){
 		device_num_ports = num_ports_per_dev[device_id];
-		printf("Device #%d has %d ports\n", device_id, device_num_ports);
 		// in InfiniBand physical port numbers start at 1
 		for (int phys_port_num = 1; phys_port_num < device_num_ports + 1; phys_port_num++){
 			ret = init_self_port(self_net, device_id, phys_port_num, cur_node_port_ind, &(ports[cur_node_port_ind]));
@@ -420,7 +419,6 @@ Self_Node * init_self_node(Self_Net * self_net, int num_endpoint_types, Endpoint
 	for (int i = 0; i < num_ib_devices; i++){
 		num_ports += num_ports_per_dev[i];
 	}
-	printf("Total number of ports: %u\n", num_ports);
 
 	Self_Port * ports = init_all_ports(self_net, num_ports, num_endpoint_types, endpoint_types, to_use_srq_by_type, num_qps_per_type);
 	if (ports == NULL){
