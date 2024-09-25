@@ -598,12 +598,15 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 			return NULL;
 		}
 
-		num_ports_per_dev[i] = (int) dev_attr.phys_port_cnt;
+		num_ports_per_dev[i] = dev_attr.phys_port_cnt;
 		printf("Device #%d has %d ports\n", i, dev_attr.phys_port_cnt);
 	}
 
-	self_net -> num_ports_per_dev = num_ports_per_dev;
 
+	self_net -> num_ports_per_dev = num_ports_per_dev;
+	for (int i = 0; i < num_devices; i++){
+		printf("Device #%d has %d ports\n", i, dev_attr.phys_port_cnt);
+	}
 	
 
 	// 4.) Create SRQ for device that QPs can use depending on type
