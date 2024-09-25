@@ -154,6 +154,7 @@ Self_Port * init_all_ports(Self_Net * self_net, uint32_t num_ports, int num_endp
 			if (ret != 0){
 				fprintf(stderr, "Error: failed to initialize port for device #%d, phys port num #%d\n", 
 							device_id, phys_port_num);
+				return NULL;
 			}
 
 			// Creating port (& all QPs attached to it) succeeded
@@ -356,9 +357,6 @@ Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self
 
 	for (uint32_t i = 0; i < num_ports; i++){
 		cur_port = &(ports[i]);
-		if (!cur_port){
-			continue;
-		}
 		cur_ib_device_id = cur_port -> ib_device_id;
 		cur_dev_send_cqs = (self_net -> cq_send_collection)[cur_ib_device_id];
 		cur_dev_recv_cqs = (self_net -> cq_recv_collection)[cur_ib_device_id];
@@ -378,6 +376,7 @@ Self_Endpoint * init_all_endpoints(Self_Net * self_net, uint32_t num_ports, Self
 				// Within init_self_endpoint, decided to report error as changing the qp_port to be NULL
 				if (ret != 0){
 					fprintf(stderr, "Error: failed to initialize endpoint for port #%u, endpoint type ind #%d, endpoint num (within type) #%d\n", i, j, k);
+					return NULL;
 				}
 
 				// If this is a control endpoint and it's current state is active, then add it to the active control endpoint list
@@ -597,6 +596,7 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 		}
 
 		num_ports_per_dev[i] = dev_attr.phys_port_cnt;
+		print("Device #%d has %d ports\n", dev_attr.phys_port_cnt);
 	}
 
 	self_net -> num_ports_per_dev = num_ports_per_dev;
