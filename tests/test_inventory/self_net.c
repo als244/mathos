@@ -142,12 +142,13 @@ Self_Port * init_all_ports(Self_Net * self_net, uint32_t num_ports, int num_endp
 
 	// physical port start at num = 1...?
 	// port 0 reserved for subnet manager...?
-	uint8_t device_num_ports;
+	int device_num_ports;
 
 	for (int device_id = 0; device_id < num_ib_devices; device_id++){
-		device_num_ports = (uint8_t) num_ports_per_dev[device_id];
+		device_num_ports = num_ports_per_dev[device_id];
+		printf("Device #%d has %d ports\n", device_id, device_num_ports);
 		// in InfiniBand physical port numbers start at 1
-		for (uint8_t phys_port_num = 1; phys_port_num < device_num_ports + 1; phys_port_num++){
+		for (int phys_port_num = 1; phys_port_num < device_num_ports + 1; phys_port_num++){
 			ret = init_self_port(self_net, device_id, phys_port_num, cur_node_port_ind, &(ports[cur_node_port_ind]));
 
 			// Within init_self_port, decided to report error as changing the device_id to be -1
