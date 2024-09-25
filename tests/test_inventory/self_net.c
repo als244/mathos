@@ -418,7 +418,6 @@ Self_Node * init_self_node(Self_Net * self_net, int num_endpoint_types, Endpoint
 
 	uint32_t num_ports = 0;
 	for (int i = 0; i < num_ib_devices; i++){
-		printf("Device #%d has %d ports\n", i, num_ports_per_dev[i]);
 		num_ports += num_ports_per_dev[i];
 	}
 	printf("Total number of ports: %u\n", num_ports);
@@ -599,15 +598,10 @@ Self_Net * init_self_net(int num_endpoint_types, EndpointType * endpoint_types, 
 		}
 
 		num_ports_per_dev[i] = dev_attr.phys_port_cnt;
-		printf("Device #%d has %d ports\n", i, dev_attr.phys_port_cnt);
 	}
 
 
 	self_net -> num_ports_per_dev = num_ports_per_dev;
-	for (int i = 0; i < num_devices; i++){
-		printf("Device #%d has %d ports\n", i, dev_attr.phys_port_cnt);
-	}
-	
 
 	// 4.) Create SRQ for device that QPs can use depending on type
 	struct ibv_srq ** dev_srqs = (struct ibv_srq **) malloc(num_devices * sizeof(struct ibv_srq *));
