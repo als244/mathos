@@ -341,7 +341,7 @@
 #define QP_MAX_SEND_WR 1U << 10
 #define QP_MAX_SEND_SGE 2
 
-#define QP_MAX_RECV_WR 1U << 8
+#define QP_MAX_RECV_WR 1U << 14
 #define QP_MAX_RECV_SGE 2
 
 #define QP_MAX_INLINE_DATA 0 // SEEMS LIKE 956 is the max for qp creation error...?

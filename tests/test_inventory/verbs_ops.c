@@ -1,5 +1,7 @@
 #include "verbs_ops.h"
 
+#define TO_PRINT_COMPLETE 0
+
 int register_virt_memory(struct ibv_pd * pd, void * addr, size_t size_bytes, struct ibv_mr ** ret_mr) {
 
 	// ALSO CONSIDER:
@@ -478,11 +480,10 @@ uint64_t block_for_batch_wr_comp(struct ibv_cq_ex * cq, uint64_t num_completetio
 		// other fields as well...
 		if (seen_new_completition){
 			/* DO SOMETHING WITH wr_id! */
-			printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
 
-			decode_wr_id(wr_id, &channel_type, &ib_device_id, &endpoint_id);
-
-			printf("Decoding of wr_id:\n\tChannel Type: %u\n\tIB Device ID: %u\n\tEndpoint Ind: %u\n\n", channel_type, ib_device_id, endpoint_id);
+			if (TO_PRINT_COMPLETE){
+				printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
+			}
 
 			if (status != IBV_WC_SUCCESS){
 				fprintf(stderr, "Error: work request id %lu had error\n", wr_id);
