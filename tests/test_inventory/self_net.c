@@ -420,6 +420,7 @@ Self_Node * init_self_node(Self_Net * self_net, int num_endpoint_types, Endpoint
 	for (int i = 0; i < num_ib_devices; i++){
 		num_ports += num_ports_per_dev[i];
 	}
+	printf("Total number of ports: %u\n", num_ports);
 
 	Self_Port * ports = init_all_ports(self_net, num_ports, num_endpoint_types, endpoint_types, to_use_srq_by_type, num_qps_per_type);
 	if (ports == NULL){
