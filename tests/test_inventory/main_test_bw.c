@@ -91,6 +91,8 @@ int main(int argc, char * argv[]){
 	Net_Node target_node;
 	Net_Node * remote_node;
 
+	struct timespec start, stop;
+
 	// sender
 	if (net_world -> self_node_id == 1){
 
@@ -138,19 +140,19 @@ int main(int argc, char * argv[]){
 					n_bytes, remote_node_id, remote_qp_num, remote_qkey, remote_node_port_ind);
 		
 
-		struct timespec start, post_send, stop;
-		clock_gettime(CLOCK_MONOTONIC, &start);
+		struct timespec post_send; 
+		clock_gettime(CLOCK_REALTIME, &start);
 		ret = post_send_batch_work_request(qp, num_items, (uint64_t) data, item_length, lkey, wr_id_start, ah, remote_qp_num, remote_qkey);
 		if (ret != 0){
 			fprintf(stderr, "Error: failure to send batch of data\n");
 			return -1;
 		}
-		clock_gettime(CLOCK_MONOTONIC, &post_send);
+		clock_gettime(CLOCK_REALTIME, &post_send);
 
 		printf("Posted sends! Now blocking for confirmation...\n");
 
 		ret = block_for_wr_comp(cq, 0);
-		clock_gettime(CLOCK_MONOTONIC, &stop);
+		clock_gettime(CLOCK_REALTIME, &stop);
 
 		if (ret != 0){
 			fprintf(stderr, "Error: failure to block for completed wr id\n");
@@ -166,7 +168,7 @@ int main(int argc, char * argv[]){
 
 		double throughput_gb_sec = (double) (8 * n_bytes) / (double) elapsed_ns;
 
-		printf("\nStats:\n\tData Size: %lu\n\tElapsed Time Send: %lu\n\tElapsed Time Confirm(ns): %lu\n\tThroughput Gb/s: %.3f\n\n", n_bytes, elapsed_send_ns, elapsed_ns, throughput_gb_sec);
+		printf("\nStats:\n\tData Size: %lu\n\tTimestamp Start: %lu\n\tTimestamp Post Send: %lu\n\tTimestamp Confirm: %lu\n\tElapsed Time Send (ns): %lu\n\tElapsed Time Confirm (ns): %lu\n\tThroughput Gb/s: %.3f\n\n", n_bytes, timestamp_start, timestamp_post_send, timestamp_stop, elapsed_send_ns, elapsed_ns, throughput_gb_sec);
 	}
 
 	// receiver
@@ -214,6 +216,10 @@ int main(int argc, char * argv[]){
 			fprintf(stderr, "Error: unable to find correct number of completitions (%lu != %lu)\n", seen_completitions, num_items);
 			return -1;
 		}
+		clock_gettime(CLOCK_REALTIME, &stop);
+
+		uint64_t timestamp_recv = stop.tv_sec * stop.tv_nsec * 1e9;
+		printf("Finished receiving data at time: %lu\n\n", timestamp_recv);
 
 		printf("Sending confirmation to original sender:\n\tTo remote_node: %u\n\tRemote Qp Num: %u\n\tRemote Qkey: %u\n\tRemote Port Ind: %u\n\n", 
 					remote_node_id, remote_qp_num, remote_qkey, remote_node_port_ind);
