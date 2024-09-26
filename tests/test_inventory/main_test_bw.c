@@ -218,7 +218,7 @@ int main(int argc, char * argv[]){
 		}
 		clock_gettime(CLOCK_REALTIME, &stop);
 
-		uint64_t timestamp_recv = stop.tv_sec * stop.tv_nsec * 1e9;
+		uint64_t timestamp_recv = stop.tv_sec * 1e9 + stop.tv_nsec;
 		printf("Finished receiving data at time: %lu\n\n", timestamp_recv);
 
 		printf("Sending confirmation to original sender:\n\tTo remote_node: %u\n\tRemote Qp Num: %u\n\tRemote Qkey: %u\n\tRemote Port Ind: %u\n\n", 
