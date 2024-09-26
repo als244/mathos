@@ -138,13 +138,14 @@ int main(int argc, char * argv[]){
 					n_bytes, remote_node_id, remote_qp_num, remote_qkey, remote_node_port_ind);
 		
 
-		struct timespec start, stop;
+		struct timespec start, post_send, stop;
 		clock_gettime(CLOCK_MONOTONIC, &start);
 		ret = post_send_batch_work_request(qp, num_items, (uint64_t) data, item_length, lkey, wr_id_start, ah, remote_qp_num, remote_qkey);
 		if (ret != 0){
 			fprintf(stderr, "Error: failure to send batch of data\n");
 			return -1;
 		}
+		clock_gettime(CLOCK_MONOTONIC, &post_send);
 
 		printf("Posted sends! Now blocking for confirmation...\n");
 
@@ -157,13 +158,15 @@ int main(int argc, char * argv[]){
 		}
 
 		uint64_t timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
+		uint64_t timestamp_post_send = post_send.tv_sec * 1e9 + post_send.tv_nsec;
 		uint64_t timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
 
+		uint64_t elapsed_send_ns = timestamp_post_send - timestamp_start;
 		uint64_t elapsed_ns = timestamp_stop - timestamp_start;
 
 		double throughput_gb_sec = (double) (8 * n_bytes) / (double) elapsed_ns;
 
-		printf("\nStats:\n\tData Size: %lu\n\tElapsed Time (ns): %lu\n\tThroughput Gb/s: %.3f\n\n", n_bytes, elapsed_ns, throughput_gb_sec);
+		printf("\nStats:\n\tData Size: %lu\n\tElapsed Time Send: %lu\n\tElapsed Time Confirm(ns): %lu\n\tThroughput Gb/s: %.3f\n\n", n_bytes, timestamp_post_send, elapsed_ns, throughput_gb_sec);
 	}
 
 	// receiver
