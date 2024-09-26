@@ -4,7 +4,7 @@
 #include "utils.h"
 #include "self_net.h"
 
-#define MAX_DATA_PER_MSG 1000
+#define MAX_DATA_PER_MSG 4000
 
 int main(int argc, char * argv[]){
 
