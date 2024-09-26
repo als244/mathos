@@ -166,7 +166,7 @@ int main(int argc, char * argv[]){
 
 		double throughput_gb_sec = (double) (8 * n_bytes) / (double) elapsed_ns;
 
-		printf("\nStats:\n\tData Size: %lu\n\tElapsed Time Send: %lu\n\tElapsed Time Confirm(ns): %lu\n\tThroughput Gb/s: %.3f\n\n", n_bytes, timestamp_post_send, elapsed_ns, throughput_gb_sec);
+		printf("\nStats:\n\tData Size: %lu\n\tElapsed Time Send: %lu\n\tElapsed Time Confirm(ns): %lu\n\tThroughput Gb/s: %.3f\n\n", n_bytes, elapsed_send_ns, elapsed_ns, throughput_gb_sec);
 	}
 
 	// receiver
