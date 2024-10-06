@@ -4,8 +4,6 @@
 #include "common.h"
 #include "config.h"
 
-#define INVENTORY_MESSAGE_MAX_SIZE_BYTES 100
-
 
 typedef enum inventory_message_type {
 	FINGERPRINT_MATCH,
@@ -24,6 +22,31 @@ typedef struct fingerprint_match {
 	uint32_t num_nodes;
 	uint32_t node_ids[MAX_FINGERPRINT_MATCH_LOCATIONS];
 } Fingerprint_Match;
+
+
+typedef struct transfer_initiate {
+	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
+	// ADD QP INFO HERE!
+	// The receiver will initiate transfer
+	// and specify the endpoint index they
+	// expect the sender to send to
+	int endpoint_ind;
+} Transfer_Initiate;
+
+typedef struct transfer_response {
+	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
+	int is_confirmed;
+} Transfer_Response;
+
+
+typedef struct inventory_query {
+	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
+	int is_reply;
+	int has_object;
+} Inventory_Query;
+
+
+#define INVENTORY_MESSAGE_MAX_SIZE_BYTES CONTROL_MESSAGE_CONTENT_MAX_SIZE_BYTES - sizeof(InventoryMessageType)
 
 
 typedef struct inventory_message {

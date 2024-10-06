@@ -47,9 +47,37 @@ Inventory * init_inventory(Memory * memory) {
 
 int do_inventory_function(Inventory * inventory, Ctrl_Message * ctrl_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages) {
 
-	fprintf(stderr, "Unimplmented error: do_inventory_function\n");
-	return -1;
+	int ret;
 
+	uint32_t src_node_id = ctrl_message -> header.source_node_id;
+
+	Inventory_Message * inventory_message = (Inventory_Message *) ctrl_message -> contents;
+
+	InventoryMessageType inventory_message_type = inventory_message -> message_type;
+
+	switch(inventory_message_type){
+		case FINGERPRINT_MATCH:
+			Fingerprint_Match * match_message = (Fingerprint_Match *) (inventory_message -> message);
+			// handle match here
+			break;
+		case TRANSFER_INITIATE:
+			Transfer_Initiate * transfer_initiate = (Transfer_Initiate *) (inventory_message -> message);
+			// handle transfer initiate here
+			break;
+		case TRANSFER_RESPONSE:
+			Transfer_Response * transfer_response = (Transfer_Response *) (inventory_message -> message);
+			// handle transfer response here
+			break;
+		case INVENTORY_Q:
+			Inventory_Query * inventory_query = (Inventory_Query *) (inventory_message -> message);
+			// handle inventory query here
+			break;
+		default:
+			fprintf(stderr, "Error: unknown inventory message type: %d\n", inventory_message_type);
+			return -1;
+	}
+
+	return ret;
 }	
 
 

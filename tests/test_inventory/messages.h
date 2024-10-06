@@ -5,7 +5,7 @@
 
 #include "exchange_messages.h"
 
-#define CONTROL_MESSAGE_CONTENT_MAX_SIZE_BYTES 128
+
 
 // This is imported from config.h!
 
@@ -84,6 +84,9 @@ typedef struct ctrl_message_h {
 	// not sure if this field is needed...?
 	//uint16_t message_len;
 } Ctrl_Message_H;
+
+
+#define CONTROL_MESSAGE_CONTENT_MAX_SIZE_BYTES 128 - sizeof(Ctrl_Message_H)
 
 typedef struct ctrl_message {
 	Ctrl_Message_H header;
