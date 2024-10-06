@@ -41,17 +41,30 @@ struct object {
 	Obj_Location * locations;
 };
 
+typedef struct outstanding_bid {
+	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
+	uint64_t content_size;
+	int preferred_pool_id;
+} Outstanding_Bid;
+
 typedef struct inventory {
 	Memory * memory;
 	// convenient to just have even though embedded within memory struct
 	int num_pools;
 	// mapping from fingerprint -> obj
 	Table * object_table;
+	// TODO: think about "where" outstanding bids fit it? In inventory? In exchange client? In schedule? On its own?
+	// FOR NOW...
+	// mapping from fingerprint -> outstanding bid
+	//	- we will not reserve memory until we have a fingerprint match
+	//	- upon figerprint match we will remove the outstanding bid and create
+	//		an object with backing memory reservation
+	Table * outstanding_bids;
 } Inventory;
 
 Inventory * init_inventory(Memory * memory);
 
-int do_inventory_function(Inventory * inventory, Ctrl_Message * ctrl_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages);
+int do_inventory_function(Inventory * inventory, int thread_id, Ctrl_Message * ctrl_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages);
 void print_inventory_message(uint32_t node_id, WorkerType worker_type, int thread_id, Ctrl_Message * ctrl_message);
 
 

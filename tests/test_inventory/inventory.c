@@ -15,6 +15,21 @@ uint64_t inventory_hash_func(void * inventory_item, uint64_t table_size) {
 	return least_sig_64bits % table_size;
 }
 
+int outstanding_bids_item_cmp(void * outstanding_bid_item, void * other_item) {
+	uint8_t * item_fingerprint = ((Outstanding_Bid *) outstanding_bid_item) -> fingerprint;
+	uint8_t * other_fingerprint = ((Outstanding_Bid *) other_item) -> fingerprint;
+	int cmp_res = memcmp(item_fingerprint, other_fingerprint, FINGERPRINT_NUM_BYTES);
+	return cmp_res;
+}	
+
+
+uint64_t outstanding_bids_hash_func(void * outstanding_bid_item, uint64_t table_size) {
+	Outstanding_Bid * item_casted = (Outstanding_Bid *) outstanding_bid_item;
+	unsigned char * fingerprint = item_casted -> fingerprint;
+	uint64_t least_sig_64bits = fingerprint_to_least_sig64(fingerprint, FINGERPRINT_NUM_BYTES);
+	return least_sig_64bits % table_size;
+}
+
 
 Inventory * init_inventory(Memory * memory) {
 
@@ -38,6 +53,17 @@ Inventory * init_inventory(Memory * memory) {
 		return NULL;
 	}
 
+	hash_func = &outstanding_bids_hash_func;
+	item_cmp =  &outstanding_bids_item_cmp;
+
+	inventory -> outstanding_bids = init_table(OUTSTANDING_BIDS_TABLE_MIN_ITEMS, OUTSTANDING_BIDS_TABLE_MAX_ITEMS, 
+											OUTSTANDING_BIDS_TABLE_LOAD_FACTOR, OUTSTANDING_BIDS_TABLE_SHRINK_FACTOR, hash_func, item_cmp);
+
+	if (!(inventory -> outstanding_bids)){
+		fprintf(stderr, "Error: init_table failed for inventory outstanding_bids table\n");
+		return NULL;
+	}
+
 	return inventory;
 }
 
@@ -45,7 +71,7 @@ Inventory * init_inventory(Memory * memory) {
 
 // THE MAIN FUNCTION THAT IS EXPOSED
 
-int do_inventory_function(Inventory * inventory, Ctrl_Message * ctrl_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages) {
+int do_inventory_function(Inventory * inventory, int thread_id, Ctrl_Message * ctrl_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages) {
 
 	int ret;
 
@@ -58,18 +84,18 @@ int do_inventory_function(Inventory * inventory, Ctrl_Message * ctrl_message, ui
 	switch(inventory_message_type){
 		case FINGERPRINT_MATCH:
 			Fingerprint_Match * match_message = (Fingerprint_Match *) (inventory_message -> message);
-			// handle match here
+			ret = handle_fingerprint_match(inventory, thread_id, match_message, ret_num_ctrl_messages, ret_ctrl_messages);
 			break;
 		case TRANSFER_INITIATE:
-			Transfer_Initiate * transfer_initiate = (Transfer_Initiate *) (inventory_message -> message);
+			Transfer_Initiate * transfer_initiate_message = (Transfer_Initiate *) (inventory_message -> message);
 			// handle transfer initiate here
 			break;
 		case TRANSFER_RESPONSE:
-			Transfer_Response * transfer_response = (Transfer_Response *) (inventory_message -> message);
+			Transfer_Response * transfer_response_message = (Transfer_Response *) (inventory_message -> message);
 			// handle transfer response here
 			break;
 		case INVENTORY_Q:
-			Inventory_Query * inventory_query = (Inventory_Query *) (inventory_message -> message);
+			Inventory_Query * inventory_query_message = (Inventory_Query *) (inventory_message -> message);
 			// handle inventory query here
 			break;
 		default:
@@ -333,7 +359,52 @@ int lookup_object(Inventory * inventory, uint8_t * fingerprint, Object ** ret_ob
 
 
 
+int handle_fingerprint_match(Inventory * inventory, int thread_id, Fingerprint_Match * match_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages){
 
+	uint8_t * fingerprint = match_message -> fingerprint;
+	uint32_t num_nodes = match_message -> num_nodes;
+	uint32_t * node_ids = match_message -> node_ids;
+
+	// for now let's just iniate a transfer from the first node
+
+	uint32_t node_to_retrieve_from = node_ids[0];
+
+	// 1.) Remove outstanding bid because we saw match
+
+	Outstanding_Bid target_bid;
+	memcpy(target_bid.fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
+
+	Table * outstanding_bids = inventory -> outstanding_bids;
+
+	Outstanding_Bid * outstanding_bid = remove_item_table(outstanding_bids, &target_bid);
+
+	// probably got a different notification in other worker thread
+	// that already handled it
+	if (!outstanding_bid){
+		return 0;
+	}
+
+	uint64_t content_size = outstanding_bid -> content_size;
+	int preferred_pool_id = outstanding_bid -> preferred_pool_id;
+
+	// 2.) Reserve object now that we have a match
+
+	Obj_Location * reserved_location;
+	int backup_sys_mem = -1;
+	int ret = reserve_object(inventory, fingerprint, preferred_pool_id, content_size, 1, &backup_sys_mem, thread_id, &reserved_location);
+	if (ret){
+		fprintf(stderr, "Error: unable to reserve object\n\tPreferred Pool: %d\n\tSize: %lu\n", preferred_pool_id, content_size);
+		return -1;
+	}
+
+	// 3.) Acquire a "gate" for inbound transfer
+
+
+	// 4.) Build and send transfer initiate message
+
+
+
+}
 
 
 
