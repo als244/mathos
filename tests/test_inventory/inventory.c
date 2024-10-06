@@ -387,6 +387,9 @@ int handle_fingerprint_match(Inventory * inventory, int thread_id, Fingerprint_M
 	uint64_t content_size = outstanding_bid -> content_size;
 	int preferred_pool_id = outstanding_bid -> preferred_pool_id;
 
+	// done with the bid so can free it
+	free(outstanding_bid);
+
 	// 2.) Reserve object now that we have a match
 
 	Obj_Location * reserved_location;
