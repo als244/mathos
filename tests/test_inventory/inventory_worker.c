@@ -103,6 +103,7 @@ void * run_inventory_worker(void * _worker_thread_data) {
 			}
 
 
+			/*
 			// 3. If there are any control messages that need be send out in response to some trigger, do so
 			for (uint32_t i = 0; i < num_triggered_response_ctrl_messages; i++){
 				// Ensure to not post to self and instead directly pass to proper function
@@ -121,7 +122,7 @@ void * run_inventory_worker(void * _worker_thread_data) {
 					}
 				}
 			}
-
+			*/
 
 			// 4.) Clean up memory if necesary
 			// generate_match_ctrl_messages() allocated memory if there were messages that needed to be sent, but now free

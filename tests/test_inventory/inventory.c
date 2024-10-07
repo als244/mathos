@@ -373,6 +373,8 @@ int handle_fingerprint_match(Inventory * inventory, WorkerType worker_type, int 
 
 	Table * outstanding_bids = inventory -> outstanding_bids;
 
+	printf("In fingerprint match: looking for outstanding bid to remove from table...\n");
+
 	Outstanding_Bid * outstanding_bid = remove_item_table(outstanding_bids, &target_bid);
 
 	// probably got a different notification in other worker thread
