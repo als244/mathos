@@ -47,7 +47,7 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 		new_bid -> content_size = content_size;
 		new_bid -> preferred_pool_id = pool_id;
 
-		printf("\n\n[Node %d: Exchange Client -- 0] Inserting outstanding bid into table...\n");
+		printf("\n\n[Node %d: Exchange Client -- 0] Inserting outstanding bid into table...\n", net_world -> self_node_id);
 
 		ret = insert_item_table(inventory -> outstanding_bids, new_bid);
 		if (ret){
