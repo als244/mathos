@@ -553,11 +553,10 @@ void * remove_item_table(Table * table, void * item) {
 					// Now check conditions to ensure a valid replacement (need to still be able to find
 					//	the replacement item after swapping)
 
-					// There are 3 conditions in which we wouldn't be able to find it again,
-					//	so we check that none of these are true
-					if (!((rehash_ind > table_ind && rehash_ind < replacement_ind) || 
-							(table_ind > replacement_ind && table_ind < replacement_ind) || 
-								(replacement_ind >= rehash_ind && replacement_ind < table_ind))){
+					// Ref: https://stackoverflow.com/questions/9127207/hash-table-why-deletion-is-difficult-in-open-addressing-scheme
+
+					if (((rehash_ind > table_ind) && (rehash_ind <= table_ind || rehash_ind > replacement_ind)) 
+						|| ((table_ind < replacement_ind) && (rehash_ind <= table_ind) && rehash_ind > replacement_ind)){
 						break;
 					}
 					else{
