@@ -71,7 +71,7 @@ Inventory * init_inventory(Memory * memory) {
 
 // THE MAIN FUNCTION THAT IS EXPOSED
 
-int do_inventory_function(Inventory * inventory, int thread_id, Ctrl_Message * ctrl_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages) {
+int do_inventory_function(Inventory * inventory, WorkerType worker_type, int thread_id, Ctrl_Message * ctrl_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages) {
 
 	int ret;
 
@@ -84,7 +84,7 @@ int do_inventory_function(Inventory * inventory, int thread_id, Ctrl_Message * c
 	switch(inventory_message_type){
 		case FINGERPRINT_MATCH:
 			Fingerprint_Match * match_message = (Fingerprint_Match *) (inventory_message -> message);
-			ret = handle_fingerprint_match(inventory, thread_id, match_message, ret_num_ctrl_messages, ret_ctrl_messages);
+			ret = handle_fingerprint_match(inventory, worker_type, thread_id, match_message, ret_num_ctrl_messages, ret_ctrl_messages);
 			break;
 		case TRANSFER_INITIATE:
 			Transfer_Initiate * transfer_initiate_message = (Transfer_Initiate *) (inventory_message -> message);
@@ -359,7 +359,7 @@ int lookup_object(Inventory * inventory, uint8_t * fingerprint, Object ** ret_ob
 
 
 
-int handle_fingerprint_match(Inventory * inventory, int thread_id, Fingerprint_Match * match_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages){
+int handle_fingerprint_match(Inventory * inventory, WorkerType worker_type, int thread_id, Fingerprint_Match * match_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages){
 
 	uint8_t * fingerprint = match_message -> fingerprint;
 	uint32_t num_nodes = match_message -> num_nodes;
@@ -408,8 +408,13 @@ int handle_fingerprint_match(Inventory * inventory, int thread_id, Fingerprint_M
 
 	// 4.) Build and send transfer initiate message
 
-	*ret_num_ctrl_messages = 0;
-	*ret_ctrl_messages = NULL;
+	if (ret_num_ctrl_messages){
+		*ret_num_ctrl_messages = 0;
+	}
+
+	if (ret_ctrl_messages){
+		*ret_ctrl_messages = NULL;
+	}
 
 	return 0;
 }

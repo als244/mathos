@@ -17,6 +17,7 @@ void * run_exchange_worker(void * _worker_thread_data) {
 	// Exchange specific arguments
 	Exchange_Worker_Data * exchange_worker_data = (Exchange_Worker_Data *) worker_thread_data -> worker_arg;
 	Exchange * exchange = exchange_worker_data -> exchange;
+	Inventory * inventory = exchange_worker_data -> inventory;
 	Net_World * net_world = exchange_worker_data -> net_world;
 
 	printf("[Node %u: Exchange Worker -- %d] Started!\n", net_world -> self_node_id, worker_thread_id);
@@ -131,6 +132,11 @@ void * run_exchange_worker(void * _worker_thread_data) {
 					// TODO: actually call function to process this self-directed message
 					if (triggered_response_ctrl_messages[i].header.message_class == INVENTORY_CLASS){
 						print_inventory_message(net_world -> self_node_id, EXCHANGE_WORKER, worker_thread_id, &(triggered_response_ctrl_messages[i]));
+					}
+
+					ret = do_inventory_function(inventory, EXCHANGE_WORKER, worker_thread_id, &(triggered_response_ctrl_messages[i]), NULL, NULL);
+					if (ret){
+						fprintf(stderr, "Error: unable to do inventory function from exchange worker\n");
 					}
 				}
 				

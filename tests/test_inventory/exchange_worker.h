@@ -14,6 +14,7 @@
 typedef struct exchange_worker_data {
 	Exchange * exchange;
 	Net_World * net_world;
+	Inventory * inventory;
 } Exchange_Worker_Data;
 
 

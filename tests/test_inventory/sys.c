@@ -78,6 +78,7 @@ System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory
 
 	exchange_worker_data -> exchange = exchange;
 	exchange_worker_data -> net_world = net_world;
+	exchange_worker_data -> inventory = inventory;
 
 	//	- each worker will have their own worker_data specified in their worker file
 	ret = add_work_class(work_pool, EXCHANGE_CLASS, NUM_EXCHANGE_WORKER_THREADS, EXCHANGE_WORKER_MAX_TASKS_BACKLOG, sizeof(Ctrl_Message), run_exchange_worker, exchange_worker_data);

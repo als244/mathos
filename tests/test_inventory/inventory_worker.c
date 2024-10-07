@@ -97,7 +97,7 @@ void * run_inventory_worker(void * _worker_thread_data) {
 
 
 			// 2.) Actually perform the task
-			ret = do_inventory_function(inventory, worker_thread_id, &ctrl_message, &num_triggered_response_ctrl_messages, &triggered_response_ctrl_messages);
+			ret = do_inventory_function(inventory, INVENTORY_WORKER, worker_thread_id, &ctrl_message, &num_triggered_response_ctrl_messages, &triggered_response_ctrl_messages);
 			if (ret != 0){
 				fprintf(stderr, "[Inventory Worker %d] Error: do_inventory_function failed\n", worker_thread_id);
 			}
