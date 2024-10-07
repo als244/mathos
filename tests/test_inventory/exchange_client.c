@@ -28,7 +28,7 @@ uint32_t determine_exchange(System * system, uint8_t * fingerprint) {
 }
 
 
-int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageType exch_message_type, uint64_t content_size) {
+int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageType exch_message_type, uint64_t content_size, int pool_id) {
 
 	int ret;
 
@@ -45,7 +45,7 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 		memcpy(new_bid -> fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
 
 		new_bid -> content_size = content_size;
-		new_bid -> preferred_pool_id = -1;
+		new_bid -> preferred_pool_id = pool_id;
 
 		ret = insert_item_table(inventory -> outstanding_bids, new_bid);
 		if (ret){
@@ -77,7 +77,6 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 	// cast the contents buffer within control message to exchange message so we can easily write to it
 	Exch_Message * exch_message = (Exch_Message *) (&exch_ctrl_message.contents);
 	exch_message -> message_type = exch_message_type;
-	exch_message -> content_size = content_size;
 	memcpy(exch_message -> fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
 
 

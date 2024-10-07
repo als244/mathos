@@ -26,7 +26,6 @@ typedef enum exch_message_type {
 
 typedef struct exch_message {
 	ExchMessageType message_type;
-	uint64_t content_size;
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
 } Exch_Message;
 

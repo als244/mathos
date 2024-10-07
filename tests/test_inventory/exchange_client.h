@@ -12,7 +12,7 @@
 
 
 // content size only matters if bid order to be able to then allocate space upon match
-int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageType exch_message_type, uint64_t content_size);
+int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageType exch_message_type, uint64_t content_size, int pool_id);
 
 
 #endif

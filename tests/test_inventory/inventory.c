@@ -393,20 +393,25 @@ int handle_fingerprint_match(Inventory * inventory, int thread_id, Fingerprint_M
 	// 2.) Reserve object now that we have a match
 
 	Obj_Location * reserved_location;
-	int backup_sys_mem = -1;
-	int ret = reserve_object(inventory, fingerprint, preferred_pool_id, content_size, 1, &backup_sys_mem, thread_id, &reserved_location);
+	int ret = reserve_object(inventory, fingerprint, preferred_pool_id, content_size, 0, NULL, thread_id, &reserved_location);
 	if (ret){
 		fprintf(stderr, "Error: unable to reserve object\n\tPreferred Pool: %d\n\tSize: %lu\n", preferred_pool_id, content_size);
 		return -1;
 	}
+
+	printf("SAW A FINGERPRINT MATCH AND RESERVED MEMORY!\nRerservation Details:\n\tPool Id: %d\n\tContent Size: %lu\n\n", reserved_location -> pool_id, content_size);
+
+	printf("Would have acquired a transfer gate and sent transfer init message to node: %d...\n\n", node_to_retrieve_from);
 
 	// 3.) Acquire a "gate" for inbound transfer
 
 
 	// 4.) Build and send transfer initiate message
 
+	*ret_num_ctrl_messages = 0;
+	*ret_ctrl_messages = NULL;
 
-
+	return 0;
 }
 
 

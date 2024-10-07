@@ -136,7 +136,7 @@ int main(int argc, char * argv[]){
 		do_fingerprinting(&i, sizeof(uint64_t), fingerprint, FINGERPRINT_TYPE);
 
 		// submit exchange order copies the fingerprint contents into a control message
-		ret = submit_exchange_order(system, fingerprint, exch_message_type, content_size);
+		ret = submit_exchange_order(system, fingerprint, exch_message_type, content_size, 0);
 		if (ret != 0){
 			fprintf(stderr, "Error: failure to submit exchange order\n");
 			return -1;
