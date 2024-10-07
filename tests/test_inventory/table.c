@@ -200,8 +200,8 @@ int insert_item_table(Table * table, void * item) {
 	printf("In insert item. Waiting to acquire op_lock: table -> num_removals: %lu\n\n", table -> num_removals);
 	pthread_mutex_lock(&(table -> op_lock));
 	while ((table -> num_removals > 0) || (table -> resizing)) {
-		printf("In insert item. Woke up\n\tNum removals: %lu\n\n", table -> num_removals);
 		pthread_cond_wait(&(table -> removal_cv), &(table -> op_lock));
+		printf("In insert item. Woke up\n\tNum removals: %lu\n\n", table -> num_removals);
 	}
 
 
@@ -423,8 +423,8 @@ void * remove_item_table(Table * table, void * item) {
 	// Cannot remove during pending insert/find
 	pthread_mutex_lock(&(table -> op_lock));
 	while (((table -> num_inserts > 0) || (table -> num_finds > 0)) || (table -> resizing)){
-		printf("In remove item. Woke up\n\tNum inserts: %lu\n\tNum finds: %lu\n\n", table -> num_inserts, table -> num_finds);
 		pthread_cond_wait(&(table -> insert_cv), &(table -> op_lock));
+		printf("In remove item. Woke up\n\tNum inserts: %lu\n\tNum finds: %lu\n\n", table -> num_inserts, table -> num_finds);
 	}
 
 	// Now incdicate we are doing a removal
