@@ -87,7 +87,7 @@ int main(int argc, char * argv[]){
 		do_fingerprinting(&i, sizeof(uint64_t), fingerprint, FINGERPRINT_TYPE);
 
 		// submit exchange order copies the fingerprint contents into a control message
-		ret = submit_exchange_order(system, fingerprint, exch_message_type, content_size, -1);
+		ret = submit_exchange_order(system, fingerprint, exch_message_type, (i + 1) * content_size, -1);
 		if (ret != 0){
 			fprintf(stderr, "Error: failure to submit exchange order\n");
 			return -1;
@@ -113,7 +113,7 @@ int main(int argc, char * argv[]){
 	// Now all benchmarks have finished so we can read the values
 	// for now just reading the exchange class values
 
-	/*
+
 	Work_Bench * exchange_bench = (system -> work_pool -> classes)[EXCHANGE_CLASS] -> work_bench;
 
 	uint64_t start_timestamp = (exchange_bench -> start).tv_sec * 1e9 +  (exchange_bench -> start).tv_nsec;
@@ -126,7 +126,6 @@ int main(int argc, char * argv[]){
 
 	printf("\n\n\nExchange Throughtput Stats:\n\tNumber of Requests: %lu\n\tElapsed Time (ns): %lu\n\tThroughput (requests/sec): %lu\n\n\n",
 		num_tasks, elapsed_time_ns, tasks_per_sec);
-	*/
 
 	// Should Be Infinitely Blocking 
 	// (unless error or shutdown message)
