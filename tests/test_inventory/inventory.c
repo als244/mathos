@@ -139,7 +139,7 @@ int reserve_object(Inventory * inventory, uint8_t * fingerprint, int pool_id, ui
 
 		obj -> size_bytes = size_bytes;
 		locations = malloc(inventory -> num_pools * sizeof(Obj_Location));
-		if (!(obj -> locations)){
+		if (!locations){
 			fprintf(stderr, "Error: malloc() failed for new object locations\n");
 			return -1;
 		}
