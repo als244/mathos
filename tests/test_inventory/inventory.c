@@ -356,9 +356,6 @@ int lookup_object(Inventory * inventory, uint8_t * fingerprint, Object ** ret_ob
 
 
 
-
-
-
 int handle_fingerprint_match(Inventory * inventory, WorkerType worker_type, int thread_id, Fingerprint_Match * match_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages){
 
 	uint8_t * fingerprint = match_message -> fingerprint;
@@ -381,6 +378,7 @@ int handle_fingerprint_match(Inventory * inventory, WorkerType worker_type, int 
 	// probably got a different notification in other worker thread
 	// that already handled it
 	if (!outstanding_bid){
+		printf("In fingerprint match: could not find matching outstanding bid...\n", reserved_location -> pool_id, content_size);
 		return 0;
 	}
 
@@ -391,6 +389,8 @@ int handle_fingerprint_match(Inventory * inventory, WorkerType worker_type, int 
 	free(outstanding_bid);
 
 	// 2.) Reserve object now that we have a match
+
+	printf("In fingerprint match: Calling Reserve Object!", reserved_location -> pool_id, content_size);
 
 	Obj_Location * reserved_location;
 	int ret = reserve_object(inventory, fingerprint, preferred_pool_id, content_size, 0, NULL, thread_id, &reserved_location);
