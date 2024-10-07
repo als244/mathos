@@ -521,8 +521,6 @@ void * remove_item_table(Table * table, void * item) {
 			// Now need to find a replacement for this NULL to maintain invariant for insert/finds
 			uint64_t replacement_ind;
 			
-		
-
 			// Advance to the next non-null. Find first item that could
 			// be found again by swapping it to the table_ind 
 
@@ -559,6 +557,7 @@ void * remove_item_table(Table * table, void * item) {
 					
 				}
 				else{
+					pthread_mutex_unlock(&(slot_locks[replacement_ind]));
 					// We encounerted a NULL spot without any problems refinding
 					// elements so we should just remove the table ind
 					replacement_ind = table_ind;
