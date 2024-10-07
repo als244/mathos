@@ -196,6 +196,8 @@ int insert_item_table(Table * table, void * item) {
 	int ret;
 
 	// Cannot insert during pending removals
+
+	printf("In insert item. Waiting to acquire op_lock: table -> num_removals: %lu\n\n", table -> num_removals);
 	pthread_mutex_lock(&(table -> op_lock));
 	while ((table -> num_removals > 0) || (table -> resizing)) {
 		printf("In insert item. Woke up\n\tNum removals: %lu\n\n", table -> num_removals);
