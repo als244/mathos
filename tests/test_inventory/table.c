@@ -201,7 +201,7 @@ int insert_item_table(Table * table, void * item) {
 		pthread_cond_wait(&(table -> removal_cv), &(table -> op_lock));
 	}
 
-
+	printf("Acquired lock and doing insert...\n");
 	// Now incdicate we are doing an insert
 	// to prevent removals from occurring
 	// or to inform future inserts that
