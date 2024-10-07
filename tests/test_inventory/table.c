@@ -287,7 +287,7 @@ int insert_item_table(Table * table, void * item) {
 	bool is_inserted = false;
 	
 	// can shortcut the insertion
-
+	printf("Scanning through hashes...\n");
 
 	for (uint64_t i = hash_ind; i < hash_ind + size; i++){
 		table_ind = i % size;
@@ -309,6 +309,8 @@ int insert_item_table(Table * table, void * item) {
 			pthread_mutex_unlock(&(slot_locks[table_ind]));
 		}
 	}
+
+	printf("Finished scanning through table...\n");
 
 	if (!is_inserted){
 		fprintf(stderr, "Error: item was not inserted into table. Table size was %lu and count value was %lu\n", size, table -> cnt);
