@@ -320,6 +320,7 @@ int insert_item_table(Table * table, void * item) {
 	}
 
 
+	printf("\nIn insert, waiting to acquire op lock: Table -> num_inserts...\n", table -> num_inserts);
 	pthread_mutex_lock(&(table -> op_lock));
 	table -> num_inserts -= 1;
 	printf("\nTable -> num_inserts: %lu\n\n", table -> num_inserts);
