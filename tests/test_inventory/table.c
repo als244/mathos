@@ -547,7 +547,7 @@ void * remove_item_table(Table * table, void * item) {
 			uint64_t rehash_ind;
 
 			while (j < size){
-				replacement_ind = (empty_ind + j) % size;
+				replacement_ind = (table_ind + j) % size;
 				pthread_mutex_lock(&(slot_locks[replacement_ind]));
 				if (tab[replacement_ind] != NULL){
 					rehash_ind = (table -> hash_func)(tab[replacement_ind], size);
