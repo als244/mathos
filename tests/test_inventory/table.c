@@ -196,12 +196,9 @@ int insert_item_table(Table * table, void * item) {
 	int ret;
 
 	// Cannot insert during pending removals
-
-	printf("Entered insert item. Waiting to acquire op_lock: table -> num_removals: %lu\n\n", table -> num_removals);
 	pthread_mutex_lock(&(table -> op_lock));
 	while ((table -> num_removals > 0) || (table -> resizing)) {
 		pthread_cond_wait(&(table -> removal_cv), &(table -> op_lock));
-		printf("In insert item. Woke up\n\tNum removals: %lu\n\n", table -> num_removals);
 	}
 
 
@@ -322,26 +319,21 @@ int insert_item_table(Table * table, void * item) {
 	}
 
 
-	printf("\nIn insert, waiting to acquire op lock: Table -> num_inserts: %lu...\n", table -> num_inserts);
 	pthread_mutex_lock(&(table -> op_lock));
 	table -> num_inserts -= 1;
-	printf("\nAqcuired lock for insert. Table -> num_inserts: %lu\n\n", table -> num_inserts);
 	// If we added a new item to the table
 	if (is_inserted && !is_duplicate){
 		table -> cnt += 1;
 	}
-
-	pthread_cond_broadcast(&(table -> removal_cv));
-
 	// The reason for num_inserts == 1 is because when the table is growing
 	// there will be a pending insert waiting on this insert to finish
 	bool is_insert_notify = ((table -> num_inserts == 0) || (table -> num_inserts == 1));
+	pthread_mutex_unlock(&(table -> op_lock));
+
 	// Indicate to pending finds & removals that they might be able to go
 	if (is_insert_notify){
-		printf("Notifiying insert_cv:\n\tTable -> num_inserts: %lu...\n", table -> num_inserts);
 		pthread_cond_broadcast(&(table -> insert_cv));
 	}
-	pthread_mutex_unlock(&(table -> op_lock));
 
 	if (is_duplicate){
 		return 1;
@@ -408,12 +400,12 @@ void * find_item_table(Table * table, void * item){
 	// The reason for table inserts == 1 is because when table is growing there will be a pending insert waiting 
 	// on this find to finish
 	bool is_find_notify = (table -> num_finds == 0) && ((table -> num_inserts == 0) || (table -> num_inserts == 1));
+	pthread_mutex_unlock(&(table -> op_lock));
+
 	// Indicate to pending removals that they might be able to go
 	if (is_find_notify){
 		pthread_cond_broadcast(&(table -> insert_cv));
 	}
-
-	pthread_mutex_unlock(&(table -> op_lock));
 
 	return found_item;
 }
@@ -427,7 +419,6 @@ void * remove_item_table(Table * table, void * item) {
 	pthread_mutex_lock(&(table -> op_lock));
 	while (((table -> num_inserts > 0) || (table -> num_finds > 0)) || (table -> resizing)){
 		pthread_cond_wait(&(table -> insert_cv), &(table -> op_lock));
-		printf("In remove item. Woke up\n\tNum inserts: %lu\n\tNum finds: %lu\n\n", table -> num_inserts, table -> num_finds);
 	}
 
 	// Now incdicate we are doing a removal
@@ -612,8 +603,6 @@ void * remove_item_table(Table * table, void * item) {
 	}
 
 	// Indicate to pending inserts/finds that they might be able to go
-
-	printf("\nIn remove, waiting to acquire op lock: Table -> num_removals: %lu...\n", table -> num_removals);
 	pthread_mutex_lock(&(table -> op_lock));
 	table -> num_removals -= 1;
 	// If we actually removed the item
@@ -621,16 +610,14 @@ void * remove_item_table(Table * table, void * item) {
 		table -> cnt -= 1;
 	}
 
-	pthread_cond_broadcast(&(table -> insert_cv));
-
 	// When shrinking final removal is actually when there is 1 left
 	// if we resized then we need to notify pending "finds" that they can go through
 	bool is_removal_notify = (table -> num_removals == 0) || (table -> num_removals == 1) || (resized);
+	pthread_mutex_unlock(&(table -> op_lock));
+
 	if (is_removal_notify){
 		pthread_cond_broadcast(&(table -> removal_cv));
 	}
-
-	pthread_mutex_unlock(&(table -> op_lock));
 	
 	// if found is pointer to item, otherwise null
 	return ret_item;
