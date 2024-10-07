@@ -133,7 +133,7 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 				if (triggered_ctrl_messages[i].header.message_class == INVENTORY_CLASS){
 					print_inventory_message(net_world -> self_node_id, EXCHANGE_CLIENT, 0, &(triggered_ctrl_messages[i]));
 
-					ret = do_inventory_function(inventory, EXCHANGE_CLIENT, worker_thread_id, &(triggered_response_ctrl_messages[i]), NULL, NULL);
+					ret = do_inventory_function(inventory, EXCHANGE_CLIENT, 0, &(triggered_ctrl_messages[i]), NULL, NULL);
 					if (ret){
 						fprintf(stderr, "Error: unable to do inventory function from exchange worker\n");
 						return -1;
