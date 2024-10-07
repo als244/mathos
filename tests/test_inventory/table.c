@@ -331,12 +331,9 @@ int insert_item_table(Table * table, void * item) {
 	pthread_mutex_unlock(&(table -> op_lock));
 
 	// Indicate to pending finds & removals that they might be able to go
-	/*if (is_insert_notify){
+	if (is_insert_notify){
 		pthread_cond_broadcast(&(table -> insert_cv));
 	}
-	*/
-
-	pthread_cond_broadcast(&(table -> insert_cv));
 
 	if (is_duplicate){
 		return 1;
@@ -406,13 +403,9 @@ void * find_item_table(Table * table, void * item){
 	pthread_mutex_unlock(&(table -> op_lock));
 
 	// Indicate to pending removals that they might be able to go
-	/*
 	if (is_find_notify){
 		pthread_cond_broadcast(&(table -> insert_cv));
 	}
-	*/
-
-	pthread_cond_broadcast(&(table -> insert_cv));
 
 	return found_item;
 }
@@ -622,13 +615,9 @@ void * remove_item_table(Table * table, void * item) {
 	bool is_removal_notify = (table -> num_removals == 0) || (table -> num_removals == 1) || (resized);
 	pthread_mutex_unlock(&(table -> op_lock));
 
-	/*
 	if (is_removal_notify){
 		pthread_cond_broadcast(&(table -> removal_cv));
 	}
-	*/
-
-	pthread_cond_broadcast(&(table -> removal_cv));
 	
 	// if found is pointer to item, otherwise null
 	return ret_item;

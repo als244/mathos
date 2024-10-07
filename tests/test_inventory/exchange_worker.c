@@ -132,14 +132,13 @@ void * run_exchange_worker(void * _worker_thread_data) {
 					// TODO: actually call function to process this self-directed message
 					if (triggered_response_ctrl_messages[i].header.message_class == INVENTORY_CLASS){
 						print_inventory_message(net_world -> self_node_id, EXCHANGE_WORKER, worker_thread_id, &(triggered_response_ctrl_messages[i]));
-					}
 
-					ret = do_inventory_function(inventory, EXCHANGE_WORKER, worker_thread_id, &(triggered_response_ctrl_messages[i]), NULL, NULL);
-					if (ret){
-						fprintf(stderr, "Error: unable to do inventory function from exchange worker\n");
+						ret = do_inventory_function(inventory, EXCHANGE_WORKER, worker_thread_id, &(triggered_response_ctrl_messages[i]), NULL, NULL);
+						if (ret){
+							fprintf(stderr, "Error: unable to do inventory function from exchange worker\n");
+						}
 					}
 				}
-				
 			}
 
 
