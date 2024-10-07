@@ -279,8 +279,6 @@ MemOpStatus do_reserve_memory(Mempool * mempool, Mem_Reservation * mem_reservati
 	// ensure we request enough chunks to satisfy request
 	uint64_t req_chunks = MY_CEIL(size_bytes, chunk_size);
 
-	printf("DOING RESERVE MEMORY: Size Bytes: %lu, Req Chunks: %lu\n\n", size_bytes, req_chunks);
-
 	Fast_Tree * free_mem_ranges = mempool -> free_mem_ranges;
 
 	// see if this request would be OOM
