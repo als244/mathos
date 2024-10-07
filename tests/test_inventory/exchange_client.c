@@ -34,6 +34,8 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 
 	Inventory * inventory = system -> inventory;
 
+	Net_World * net_world = system -> net_world;
+
 	if (exch_message_type == BID_ORDER){
 
 		Outstanding_Bid * new_bid = malloc(sizeof(Outstanding_Bid));
@@ -57,7 +59,7 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 	}
 
 
-	Net_World * net_world = system -> net_world;
+	
 	
 	uint32_t self_id = net_world -> self_node_id;
 	Exchange * self_exchange = system -> exchange;
