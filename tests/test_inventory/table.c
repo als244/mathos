@@ -330,12 +330,11 @@ int insert_item_table(Table * table, void * item) {
 	// The reason for num_inserts == 1 is because when the table is growing
 	// there will be a pending insert waiting on this insert to finish
 	bool is_insert_notify = ((table -> num_inserts == 0) || (table -> num_inserts == 1));
-	pthread_mutex_unlock(&(table -> op_lock));
-
 	// Indicate to pending finds & removals that they might be able to go
 	if (is_insert_notify){
 		pthread_cond_broadcast(&(table -> insert_cv));
 	}
+	pthread_mutex_unlock(&(table -> op_lock));
 
 	if (is_duplicate){
 		return 1;
@@ -402,12 +401,12 @@ void * find_item_table(Table * table, void * item){
 	// The reason for table inserts == 1 is because when table is growing there will be a pending insert waiting 
 	// on this find to finish
 	bool is_find_notify = (table -> num_finds == 0) && ((table -> num_inserts == 0) || (table -> num_inserts == 1));
-	pthread_mutex_unlock(&(table -> op_lock));
-
 	// Indicate to pending removals that they might be able to go
 	if (is_find_notify){
 		pthread_cond_broadcast(&(table -> insert_cv));
 	}
+
+	pthread_mutex_unlock(&(table -> op_lock));
 
 	return found_item;
 }
@@ -616,11 +615,11 @@ void * remove_item_table(Table * table, void * item) {
 	// When shrinking final removal is actually when there is 1 left
 	// if we resized then we need to notify pending "finds" that they can go through
 	bool is_removal_notify = (table -> num_removals == 0) || (table -> num_removals == 1) || (resized);
-	pthread_mutex_unlock(&(table -> op_lock));
-
 	if (is_removal_notify){
 		pthread_cond_broadcast(&(table -> removal_cv));
 	}
+
+	pthread_mutex_unlock(&(table -> op_lock));
 	
 	// if found is pointer to item, otherwise null
 	return ret_item;
