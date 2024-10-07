@@ -322,13 +322,14 @@ int insert_item_table(Table * table, void * item) {
 
 	pthread_mutex_lock(&(table -> op_lock));
 	table -> num_inserts -= 1;
+	printf("\nTable -> num_inserts: %lu\n\n", table -> num_inserts);
 	// If we added a new item to the table
 	if (is_inserted && !is_duplicate){
 		table -> cnt += 1;
 	}
 	// The reason for num_inserts == 1 is because when the table is growing
 	// there will be a pending insert waiting on this insert to finish
-	bool is_insert_notify = ((table -> num_inserts == 0) || ((table -> resizing) && (table -> num_inserts == 1)));
+	bool is_insert_notify = ((table -> num_inserts == 0) || (table -> num_inserts == 1));
 	pthread_mutex_unlock(&(table -> op_lock));
 
 	// Indicate to pending finds & removals that they might be able to go
