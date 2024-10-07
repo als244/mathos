@@ -97,10 +97,10 @@ int main(int argc, char * argv[]){
 		exch_message_type = BID_ORDER;
 	}
 
-	uint64_t num_exchange_messages = 10;
+	uint64_t num_exchange_messages = 1000;
 	
 	// Starting benchmark at count 0 means it will set the start timestamp upon first message
-	ret = add_message_class_benchmark(system, EXCHANGE_CLASS, 0, num_exchange_messages);
+	ret = add_message_class_benchmark(system, EXCHANGE_CLASS, 0, num_exchange_messages / 3);
 	if (ret != 0){
 		fprintf(stderr, "Error: failed to add benchmark to track work class throughput\n");
 		return -1;
@@ -136,7 +136,7 @@ int main(int argc, char * argv[]){
 		do_fingerprinting(&i, sizeof(uint64_t), fingerprint, FINGERPRINT_TYPE);
 
 		// submit exchange order copies the fingerprint contents into a control message
-		ret = submit_exchange_order(system, fingerprint, exch_message_type, (i + 1) * content_size, 0);
+		ret = submit_exchange_order(system, fingerprint, exch_message_type, content_size, 0);
 		if (ret != 0){
 			fprintf(stderr, "Error: failure to submit exchange order\n");
 			return -1;
