@@ -10,7 +10,7 @@
 
 // this will be the value within worker_thread_data -> worker_arg
 typedef struct inventory_worker_data {
-	// Inventory * inventory;
+	Inventory * inventory;
 	Net_World * net_world;
 } Inventory_Worker_Data;
 

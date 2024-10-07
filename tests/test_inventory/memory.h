@@ -192,4 +192,7 @@ MemOpStatus do_reserve_memory(Mempool * mempool, Mem_Reservation * mem_reservati
 MemOpStatus do_release_memory(Mempool * mempool, Mem_Reservation * mem_reservation);
 
 
+Memory * init_memory(void * backend_memory, uint64_t sys_mem_num_chunks, uint64_t sys_mem_chunk_size);
+
+
 #endif

@@ -21,17 +21,9 @@ int main(int argc, char * argv[]){
 	}
 
 
-	// 1.) Initialize memory
-	Memory * memory =  init_memory(NULL, SYS_MEM_NUM_CHUNKS, SYS_MEM_CHUNK_SIZE);
-	if (memory == NULL){
-		fprintf(stderr, "Error: failed to initialize memory\n");
-		return -1;
-	}
-
-
 	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
 
-	System * system = init_system(master_ip_addr, self_ip_addr, memory);
+	System * system = init_system(master_ip_addr, self_ip_addr, NULL);
 
 	if (system == NULL){
 		fprintf(stderr, "Error: failed to initialize system\n");
@@ -62,22 +54,104 @@ int main(int argc, char * argv[]){
 	}
 
 
+
+	/*
+
+	// Actually start all threads!
+	//	- this call blocks until min_init_nodes (set within master) have been added to the net_world table
+	printf("\n\nSpawning all worker threads & waiting until the minimum number of nodes (%u) have joined the net...\n\n", net_world -> min_init_nodes);
+
+	ret = start_system(system);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to start system\n");
+		return -1;
+	}
+
+
+	printf("\n\nSuccessfully started system. Everything online and ready to process...!\n\n");
+	*/
+
+	int num_floats = 100;
+
+
+	struct ibv_pd * pd = (system -> net_world -> self_net -> dev_pds)[0];
+	struct ibv_qp * qp;
+	struct ibv_mr * mr;
+
+	// Wait for other node to prepare memory and post recv
+	sleep(3);
+
+
+	float * float_buffer = (float *) malloc(num_floats * sizeof(int));
+	for (int i = 0; i < num_floats; i++){
+		float_buffer[i] = i;
+	}
+
+	 
+	ret = register_virt_memory(pd, (void *) float_buffer, num_floats * sizeof(int), &mr);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to register int buffer region in system mem on sender side\n");
+		return -1;
+	}
+
+	uint32_t remote_node_id = 1;
+	Net_Node target_node;
+	target_node.node_id = remote_node_id;
+
+	Net_Node * remote_node = find_item_table(net_world -> nodes, &target_node);
+	if (remote_node == NULL){
+		fprintf(stderr, "Error: could not find node 1 in table\n");
+		return -1;
+	}
+
+
+	uint32_t remote_qp_num = (remote_node -> endpoints)[1].remote_qp_num;
+	uint32_t remote_qkey = (remote_node -> endpoints)[1].remote_qkey;
+
+	uint32_t remote_node_port_ind = (remote_node -> endpoints)[1].remote_node_port_ind;
+
+	struct ibv_ah * ah = (remote_node -> ports)[remote_node_port_ind].address_handles[0];
+
+	qp = (net_world -> self_net -> self_node -> endpoints)[1].ibv_qp;
+
+	printf("Sending int buffer to other node...!\n");
+
+	ret = post_send_work_request(qp, (uint64_t) float_buffer, num_floats * sizeof(int), mr -> lkey, 0, ah, remote_qp_num, remote_qkey);
+	if (ret != 0){
+		fprintf(stderr, "Error: failure to send work reqeust of int buffer\n");
+		return -1;
+	}
+
+	exit(0);
+
+
+
+
+
+
+
+
+
+
+
+
+
+	// NOW SEND/RECV MESSAGES!
+
+
 	// prepare all contorl messages
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
 	
 	// Only send message from node 1
 
 	uint64_t start_message_id = 0;
-
-	uint64_t content_size = SYS_MEM_CHUNK_SIZE;
-
 	for (uint64_t i = start_message_id; i < start_message_id + num_exchange_messages; i++){
 
 		// do_fingerprinting populates an already allocated array
 		do_fingerprinting(&i, sizeof(uint64_t), fingerprint, FINGERPRINT_TYPE);
 
 		// submit exchange order copies the fingerprint contents into a control message
-		ret = submit_exchange_order(system, fingerprint, exch_message_type, content_size);
+		ret = submit_exchange_order(system, fingerprint, exch_message_type);
 		if (ret != 0){
 			fprintf(stderr, "Error: failure to submit exchange order\n");
 			return -1;

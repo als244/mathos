@@ -4,6 +4,7 @@
 #include "common.h"
 #include "config.h"
 #include "exchange.h"
+#include "inventory.h"
 #include "init_net.h"
 
 #include "work_pool.h"
@@ -17,6 +18,7 @@
 typedef struct system {
 	Work_Pool * work_pool;
 	Exchange * exchange;
+	Inventory * inventory;
 	Net_World * net_world;
 	// contains semaphores that the calling thread 
 	// should wait on before ready the results of the 

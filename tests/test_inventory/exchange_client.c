@@ -28,9 +28,32 @@ uint32_t determine_exchange(System * system, uint8_t * fingerprint) {
 }
 
 
-int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageType exch_message_type) {
+int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageType exch_message_type, uint64_t content_size) {
 
 	int ret;
+
+	Inventory * inventory = system -> inventory;
+
+	if (exch_message_type == BID_ORDER){
+
+		Outstanding_Bid * new_bid = malloc(sizeof(Outstanding_Bid));
+		if (!new_bid){
+			fprintf(stderr, "Error: malloc() failed for new bid\n");
+			return -1;
+		}
+
+		memcpy(new_bid -> fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
+
+		new_bid -> content_size = content_size;
+		new_bid -> preferred_pool_id = -1;
+
+		ret = insert_item_table(inventory -> outstanding_bids, new_bid);
+		if (ret){
+			fprintf(stderr, "Error: unable to insert outstnading bid into table\n");
+			return -1;
+		}
+	}
+
 
 	Net_World * net_world = system -> net_world;
 	
@@ -54,6 +77,7 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 	// cast the contents buffer within control message to exchange message so we can easily write to it
 	Exch_Message * exch_message = (Exch_Message *) (&exch_ctrl_message.contents);
 	exch_message -> message_type = exch_message_type;
+	exch_message -> content_size = content_size;
 	memcpy(exch_message -> fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
 
 

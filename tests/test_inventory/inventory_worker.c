@@ -16,7 +16,7 @@ void * run_inventory_worker(void * _worker_thread_data) {
 
 	// Exchange specific arguments
 	Inventory_Worker_Data * inventory_worker_data = (Inventory_Worker_Data *) worker_thread_data -> worker_arg;
-	// Inventory * Inventory = inventory_worker_data -> inventory;
+	Inventory * inventory = inventory_worker_data -> inventory;
 	Net_World * net_world = inventory_worker_data -> net_world;
 
 	printf("[Node %u: Inventory Worker -- %d] Started!\n", net_world -> self_node_id, worker_thread_id);
@@ -95,10 +95,9 @@ void * run_inventory_worker(void * _worker_thread_data) {
 			// FOR NOW NOT ACTUALLY DOING ANYTHING
 			//	- just testing send/recv throughputs
 
-			/*
 
 			// 2.) Actually perform the task
-			ret = do_inventory_function(inventory, &ctrl_message, &num_triggered_response_ctrl_messages, &triggered_response_ctrl_messages);
+			ret = do_inventory_function(inventory, worker_thread_id, &ctrl_message, &num_triggered_response_ctrl_messages, &triggered_response_ctrl_messages);
 			if (ret != 0){
 				fprintf(stderr, "[Inventory Worker %d] Error: do_inventory_function failed\n", worker_thread_id);
 			}
@@ -106,10 +105,20 @@ void * run_inventory_worker(void * _worker_thread_data) {
 
 			// 3. If there are any control messages that need be send out in response to some trigger, do so
 			for (uint32_t i = 0; i < num_triggered_response_ctrl_messages; i++){
-				ret = post_send_ctrl_net(net_world, &(triggered_response_ctrl_messages[i]));
-				if (ret != 0){
-					fprintf(stderr, "[Inventory Worker %d] Error: after do inventory function, was supposed to send %u triggered messages. But posting a send ctrl message for #%u failed\n", 
+				// Ensure to not post to self and instead directly pass to proper function
+				if (triggered_response_ctrl_messages[i].header.dest_node_id != net_world -> self_node_id){
+					ret = post_send_ctrl_net(net_world, &(triggered_response_ctrl_messages[i]));
+					if (ret != 0){
+						fprintf(stderr, "[Inventory Worker %d] Error: after do inventory function, was supposed to send %u triggered messages. But posting a send ctrl message for #%u failed\n", 
 						worker_thread_id, num_triggered_response_ctrl_messages, i);
+					}
+				}
+				else{
+
+					// TODO: actually call function to process this self-directed message
+					if (triggered_response_ctrl_messages[i].header.message_class == INVENTORY_CLASS){
+						print_inventory_message(net_world -> self_node_id, INVENTORY_WORKER, worker_thread_id, &(triggered_response_ctrl_messages[i]));
+					}
 				}
 			}
 
@@ -121,8 +130,6 @@ void * run_inventory_worker(void * _worker_thread_data) {
 				free(triggered_response_ctrl_messages);
 			}
 
-
-			*/
 
 			// 5.) If we have work_bench set, do bookeeping
 			//			- Indicate completed task

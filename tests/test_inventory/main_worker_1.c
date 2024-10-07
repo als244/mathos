@@ -64,13 +64,12 @@ int main(int argc, char * argv[]){
 	}
 
 
-
 	// 2.) Intiialize common (across accelerator backends) system memory struct
 
 	// currently this function is within hsa_memory.c, but would be nicer to rearrange things...
-	Memory * memory =  init_backend_memory(hsa_memory);
+	Memory * memory =  init_memory(init_backend_memory(hsa_memory), SYS_MEM_NUM_CHUNKS, SYS_MEM_CHUNK_SIZE);
 	if (memory == NULL){
-		fprintf(stderr, "Error: failed to initialize backend memory\n");
+		fprintf(stderr, "Error: failed to initialize memory\n");
 		return -1;
 	}
 
@@ -119,172 +118,6 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-
-
-
-
-	printf("\n\nSuccessfully started system. Everything online and ready to process...!\n\n");
-
-
-	unsigned int cu_count = 82;
-	hipStream_t stream;
-	ret = initialize_stream(device_id, cu_count, &stream);
-	if (ret != 0){
-		fprintf(stderr, "Error: failure to initialize hip stream\n");
-		return -1;
-	}
-
-
-	Mem_Op_Timestamps mem_op_timestamps;
-
-
-	int num_floats = 100;
-
-	// All UD queue pair receives need to have sizeof(struct ibv_grh) added on to the request
-	// In reality we can just keep a seperate dead-zone for this as opposed to using 40-bytes
-	// per receive
-	int req_bytes = (num_floats * sizeof(float)) + sizeof(struct ibv_grh);
-	
-
-	Mem_Reservation mem_reservation_net_recv;
-	// allocate on device 0 and wanting chunk_size bytes;
-	mem_reservation_net_recv.mem_client_id = 0;
-	mem_reservation_net_recv.pool_id = 0;
-	mem_reservation_net_recv.size_bytes = req_bytes; 
-	mem_reservation_net_recv.num_backup_pools = 0;
-
-	// Will populate mem_reservation.range_size, mem_reservation.start_chunk_id, mem_reservation.buffer
-
-	clock_gettime(CLOCK_MONOTONIC, &start);
-	void * recv_buffer = reserve_memory(memory, &mem_reservation_net_recv, &mem_op_timestamps);
-	clock_gettime(CLOCK_MONOTONIC, &stop);
-	
-	if (!recv_buffer){
-		fprintf(stderr, "Error: failed to reserve memory on pool id %d of size %lu\n", 
-					mem_reservation_net_recv.pool_id, mem_reservation_net_recv.size_bytes);
-		return -1;
-	}
-
-	printf("Req Results:\n\tReq Bytes: %lu\n\tStart Chunk ID: %lu\n\tNum Chunks: %lu\n\n", 
-				mem_reservation_net_recv.size_bytes, mem_reservation_net_recv.start_chunk_id, mem_reservation_net_recv.num_chunks);
-
-	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
-	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
-	elapsed_ns = timestamp_stop - timestamp_start;
-
-	printf("\n\n\nElasped Reservation time (ns): %lu\n\n\n", elapsed_ns);
-
-	
-	printf("Attempting to post receive request for GPU memory...\n");
-
-
-	int ib_device_id = 0;
-	
-	// HARDCODING THE RECEIVING IB DEVICE FOR NOW!
-	struct ibv_qp * recv_qp = (net_world -> self_net -> self_node -> endpoints)[(2 * ib_device_id) + 1].ibv_qp;
-	uint32_t lkey = ((memory -> device_mempools[mem_reservation_net_recv.pool_id]).ib_dev_mrs[ib_device_id]) -> lkey;
-
-	printf("\nUsing Lkey: %u\n", lkey);
-
-	ret = post_recv_work_request(recv_qp, (uint64_t) mem_reservation_net_recv.buffer, mem_reservation_net_recv.size_bytes, lkey, 0);
-	if (ret != 0){
-		fprintf(stderr, "Error: unable to post recv request to the registered dma buf region\n");
-		return -1;
-	}
-
-	printf("Successfully posted receive request waiting at GPU memory!\n");
-
-	
-	printf("Waiting to read the contents of sender from GPU memory. Blocking until work completion..\n");
-
-	ret = block_for_wr_comp((net_world -> self_net -> cq_recv_collection)[0][1], 0);
-	if (ret != 0){
-		fprintf(stderr, "Error: unable to block for wr completion\n");
-		return -1;
-	}
-
-
-	printf("Attempting to copy contents from GPU to CPU...\n");
-	
-	
-	void * dptr_real = (void *) ((uint64_t) mem_reservation_net_recv.buffer + sizeof(struct ibv_grh));
-	void * buffer;
-	ret = hsa_copy_to_host_memory(hsa_memory, device_id, dptr_real, mem_reservation_net_recv.size_bytes, (void **) &buffer);
-	if (ret != 0){
-		fprintf(stderr, "Error failed to copy contents from device to host\n");
-		return -1;
-	}
-	
-
-	float * float_buffer = (float *) buffer;
-
-	for (int i = 0; i < num_floats; i++){
-		printf("%f\n", float_buffer[i]);
-	}
-
-	printf("\n\nDOING GPU MATMUL ON RECEIVED DATA!\n\n");
-
-
-	// TEMPORARY SOLUTION OF SPECIFIYING CHUNK_ID (for testing)
-	
-	Mem_Reservation mem_reservation_func_out;
-
-	mem_reservation_func_out.mem_client_id = 0;
-	mem_reservation_func_out.pool_id = 0;
-	mem_reservation_func_out.size_bytes = chunk_size;
-	mem_reservation_func_out.num_backup_pools = 0;
-
-	clock_gettime(CLOCK_MONOTONIC, &start);
-	void * func_out_buffer = reserve_memory(memory, &mem_reservation_func_out, &mem_op_timestamps);
-	clock_gettime(CLOCK_MONOTONIC, &stop);
-	if (!func_out_buffer){
-		fprintf(stderr, "Error: failed to reserve memory on device %d of size %lu\n", 
-					mem_reservation_func_out.pool_id, mem_reservation_func_out.size_bytes);
-		return -1;
-	}
-
-	timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
-	timestamp_stop = stop.tv_sec * 1e9 + stop.tv_nsec;
-	elapsed_ns = timestamp_stop - timestamp_start;
-
-	printf("\n\n\nElasped Reservation time (ns): %lu\n\n\n", elapsed_ns);
-
-	void * out_dptr = mem_reservation_func_out.buffer;
-
-
-	int m = 2;
-	int k = 3;
-	int n = 4;
-
-	ret = do_rocblas_matmul(stream, m, k, n, dptr_real, dptr_real, out_dptr, &elapsed_ns);
-	if (ret != 0){
-		fprintf(stderr, "Error: doing matmul failed\n");
-		return -1;
-	}
-
-	void * out_buffer;
-	ret = hsa_copy_to_host_memory(hsa_memory, device_id, out_dptr, m * n * sizeof(float), (void **) &out_buffer);
-	if (ret != 0){
-		fprintf(stderr, "Error failed to copy contents from device to host\n");
-	}
-
-
-	float * out_ptr_casted = (float *) out_buffer;
-	for (int i = 0; i < m; i++){
-		for (int j = 0; j < n; j++){
-			printf("%f ", out_ptr_casted[i * n + j]);
-		}
-		printf("\n");
-	}
-
-
-	exit(0);
-
-
-
-
-
-
 	// NOW SEND/RECV MESSAGES!
 
 
@@ -294,13 +127,16 @@ int main(int argc, char * argv[]){
 	// Only send message from node 1
 
 	uint64_t start_message_id = 0;
+
+	uint64_t content_size = SYS_MEM_CHUNK_SIZE;
+
 	for (uint64_t i = start_message_id; i < start_message_id + num_exchange_messages; i++){
 
 		// do_fingerprinting populates an already allocated array
 		do_fingerprinting(&i, sizeof(uint64_t), fingerprint, FINGERPRINT_TYPE);
 
 		// submit exchange order copies the fingerprint contents into a control message
-		ret = submit_exchange_order(system, fingerprint, exch_message_type);
+		ret = submit_exchange_order(system, fingerprint, exch_message_type, content_size);
 		if (ret != 0){
 			fprintf(stderr, "Error: failure to submit exchange order\n");
 			return -1;

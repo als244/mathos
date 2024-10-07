@@ -1,6 +1,129 @@
 #include "memory.h"
 
 
+Memory * init_memory(void * backend_memory, uint64_t sys_mem_num_chunks, uint64_t sys_mem_chunk_size){
+
+	Memory * memory;
+	if (backend_memory){
+		memory = (Memory *) backend_memory;
+	}
+	else{
+		memory = malloc(sizeof(Memory));
+		if (!memory){
+			fprintf(stderr, "Error: unable to init memory()\n");
+			return NULL;
+		}
+
+		memory -> num_devices = 0;
+		memory -> device_mempools = NULL;
+	}
+
+
+	Mempool * system_mempool = &(memory -> system_mempool);
+	system_mempool -> num_chunks = sys_mem_num_chunks;
+	system_mempool -> chunk_size = sys_mem_chunk_size;
+	system_mempool -> capacity_bytes = sys_mem_num_chunks * sys_mem_chunk_size;
+
+
+	// allocate system memory with mmap 
+	
+	// probably want to use MAP_HUGETLB + MAP_HUGE_2MB/MAP_HUGE_1GB
+	void * sys_mem_buffer = mmap(NULL, system_mempool -> capacity_bytes, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+	if (!sys_mem_buffer){
+		fprintf(stderr, "Error: unable to create system_mempool\n\tNum Chunks: %lu\n\tChunk size: %lu\n\n", sys_mem_num_chunks, sys_mem_chunk_size);
+		return NULL;
+	}
+
+	system_mempool -> va_start_addr = (uint64_t) sys_mem_buffer;
+
+	system_mempool -> total_free_chunks = sys_mem_num_chunks;
+
+	(system_mempool -> op_stats).num_reservations = 0;
+	(system_mempool -> op_stats).num_releases = 0;
+	(system_mempool -> op_stats).num_oom_seen = 0;
+
+	
+	Fast_Table_Config * range_lists_table_config = save_fast_table_config(&hash_func_64, sizeof(uint64_t), sizeof(Fast_List *), 
+											MEMORY_RANGE_LISTS_MIN_TABLE_SIZE, sys_mem_num_chunks, MEMORY_RANGE_LISTS_LOAD_FACTOR, MEMORY_RANGE_LISTS_SHRINK_FACTOR);
+
+
+	Fast_Table * range_lists_table = (Fast_Table *) malloc(sizeof(Fast_Table));
+	if (!range_lists_table){
+		fprintf(stderr, "Error: malloc failed to allocate range_lists table container\n");
+		return NULL;
+	}
+
+	int ret = init_fast_table(range_lists_table, range_lists_table_config);
+	if (ret){
+		fprintf(stderr, "Error: unable to initialize range lists table\n");
+		return NULL;
+	}
+
+	system_mempool -> range_lists_table = range_lists_table;
+
+	system_mempool -> free_mem_ranges = init_fast_tree();
+
+	if (!(system_mempool -> free_mem_ranges)){
+		fprintf(stderr, "Error: failure to initialize memory fast tree for system mempool\n");
+		// fatal error
+		return NULL;
+	}
+
+	// Now inserting the endpoints which will be used during memory release and merging
+
+	uint64_t endpoint_table_min_size = MEMORY_ENDPOINT_MIN_TABLE_SIZE;
+	if (endpoint_table_min_size > sys_mem_num_chunks){
+		endpoint_table_min_size = sys_mem_num_chunks;
+	}
+
+	Fast_Table_Config * endpoint_table_config = save_fast_table_config(&hash_func_64, sizeof(uint64_t), sizeof(Mem_Range), 
+											endpoint_table_min_size, sys_mem_num_chunks, MEMORY_ENDPOINT_LOAD_FACTOR, MEMORY_ENDPOINT_SHRINK_FACTOR);
+
+	if (!endpoint_table_config){
+		fprintf(stderr, "Error: failure to save memory endpoint table config\n");
+		return NULL;
+	}
+
+	Fast_Table * endpoint_table = (Fast_Table *) malloc(sizeof(Fast_Table));
+	if (!endpoint_table){
+		fprintf(stderr, "Error: malloc failed to allocate fast table container for memory endpoint\n");
+		return NULL;
+	}
+
+	ret = init_fast_table(endpoint_table, endpoint_table_config);
+	if (ret){
+		fprintf(stderr, "Error: failure to init fast table for memory endpoint\n");
+		return NULL;
+	}
+
+	system_mempool -> free_endpoints = endpoint_table;
+
+	Fast_List_Node * full_range_ref = insert_free_mem_range(system_mempool, 0, sys_mem_num_chunks);
+
+	if (ret){
+		fprintf(stderr, "Error: could not add initial free mem range for system memory\n");
+		return NULL;
+	}
+
+	// Need to add the original starting end_chunk_id
+
+	uint64_t final_chunk_id = sys_mem_num_chunks - 1;
+
+	Mem_Range full_mem_range;
+
+	full_mem_range.range_size = sys_mem_num_chunks;
+	full_mem_range.start_chunk_id_ref = full_range_ref;
+
+	ret = insert_fast_table(system_mempool -> free_endpoints, &final_chunk_id, &full_mem_range);
+	if (ret){
+		fprintf(stderr, "Error: failure to insert the final endpoint into free endpoints\n");
+		return NULL;
+	}
+
+	return memory;
+}
+
+
 Fast_List_Node * insert_free_mem_range(Mempool * mempool, uint64_t start_chunk_id, uint64_t range_size){
 
 	int ret;

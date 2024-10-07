@@ -18,12 +18,17 @@ System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory
 	// 1.) Initialize empty exchange
 
 	Exchange * exchange = init_exchange();
-	if (exchange == NULL){
+	if (!exchange){
 		fprintf(stderr, "Error: failed to initialize exchange\n");
 		return NULL;
 	}
 
 	// 2.) Initialize inventory
+	Inventory * inventory = init_inventory(memory);
+	if (!inventory){
+		fprintf(stderr, "Error: failed to initialize inventory\n");
+		return NULL;
+	}
 
 
 	// 3.) Initialize function ingestion stuff
@@ -36,7 +41,7 @@ System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory
 	// 5.) Initialize network and wait for minimum number of nodes to join (set by the master)
 
 	Net_World * net_world = init_net(master_ip_addr, self_ip_addr);
-	if (net_world == NULL){
+	if (!net_world){
 		fprintf(stderr, "Error: failed to initialize network\n");
 		return NULL;
 	}
@@ -44,7 +49,7 @@ System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory
 
 	// 6.) Update exchange with information from net_world
 	ret = update_init_exchange_with_net_info(exchange, net_world -> self_node_id, net_world -> max_nodes);
-	if (ret != 0){
+	if (ret){
 		fprintf(stderr, "Error: failed to update exchange with net_info\n");
 		return NULL;
 	}
@@ -54,7 +59,7 @@ System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory
 
 	// defined in messsages.h => included from config.h
 	Work_Pool * work_pool = init_work_pool(MAX_WORK_CLASS_IND);
-	if (work_pool == NULL){
+	if (!work_pool){
 		fprintf(stderr, "Error: failed to intialize work_pool\n");
 		return NULL;
 	}
@@ -66,7 +71,7 @@ System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory
 	// a.) Exchange Class
 
 	Exchange_Worker_Data * exchange_worker_data = (Exchange_Worker_Data *) malloc(sizeof(Exchange_Worker_Data));
-	if (exchange_worker_data == NULL){
+	if (!exchange_worker_data){
 		fprintf(stderr, "Error: malloc failed to allocate exchange_worker_data before adding to work pool\n");
 		return NULL;
 	}
@@ -76,7 +81,7 @@ System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory
 
 	//	- each worker will have their own worker_data specified in their worker file
 	ret = add_work_class(work_pool, EXCHANGE_CLASS, NUM_EXCHANGE_WORKER_THREADS, EXCHANGE_WORKER_MAX_TASKS_BACKLOG, sizeof(Ctrl_Message), run_exchange_worker, exchange_worker_data);
-	if (ret != 0){
+	if (ret){
 		fprintf(stderr, "Error: unable to add worker class\n");
 		return NULL;
 	}
@@ -85,17 +90,17 @@ System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory
 	// b.) Inventory Class
 
 	Inventory_Worker_Data * inventory_worker_data = (Inventory_Worker_Data *) malloc(sizeof(Inventory_Worker_Data));
-	if (inventory_worker_data == NULL){
+	if (!inventory_worker_data){
 		fprintf(stderr, "Error: malloc failed to allocate exchange_worker_data before adding to work pool\n");
 		return NULL;
 	}
 
-	//inventory_worker_data.inventory = inventory;
+	inventory_worker_data -> inventory = inventory;
 	inventory_worker_data -> net_world = net_world;
 
 	//	- each worker will have their own worker_data specified in their worker file
 	ret = add_work_class(work_pool, INVENTORY_CLASS, NUM_INVENTORY_WORKER_THREADS, INVENTORY_WORKER_MAX_TASKS_BACKLOG, sizeof(Ctrl_Message), run_inventory_worker, inventory_worker_data);
-	if (ret != 0){
+	if (ret){
 		fprintf(stderr, "Error: unable to add worker class\n");
 		return NULL;
 	}

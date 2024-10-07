@@ -4,6 +4,10 @@
 #include "common.h"
 #include "messages.h"
 
+
+#define SYS_MEM_NUM_CHUNKS (1UL << 12)
+#define SYS_MEM_CHUNK_SIZE (1UL << 21)
+
 // FAST TREE CONFIGURATION
 
 
