@@ -276,11 +276,7 @@ int insert_item_table(Table * table, void * item) {
 	// ensure size is checked while holding lock
 	uint64_t size = table -> size;
 
-	// we can release the op lock now, but will acquire it again when finished to decrement
-	// the inserts
-	pthread_mutex_unlock(&(table -> op_lock));
 
-	
 	uint64_t hash_ind = (table -> hash_func)(item, size);
 	uint64_t table_ind;
 	// doing the Linear Probing
@@ -318,8 +314,6 @@ int insert_item_table(Table * table, void * item) {
 		fprintf(stderr, "Error: item was not inserted into table. Table size was %lu and count value was %lu\n", size, table -> cnt);
 	}
 
-
-	pthread_mutex_lock(&(table -> op_lock));
 	table -> num_inserts -= 1;
 	// If we added a new item to the table
 	if (is_inserted && !is_duplicate){
@@ -360,11 +354,6 @@ void * find_item_table(Table * table, void * item){
 	// ensure size is checked while holding lock
 	uint64_t size = table -> size;
 
-	// we can release the op lock now, but will acquire it again when finished to decrement
-	// the inserts
-	pthread_mutex_unlock(&(table -> op_lock));
-
-
 	
 	uint64_t hash_ind = (table -> hash_func)(item, size);
 	void ** tab = table -> table;
@@ -394,8 +383,6 @@ void * find_item_table(Table * table, void * item){
 		}
 	}
 
-
-	pthread_mutex_lock(&(table -> op_lock));
 	table -> num_finds -= 1;
 	// The reason for table inserts == 1 is because when table is growing there will be a pending insert waiting 
 	// on this find to finish
@@ -504,8 +491,6 @@ void * remove_item_table(Table * table, void * item) {
 
 	// ensure to get size while still holding lock
 	uint64_t size = table -> size;
-
-	pthread_mutex_unlock(&(table -> op_lock));
 		
 	uint64_t hash_ind = (table -> hash_func)(item, size);
 
@@ -602,8 +587,6 @@ void * remove_item_table(Table * table, void * item) {
 		
 	}
 
-	// Indicate to pending inserts/finds that they might be able to go
-	pthread_mutex_lock(&(table -> op_lock));
 	table -> num_removals -= 1;
 	// If we actually removed the item
 	if (is_exists){
