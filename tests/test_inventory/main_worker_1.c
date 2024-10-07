@@ -97,7 +97,7 @@ int main(int argc, char * argv[]){
 		exch_message_type = BID_ORDER;
 	}
 
-	uint64_t num_exchange_messages = 100;
+	uint64_t num_exchange_messages = 1000;
 	
 	// Starting benchmark at count 0 means it will set the start timestamp upon first message
 	ret = add_message_class_benchmark(system, EXCHANGE_CLASS, 0, num_exchange_messages);
