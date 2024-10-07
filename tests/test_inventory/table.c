@@ -558,6 +558,9 @@ void * remove_item_table(Table * table, void * item) {
 
 					if (((replacement_ind > empty_ind) && (rehash_ind <= empty_ind || rehash_ind > replacement_ind)) 
 						|| ((replacement_ind < empty_ind) && (rehash_ind <= empty_ind) && rehash_ind > replacement_ind)){
+						if (empty_ind != table_ind){
+							pthread_mutex_unlock(&(slot_locks[empty_ind]));
+						}
 						empty_ind = replacement_ind;
 					}
 					else{
