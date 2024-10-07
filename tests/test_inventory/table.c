@@ -335,6 +335,7 @@ int insert_item_table(Table * table, void * item) {
 	bool is_insert_notify = ((table -> num_inserts == 0) || (table -> num_inserts == 1));
 	// Indicate to pending finds & removals that they might be able to go
 	if (is_insert_notify){
+		printf("Notifiying insert_cv:\n\tTable -> num_inserts: %lu...\n", table -> num_inserts);
 		pthread_cond_broadcast(&(table -> insert_cv));
 	}
 	pthread_mutex_unlock(&(table -> op_lock));
