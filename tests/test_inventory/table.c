@@ -320,10 +320,10 @@ int insert_item_table(Table * table, void * item) {
 	}
 
 
-	printf("\nIn insert, waiting to acquire op lock: Table -> num_inserts...\n", table -> num_inserts);
+	printf("\nIn insert, waiting to acquire op lock: Table -> num_inserts: %lu...\n", table -> num_inserts);
 	pthread_mutex_lock(&(table -> op_lock));
 	table -> num_inserts -= 1;
-	printf("\nTable -> num_inserts: %lu\n\n", table -> num_inserts);
+	printf("\nAqcuired lock for insert. Table -> num_inserts: %lu\n\n", table -> num_inserts);
 	// If we added a new item to the table
 	if (is_inserted && !is_duplicate){
 		table -> cnt += 1;
@@ -606,6 +606,8 @@ void * remove_item_table(Table * table, void * item) {
 	}
 
 	// Indicate to pending inserts/finds that they might be able to go
+
+	printf("\nIn remove, waiting to acquire op lock: Table -> num_removals: %lu...\n", table -> num_removals);
 	pthread_mutex_lock(&(table -> op_lock));
 	table -> num_removals -= 1;
 	// If we actually removed the item
