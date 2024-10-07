@@ -331,9 +331,13 @@ int insert_item_table(Table * table, void * item) {
 		pthread_cond_broadcast(&(table -> insert_cv));
 	}
 
+	printf("Returning from insert...\n");
+
+	/*
 	if (is_duplicate){
 		return 1;
 	}
+	*/
 
 	return 0;
 }
