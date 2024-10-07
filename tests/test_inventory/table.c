@@ -197,7 +197,7 @@ int insert_item_table(Table * table, void * item) {
 
 	// Cannot insert during pending removals
 
-	printf("In insert item. Waiting to acquire op_lock: table -> num_removals: %lu\n\n", table -> num_removals);
+	printf("Entered insert item. Waiting to acquire op_lock: table -> num_removals: %lu\n\n", table -> num_removals);
 	pthread_mutex_lock(&(table -> op_lock));
 	while ((table -> num_removals > 0) || (table -> resizing)) {
 		pthread_cond_wait(&(table -> removal_cv), &(table -> op_lock));
@@ -330,6 +330,9 @@ int insert_item_table(Table * table, void * item) {
 	if (is_inserted && !is_duplicate){
 		table -> cnt += 1;
 	}
+
+	pthread_cond_broadcast(&(table -> removal_cv));
+
 	// The reason for num_inserts == 1 is because when the table is growing
 	// there will be a pending insert waiting on this insert to finish
 	bool is_insert_notify = ((table -> num_inserts == 0) || (table -> num_inserts == 1));
@@ -617,6 +620,8 @@ void * remove_item_table(Table * table, void * item) {
 	if (is_exists){
 		table -> cnt -= 1;
 	}
+
+	pthread_cond_broadcast(&(table -> insert_cv));
 
 	// When shrinking final removal is actually when there is 1 left
 	// if we resized then we need to notify pending "finds" that they can go through
