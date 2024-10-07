@@ -557,7 +557,7 @@ void * remove_item_table(Table * table, void * item) {
 					// Ref: https://stackoverflow.com/questions/9127207/hash-table-why-deletion-is-difficult-in-open-addressing-scheme
 
 					if (((replacement_ind > empty_ind) && (rehash_ind <= empty_ind || rehash_ind > replacement_ind)) 
-						|| ((empty_ind < replacement_ind) && (rehash_ind <= empty_ind) && rehash_ind > replacement_ind)){
+						|| ((replacement_ind < empty_ind) && (rehash_ind <= empty_ind) && rehash_ind > replacement_ind)){
 						empty_ind = replacement_ind;
 					}
 					else{

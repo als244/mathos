@@ -527,7 +527,7 @@ int remove_fast_table(Fast_Table * fast_table, void * key, void * ret_value) {
 		// If cur_table_key wouldn't be able to be found again we need to move it to the 
 		// empty_ind position to ensure that it could be
 		if (((cur_ind > empty_ind) && (hash_ind <= empty_ind || hash_ind > cur_ind))
-			|| ((empty_ind < cur_ind) && (hash_ind <= empty_ind && hash_ind > cur_ind))){
+			|| ((cur_ind < empty_ind) && (hash_ind <= empty_ind && hash_ind > cur_ind))){
 			
 			// perform the replacement
 			memcpy(empty_table_key, cur_table_key, key_size_bytes + value_size_bytes);
