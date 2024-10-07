@@ -118,6 +118,7 @@ System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory
 
 	system -> work_pool = work_pool;
 	system -> exchange = exchange;
+	system -> inventory = inventory;
 	system -> net_world = net_world;
 	system -> are_benchmarks_ready = are_benchmarks_ready;
 
