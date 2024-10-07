@@ -61,6 +61,16 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
+	// Actually start all threads!
+	//	- this call blocks until min_init_nodes (set within master) have been added to the net_world table
+	printf("\n\nSpawning all worker threads & waiting until the minimum number of nodes (%u) have joined the net...\n\n", net_world -> min_init_nodes);
+
+	ret = start_system(system);
+	if (ret != 0){
+		fprintf(stderr, "Error: failed to start system\n");
+		return -1;
+	}
+
 
 	// prepare all contorl messages
 	uint8_t fingerprint[FINGERPRINT_NUM_BYTES];
