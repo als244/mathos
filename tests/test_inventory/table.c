@@ -529,6 +529,7 @@ void * remove_item_table(Table * table, void * item) {
 			ret_item = tab[table_ind];
 			// Now need to find a replacement for this NULL to maintain invariant for insert/finds
 			uint64_t replacement_ind;
+			uint64_t empty_ind = table_ind;
 			
 		
 
@@ -546,7 +547,7 @@ void * remove_item_table(Table * table, void * item) {
 			uint64_t rehash_ind;
 
 			while (j < size){
-				replacement_ind = (table_ind + j) % size;
+				replacement_ind = (empty_ind + j) % size;
 				pthread_mutex_lock(&(slot_locks[replacement_ind]));
 				if (tab[replacement_ind] != NULL){
 					rehash_ind = (table -> hash_func)(tab[replacement_ind], size);
@@ -555,9 +556,9 @@ void * remove_item_table(Table * table, void * item) {
 
 					// Ref: https://stackoverflow.com/questions/9127207/hash-table-why-deletion-is-difficult-in-open-addressing-scheme
 
-					if (((rehash_ind > table_ind) && (rehash_ind <= table_ind || rehash_ind > replacement_ind)) 
-						|| ((table_ind < replacement_ind) && (rehash_ind <= table_ind) && rehash_ind > replacement_ind)){
-						break;
+					if (((rehash_ind > empty_ind) && (rehash_ind <= empty_ind || rehash_ind > replacement_ind)) 
+						|| ((empty_ind < replacement_ind) && (rehash_ind <= empty_ind) && rehash_ind > replacement_ind)){
+						empty_ind = replacement_ind;
 					}
 					else{
 						// This element wouldn't be able to be found again at table_ind spot
@@ -568,18 +569,15 @@ void * remove_item_table(Table * table, void * item) {
 				}
 				else{
 					pthread_mutex_unlock(&(slot_locks[replacement_ind]));
-					// We encounerted a NULL spot without any problems refinding
-					// elements so we should just remove the table ind
-					replacement_ind = table_ind;
 					break;
 				}
 				j++;
 			}
 
-			if (replacement_ind != table_ind){
+			if (empty_ind != table_ind){
 				tab[table_ind] = tab[replacement_ind];
 				tab[replacement_ind] = NULL;
-				pthread_mutex_unlock(&(slot_locks[replacement_ind]));
+				pthread_mutex_unlock(&(slot_locks[empty_ind]));
 			}
 			else{
 				tab[table_ind] = NULL;
