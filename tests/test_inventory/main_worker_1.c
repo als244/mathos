@@ -91,10 +91,10 @@ int main(int argc, char * argv[]){
 
 	ExchMessageType exch_message_type;
 	if (net_world -> self_node_id == 1){
-		exch_message_type = OFFER_ORDER;
+		exch_message_type = BID_ORDER;
 	}
 	if (net_world -> self_node_id >= 2){
-		exch_message_type = BID_ORDER;
+		exch_message_type = OFFER_ORDER;
 	}
 
 	uint64_t num_exchange_messages = 1000;
