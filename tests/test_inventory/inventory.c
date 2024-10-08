@@ -401,6 +401,10 @@ int handle_fingerprint_match(Inventory * inventory, WorkerType worker_type, int 
 
 	printf("Would have acquired a transfer gate and sent transfer init message to node: %d...\n\n", node_to_retrieve_from);
 
+	pthread_mutex_lock(&(outstanding_bids -> op_lock));
+	printf("Current outstanding_bid cnt: %lu\n", outstanding_bids -> cnt)
+	pthread_mutex_unlock(&(outstanding_bids -> op_lock));
+
 	// 3.) Acquire a "gate" for inbound transfer
 
 
