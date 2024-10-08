@@ -556,7 +556,7 @@ void * remove_item_table(Table * table, void * item) {
 
 					if (((replacement_ind > empty_ind) && (rehash_ind <= empty_ind || rehash_ind > replacement_ind)) 
 						|| ((replacement_ind < empty_ind) && (rehash_ind <= empty_ind) && rehash_ind > replacement_ind)){
-						table[empty_ind] = table[replacement_ind];
+						tab[empty_ind] = tab[replacement_ind];
 						pthread_mutex_unlock(&(slot_locks[empty_ind]));
 						empty_ind = replacement_ind;
 						
@@ -570,7 +570,7 @@ void * remove_item_table(Table * table, void * item) {
 				}
 				else{
 					pthread_mutex_unlock(&(slot_locks[replacement_ind]));
-					table[empty_ind] = NULL;
+					tab[empty_ind] = NULL;
 					pthread_mutex_unlock(&(slot_locks[empty_ind]));
 					break;
 				}
