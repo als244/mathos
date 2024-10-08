@@ -52,6 +52,8 @@ void * run_inventory_worker(void * _worker_thread_data) {
 
 	Inventory_Message * inventory_message;
 
+	uint64_t total_consumed = 0;
+
 	while (1){
 
 
@@ -62,7 +64,9 @@ void * run_inventory_worker(void * _worker_thread_data) {
 		//	- this data will be overwritten when the fifo wraps around
 		num_consumed = consume_all_fifo(tasks, ctrl_messages);
 
-		printf("Inventory worker: CONSUMED %lu messages\n", num_consumed);
+		total_consumed += num_consumed;
+
+		printf("Inventory worker: CONSUMED %lu messages\n", total_consumed);
 
 
 		// Consume as many as possible and store in buffer to reduce lock contention on the fifo
