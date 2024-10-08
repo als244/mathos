@@ -71,6 +71,8 @@ void * run_exchange_worker(void * _worker_thread_data) {
 		//	- this data will be overwritten when the fifo wraps around
 		num_consumed = consume_all_fifo(tasks, ctrl_messages);
 
+		printf("Exchange worker: CONSUMED %lu messages\n", num_consumed);
+
 
 		// Consume as many as possible and store in buffer to reduce lock contention on the fifo
 
@@ -94,9 +96,10 @@ void * run_exchange_worker(void * _worker_thread_data) {
 			// within utils.c
 			copy_byte_arr_to_hex_str(fingerprint_as_hex_str, FINGERPRINT_NUM_BYTES, exch_message -> fingerprint);
 
+			/*
 			printf("\n\n[Node %u: Exchange Worker -- %d] Processing exchange control message!\n\tSource Node ID: %u\n\tExchange Message Type: %s\n\tFingerprint: %s\n\n", 
 							net_world -> self_node_id, worker_thread_id, ctrl_message_header.source_node_id, message_type_str, fingerprint_as_hex_str);
-
+			*/
 			
 			// 1b.) Possibly need to start recording for benchmark
 			if ((work_bench != NULL) && (!work_bench -> started)){
@@ -131,7 +134,7 @@ void * run_exchange_worker(void * _worker_thread_data) {
 
 					// TODO: actually call function to process this self-directed message
 					if (triggered_response_ctrl_messages[i].header.message_class == INVENTORY_CLASS){
-						print_inventory_message(net_world -> self_node_id, EXCHANGE_WORKER, worker_thread_id, &(triggered_response_ctrl_messages[i]));
+						//print_inventory_message(net_world -> self_node_id, EXCHANGE_WORKER, worker_thread_id, &(triggered_response_ctrl_messages[i]));
 
 						ret = do_inventory_function(inventory, EXCHANGE_WORKER, worker_thread_id, &(triggered_response_ctrl_messages[i]), NULL, NULL);
 						if (ret){

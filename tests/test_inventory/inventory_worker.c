@@ -62,6 +62,8 @@ void * run_inventory_worker(void * _worker_thread_data) {
 		//	- this data will be overwritten when the fifo wraps around
 		num_consumed = consume_all_fifo(tasks, ctrl_messages);
 
+		printf("Inventory worker: CONSUMED %lu messages\n", num_consumed);
+
 
 		// Consume as many as possible and store in buffer to reduce lock contention on the fifo
 
@@ -78,7 +80,7 @@ void * run_inventory_worker(void * _worker_thread_data) {
 			}
 
 			// within inventory.c
-			print_inventory_message(net_world -> self_node_id, INVENTORY_WORKER, worker_thread_id, &ctrl_message);
+			//print_inventory_message(net_world -> self_node_id, INVENTORY_WORKER, worker_thread_id, &ctrl_message);
 
 			// 1b.) Possibly need to start recording for benchmark
 			if ((work_bench != NULL) && (!work_bench -> started)){

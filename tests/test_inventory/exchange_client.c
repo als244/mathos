@@ -52,7 +52,7 @@ int submit_exchange_order(System * system, uint8_t * fingerprint, ExchMessageTyp
 		printf("\n\n[Node %d: Exchange Client -- 0] Inserting outstanding bid into table...\n", net_world -> self_node_id);
 
 		ret = insert_item_table(inventory -> outstanding_bids, new_bid);
-		if (ret){
+		if (ret < 0){
 			fprintf(stderr, "Error: unable to insert outstnading bid into table\n");
 			return -1;
 		}
