@@ -397,15 +397,9 @@ int handle_fingerprint_match(Inventory * inventory, WorkerType worker_type, int 
 		return -1;
 	}
 
-	//printf("SAW A FINGERPRINT MATCH AND RESERVED MEMORY!\nRerservation Details:\n\tPool Id: %d\n\tContent Size: %lu\n\n", reserved_location -> pool_id, content_size);
+	printf("SAW A FINGERPRINT MATCH AND RESERVED MEMORY!\nRerservation Details:\n\tPool Id: %d\n\tContent Size: %lu\n\n", reserved_location -> pool_id, content_size);
 
-	//printf("Would have acquired a transfer gate and sent transfer init message to node: %d...\n\n", node_to_retrieve_from);
-
-	/*
-	pthread_mutex_lock(&(outstanding_bids -> op_lock));
-	printf("Current outstanding_bid cnt: %lu\n", outstanding_bids -> cnt);
-	pthread_mutex_unlock(&(outstanding_bids -> op_lock));
-	*/
+	printf("Would have acquired a transfer gate and sent transfer init message to node: %d...\n\n", node_to_retrieve_from);
 
 	// 3.) Acquire a "gate" for inbound transfer
 
