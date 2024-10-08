@@ -547,7 +547,7 @@ void * remove_item_table(Table * table, void * item) {
 			while (j < size){
 				replacement_ind = (table_ind + j) % size;
 				pthread_mutex_lock(&(slot_locks[replacement_ind]));
-				if (tab[replacement_ind]){
+				if (tab[replacement_ind] != NULL){
 					rehash_ind = (table -> hash_func)(tab[replacement_ind], size);
 					// Now check conditions to ensure a valid replacement (need to still be able to find
 					//	the replacement item after swapping)
@@ -556,10 +556,11 @@ void * remove_item_table(Table * table, void * item) {
 
 					if (((replacement_ind > empty_ind) && (rehash_ind <= empty_ind || rehash_ind > replacement_ind)) 
 						|| ((replacement_ind < empty_ind) && (rehash_ind <= empty_ind) && rehash_ind > replacement_ind)){
-						tab[empty_ind] = tab[replacement_ind];
-						pthread_mutex_unlock(&(slot_locks[empty_ind]));
+						if (empty_ind != table_ind){
+							tab[empty_ind] = tab[replacement_ind];
+							pthread_mutex_unlock(&(slot_locks[empty_ind]));
+						}
 						empty_ind = replacement_ind;
-						
 					}
 					else{
 						// This element wouldn't be able to be found again at table_ind spot
@@ -570,12 +571,23 @@ void * remove_item_table(Table * table, void * item) {
 				}
 				else{
 					pthread_mutex_unlock(&(slot_locks[replacement_ind]));
-					tab[empty_ind] = NULL;
-					pthread_mutex_unlock(&(slot_locks[empty_ind]));
 					break;
 				}
 				j++;
 			}
+
+			if (empty_ind != table_ind){
+				tab[table_ind] = tab[empty_ind];
+				tab[empty_ind] = NULL;
+				pthread_mutex_unlock(&(slot_locks[empty_ind]));
+			}
+			else{
+				tab[table_ind] = NULL;
+			}
+			// found item so break
+			pthread_mutex_unlock(&(slot_locks[table_ind]));
+			is_exists = true;
+			break;
 		}
 		// There was an empty slot, so we know item doesn't exist
 		else if (tab[table_ind] == NULL){
