@@ -556,10 +556,8 @@ void * remove_item_table(Table * table, void * item) {
 
 					if (((replacement_ind > empty_ind) && (rehash_ind <= empty_ind || rehash_ind > replacement_ind)) 
 						|| ((replacement_ind < empty_ind) && (rehash_ind <= empty_ind) && rehash_ind > replacement_ind)){
-						if (empty_ind != table_ind){
-							tab[empty_ind] = tab[replacement_ind];
-							pthread_mutex_unlock(&(slot_locks[empty_ind]));
-						}
+						tab[empty_ind] = tab[replacement_ind];
+						pthread_mutex_unlock(&(slot_locks[empty_ind]));
 						empty_ind = replacement_ind;
 					}
 					else{
@@ -576,16 +574,9 @@ void * remove_item_table(Table * table, void * item) {
 				j++;
 			}
 
-			if (empty_ind != table_ind){
-				tab[table_ind] = tab[empty_ind];
-				tab[empty_ind] = NULL;
-				pthread_mutex_unlock(&(slot_locks[empty_ind]));
-			}
-			else{
-				tab[table_ind] = NULL;
-			}
+			tab[empty_ind] = NULL;
 			// found item so break
-			pthread_mutex_unlock(&(slot_locks[table_ind]));
+			pthread_mutex_unlock(&(slot_locks[empty_ind]));
 			is_exists = true;
 			break;
 		}
