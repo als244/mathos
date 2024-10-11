@@ -558,9 +558,9 @@ MemOpStatus do_release_memory(Mempool * mempool, Mem_Reservation * mem_reservati
 
 		}
 
-		// if left_range_list == NULL => 
-		//	we removed left_merge -> range_size from range_lists_table + free_mem_ranges
-		//		and destroyed the list
+		if (TO_PRINT_MEMORY_MERGES && !left_range_list){
+			printf("Removed left_merge -> range_size from from range_lists_table + free_mem_ranges and destoryed list\n");
+		}
 	}
 
 	if (right_merge){
@@ -575,9 +575,9 @@ MemOpStatus do_release_memory(Mempool * mempool, Mem_Reservation * mem_reservati
 			right_range_list = remove_free_mem_range(mempool, right_merge, NULL);	
 		}
 
-		// if right_range_list == NULL => 
-		//	we removed right_merge -> range_size from range_lists_table + free_mem_ranges
-		//		and destroyed the list
+		if (TO_PRINT_MEMORY_MERGES && !right_range_list){
+			printf("Removed right_merge -> range_size from from range_lists_table + free_mem_ranges and destoryed list\n");
+		}
 	}
 
 
@@ -656,136 +656,3 @@ MemOpStatus do_release_memory(Mempool * mempool, Mem_Reservation * mem_reservati
 
 	return MEMORY_SUCCESS;
 }
-
-
-// BELOW IS THE EXAMPLE INIT_BACKEND_MEMORY FOR HSA_MEMORY..!
-
-/*
-// Bridge between backend memory and common interface
-// called after all devices have been added
-// not responsible for initialzing system mempool
-Memory * init_backend_memory(Hsa_Memory * hsa_memory) {
-
-	Memory * memory = (Memory *) malloc(sizeof(Memory));
-	if (memory == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate memory container\n");
-		return NULL;
-	}
-
-	Hsa_User_Page_Table * hsa_user_page_table = hsa_memory -> user_page_table;
-
-	int num_devices = hsa_user_page_table -> num_devices;
-
-	memory -> num_devices = num_devices;
-
-	Mempool * mempools = (Mempool *) malloc(num_devices * sizeof(Mempool));
-	if (mempools == NULL){
-		fprintf(stderr, "Error: malloc faile dto allocate mempools container\n");
-		return NULL;
-	}
-
-
-	int ret;
-	Mem_Range * full_range;
-	uint64_t num_chunks;
-	for (int i = 0; i < num_devices; i++){
-		mempools[i].pool_id = i;
-
-		num_chunks = (hsa_user_page_table -> num_chunks)[i];
-
-		mempools[i].num_chunks = num_chunks;
-		mempools[i].chunk_size = (hsa_user_page_table -> chunk_size)[i];
-		mempools[i].capacity_bytes = num_chunks * mempools[i].chunk_size;
-		// casting void * to uint64_t for convenience on pointer arithmetic
-		mempools[i].va_start_addr = (uint64_t) ((hsa_user_page_table -> virt_memories)[i]);
-
-		
-
-		Fast_Table_Config * range_lists_table_config = save_fast_table_config(&hash_func_64, sizeof(uint64_t), sizeof(Fast_List *), 
-												MEMORY_RANGE_LISTS_MIN_TABLE_SIZE, num_chunks, MEMORY_RANGE_LISTS_LOAD_FACTOR, MEMORY_RANGE_LISTS_SHRINK_FACTOR);
-
-
-		Fast_Table * range_lists_table = (Fast_Table *) malloc(sizeof(Fast_Table));
-		if (!range_lists_table){
-			fprintf(stderr, "Error: malloc failed to allocate range_lists table container\n");
-			return NULL;
-		}
-
-		ret = init_fast_table(range_lists_table, range_lists_table_config);
-		if (ret){
-			fprintf(stderr, "Error: unable to initialize range lists table\n");
-			return NULL;
-		}
-
-		mempools[i].range_lists_table = range_lists_table;
-
-		mempools[i].free_mem_ranges = init_fast_tree();
-
-		if (!mempools[i].free_mem_ranges){
-			fprintf(stderr, "Error: failure to initialize memory fast tree for device #%d\n", i);
-			// fatal error
-			return NULL;
-		}
-
-		// Now inserting the endpoints which will be used during memory release and merging
-
-		uint64_t endpoint_table_min_size = MEMORY_ENDPOINT_MIN_TABLE_SIZE;
-		if (endpoint_table_min_size > num_chunks){
-			endpoint_table_min_size = num_chunks;
-		}
-
-		Fast_Table_Config * endpoint_table_config = save_fast_table_config(&hash_func_64, sizeof(uint64_t), sizeof(Mem_Range), 
-												endpoint_table_min_size, num_chunks, MEMORY_ENDPOINT_LOAD_FACTOR, MEMORY_ENDPOINT_SHRINK_FACTOR);
-
-		if (!endpoint_table_config){
-			fprintf(stderr, "Error: failure to save memory endpoint table config\n");
-			return NULL;
-		}
-
-		Fast_Table * endpoint_table = (Fast_Table *) malloc(sizeof(Fast_Table));
-		if (!endpoint_table){
-			fprintf(stderr, "Error: malloc failed to allocate fast table container for memory endpoint\n");
-			return NULL;
-		}
-
-		ret = init_fast_table(endpoint_table, endpoint_table_config);
-		if (ret){
-			fprintf(stderr, "Error: failure to init fast table for memory endpoint\n");
-			return NULL;
-		}
-
-		mempools[i].free_endpoints = endpoint_table;
-
-
-		Fast_List_Node * full_range_ref = insert_free_mem_range(&(mempools[i]), 0, num_chunks);
-
-		if (ret){
-			fprintf(stderr, "Error: could not add initial free mem range for entire device of %d\n", i);
-			return NULL;
-		}
-
-		// Need to add the original starting end_chunk_id
-
-		uint64_t final_chunk_id = num_chunks - 1;
-
-		Mem_Range full_mem_range;
-
-		full_mem_range.range_size = num_chunks;
-		full_mem_range.start_chunk_id_ref = full_range_ref;
-
-		ret = insert_fast_table(mempools[i].free_endpoints, &final_chunk_id, &full_mem_range);
-		if (ret){
-			fprintf(stderr, "Error: failure to insert the final endpoint into free endpoints\n");
-			return NULL;
-		}
-
-	}
-
-
-	memory -> device_mempools = mempools;
-
-	// Let a different function be responsible for initializating system mempool / cache / filesystem
-
-	return memory;
-}
-*/

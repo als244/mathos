@@ -211,6 +211,7 @@
 
 
 // MEMORY CONFIGURATION
+#define TO_PRINT_MEMORY_MERGES 0
 
 // if a request cannot be satisfied on a given pool, then client
 // can specify if they want reservation to be retried on other
