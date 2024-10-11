@@ -53,11 +53,11 @@ int main(int argc, char * argv[]){
 	
 	// 2 MB Chunk Size
 	int device_id = 0;
-	uint64_t device_chunk_size = 1UL << 16;
+	uint64_t device_chunk_size = 1ULL << 16;
 
 	uint64_t GPU_MEM_SIZE = 20 * (1ULL << 30);
-	uint64_t GPU_MEM_FRAC = .25;
-	uint64_t device_num_chunks = (GPU_MEM_FRAC * GPU_MEM_SIZE) / device_chunk_size;
+	double GPU_MEM_FRAC = .25;
+	uint64_t device_num_chunks = (uint64_t) ((GPU_MEM_FRAC * (double) GPU_MEM_SIZE) / (double) device_chunk_size);
 
 	// should return a 2GB region
 	ret = hsa_add_device_memory(hsa_memory, device_id, device_num_chunks, device_chunk_size);
