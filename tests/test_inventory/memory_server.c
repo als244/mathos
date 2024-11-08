@@ -1,6 +1,5 @@
 #include "memory_server.h"
 
-#define TO_PRINT_MEMORY_SERVER 1
 
 void * run_memory_server(void * _memory){
 

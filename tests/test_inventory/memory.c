@@ -38,7 +38,7 @@ Memory * init_memory(void * backend_memory, uint64_t sys_mem_num_chunks, uint64_
 	}
 
 
-	ret = init_mempool(&(memory -> system_mempool), sys_mem_buffer, sys_mem_chunk_size, sys_mem_chunk_size);
+	ret = init_mempool(&(memory -> system_mempool), sys_mem_buffer, sys_mem_num_chunks, sys_mem_chunk_size);
 	if (ret){
 		fprintf(stderr, "Error: unable to initialize system memory mempool\n");
 		return NULL;
@@ -148,7 +148,8 @@ Fast_List_Node * insert_free_mem_range(Mempool * mempool, uint64_t start_chunk_i
 	// check if the range size exists or not
 
 	Fast_List * range_list = NULL;
-	find_fast_table(mempool -> range_lists_table, &range_size, false, (void **) &range_list);
+	// we inserted this as it's pointer so we need to copy the table contents of 8 bytes
+	find_fast_table(mempool -> range_lists_table, &range_size, true, (void **) &range_list);
 
 	if (!range_list){
 
@@ -227,7 +228,7 @@ Fast_List * remove_free_mem_range(Mempool * mempool, Mem_Range * mem_range, Fast
 		range_list = known_fast_list;
 	}
 	else{
-		find_fast_table(range_lists_table, &range_size, false, (void **) &range_list);
+		find_fast_table(range_lists_table, &range_size, true, (void **) &range_list);
 
 		// should never happen
 		if (unlikely(!range_list)){

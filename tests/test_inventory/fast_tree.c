@@ -1917,7 +1917,7 @@ void remove_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t ke
 			outward_leaf_ref -> min = lookup_bitvector_next(outward_leaf_ref -> bit_vector, ind_8);
 		}
 		else if (outward_leaf_ref -> max == ind_8){
-			outward_leaf_ref -> max = lookup_bitvector_next(outward_leaf_ref -> bit_vector, ind_8);
+			outward_leaf_ref -> max = lookup_bitvector_prev(outward_leaf_ref -> bit_vector, ind_8);
 		}
 
 	}
