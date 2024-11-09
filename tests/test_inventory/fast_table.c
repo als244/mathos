@@ -47,13 +47,30 @@ int init_fast_table(Fast_Table * fast_table, Fast_Table_Config * config) {
 	// fast_table -> items
 
 	// and the bit position within each vector is the low order 6 bits
-	fast_table -> is_empty_bit_vector = (uint64_t *) malloc(((min_size >> 6) + 1) * sizeof(uint64_t));
+	
+	int bit_vector_els = ((min_size >> 6) + 1);
+	fast_table -> is_empty_bit_vector = (uint64_t *) malloc(bit_vector_els * sizeof(uint64_t));
 	if (unlikely(!fast_table -> is_empty_bit_vector)){
 		return -1;
 	}
 
-	// initialize everything to empty
-	memset(fast_table -> is_empty_bit_vector, 0xFF, ((config -> min_size >> 6) + 1) * sizeof(uint64_t));
+	// initialize everything to empty up to table size...
+	// we know that bit vector els is the minimum number of 
+	// elements to span the table size, but the last one might be
+	// partially full
+	for (int i = 0; i < bit_vector_els - 1; i++){
+		(fast_table -> is_empty_bit_vector)[i] = 0xFFFFFFFFFFFFFFFF;
+	}
+
+	int last_vec_els = min_size & 0x3F;
+
+	if (last_vec_els == 0){
+		(fast_table -> is_empty_bit_vector)[bit_vector_els - 1] = 0xFFFFFFFFFFFFFFFF;
+	}
+	else{
+		(fast_table -> is_empty_bit_vector)[bit_vector_els - 1] = (1UL << last_vec_els) - 1;
+	}
+
 
 	fast_table -> items = calloc(config -> min_size, config -> key_size_bytes + config -> value_size_bytes);
 	if (unlikely(!fast_table -> items)){
@@ -77,7 +94,7 @@ void destroy_fast_table(Fast_Table * fast_table) {
 // in the table
 
 // This is valuable during resizing
-uint64_t get_next_ind_fast_table(uint64_t * is_empty_bit_vector, uint64_t table_size, uint64_t start_ind, bool to_flip_empty){
+uint64_t get_next_ind_fast_table(uint64_t * is_empty_bit_vector, uint64_t table_size, uint64_t start_ind){
 
 	// need to pass in a valid starting index
 	if (unlikely(start_ind >= table_size)){
@@ -101,6 +118,8 @@ uint64_t get_next_ind_fast_table(uint64_t * is_empty_bit_vector, uint64_t table_
 	// vector we will wrap around to these value
 	uint64_t search_vector = is_empty_bit_vector[start_vec_ind] & (0xFFFFFFFFFFFFFFFF << start_bit_ind);
 
+	// need to ensure search vector bits
+
 	// 64 because each element in bit-vector contains 64 possible hash buckets that could be full
 	// Will add the returned next closest bit position to this value to obtain the next empty slot
 	// With a good hash function and load factor hopefully this vector contains the value or at least
@@ -119,18 +138,6 @@ uint64_t get_next_ind_fast_table(uint64_t * is_empty_bit_vector, uint64_t table_
 	// can be equal if we wrap around to the same starting index and
 	// look at low order bits
 	while(cur_vec_ind <= start_vec_ind + bit_vector_size){
-
-		
-
-		// we are are seaching for next full index we just flip the bits
-		if(to_flip_empty){
-			search_vector = (search_vector ^ 0xFFFFFFFFFFFFFFFF);
-			// here we still want to ignore the indices lower than 
-			// bit position, so still clear out lower bits
-			if (cur_vec_ind == start_vec_ind){
-				search_vector = search_vector & (0xFFFFFFFFFFFFFFFF << start_bit_ind);
-			}
-		}
 
 		if (search_vector == 0){
 			cur_vec_ind++;
@@ -157,6 +164,9 @@ uint64_t get_next_ind_fast_table(uint64_t * is_empty_bit_vector, uint64_t table_
 int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 
 
+	printf("Resizing fast table!\n");
+
+
 	uint64_t old_size = fast_table -> size;
 	uint64_t cnt = fast_table -> cnt;
 
@@ -169,14 +179,29 @@ int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 	uint64_t key_size_bytes = fast_table -> config -> key_size_bytes;
 	uint64_t value_size_bytes = fast_table -> config -> value_size_bytes;
 
-	uint64_t * new_is_empty_bit_vector = (uint64_t *) malloc(((new_size >> 6) + 1) * sizeof(uint64_t));
+	int bit_vector_els = ((new_size >> 6) + 1);
+	uint64_t * new_is_empty_bit_vector = (uint64_t *) malloc(bit_vector_els * sizeof(uint64_t));
 	if (unlikely(!new_is_empty_bit_vector)){
 		fprintf(stderr, "Error: trying to resize fast table from %lu to %lu failed.\n", old_size, new_size);
 		return -1;
 	}
 
-	// initialize everything to empty by setting to 1 everywhere
-	memset(new_is_empty_bit_vector, 0xFF, ((new_size >> 6) + 1) * sizeof(uint64_t));
+	// initialize everything to empty up to table size...
+	// we know that bit vector els is the minimum number of 
+	// elements to span the table size, but the last one might be
+	// partially full
+	for (int i = 0; i < bit_vector_els - 1; i++){
+		new_is_empty_bit_vector[i] = 0xFFFFFFFFFFFFFFFF;
+	}
+
+	int last_vec_els = new_size & 0x3F;
+
+	if (last_vec_els == 0){
+		new_is_empty_bit_vector[bit_vector_els - 1] = 0xFFFFFFFFFFFFFFFF;
+	}
+	else{
+		new_is_empty_bit_vector[bit_vector_els - 1] = (1UL << last_vec_els) - 1;
+	}
 	
 	void * new_items = (void *) calloc(new_size, key_size_bytes + value_size_bytes);
 	if (unlikely(!new_items)){
@@ -186,7 +211,6 @@ int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 
 	void * old_items = fast_table -> items;
 	uint64_t * old_is_empty_bit_vector = fast_table -> is_empty_bit_vector;
-	uint64_t next_old_item_ind;
 
 	// we know how many items we need to re-insert
 
@@ -201,24 +225,30 @@ int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 	uint64_t new_hash_ind;
 	uint64_t new_insert_ind;
 
-	uint64_t old_get_next_start_ind = 0;
-
 
 	// because we know the count we don't need to error check for next index returning the table size.
 	// they are guaranteed to succeed
-	while (seen_cnt < cnt){
+	uint64_t cur_bit_vec;
+	uint64_t cur_pos_in_vec;
+	for (int old_ind = 0; old_ind < old_size; old_ind++){
+		
+		cur_bit_vec = old_is_empty_bit_vector[old_ind >> 6];
+		cur_pos_in_vec = (old_ind & 0x3F);
 
-		next_old_item_ind = get_next_ind_fast_table(old_is_empty_bit_vector, old_size, old_get_next_start_ind, true);
+		// if this position was empty then continue
+		if (cur_bit_vec & (1UL << cur_pos_in_vec)){
+			continue;
+		}
 
 		// Now we need to re-hash this item into new table
-		old_key = (void *) (((uint64_t) old_items) + (next_old_item_ind * (key_size_bytes + value_size_bytes)));
+		old_key = (void *) (((uint64_t) old_items) + (old_ind * (key_size_bytes + value_size_bytes)));
 		old_value = (void *) (((uint64_t) old_key) + key_size_bytes);
 
 		new_hash_ind = (fast_table -> config -> hash_func)(old_key, new_size);
 
 		// now we can get the insert index for the new table. now we are searching for next free slot
 		// and we will use the new bit vector
-		new_insert_ind = get_next_ind_fast_table(new_is_empty_bit_vector, new_size, new_hash_ind, false);
+		new_insert_ind = get_next_ind_fast_table(new_is_empty_bit_vector, new_size, new_hash_ind);
 
 
 		// now setting the pointer to be within new_items
@@ -244,8 +274,9 @@ int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 		new_is_empty_bit_vector[new_insert_ind >> 6] &= ~(1UL << (new_insert_ind & (0xFF >> 2)));
 		seen_cnt += 1;
 
-		// now search after this
-		old_get_next_start_ind = next_old_item_ind + 1;
+		if (seen_cnt == cnt){
+			break;
+		}
 	}
 
 
@@ -288,7 +319,7 @@ int insert_fast_table(Fast_Table * fast_table, void * key, void * value) {
 	uint64_t hash_ind = (fast_table -> config -> hash_func)(key, fast_table -> size);
 
 	// we already saw cnt != size so we are guaranteed for this to succeed
-	uint64_t insert_ind = get_next_ind_fast_table(fast_table -> is_empty_bit_vector, fast_table -> size, hash_ind, false);
+	uint64_t insert_ind = get_next_ind_fast_table(fast_table -> is_empty_bit_vector, fast_table -> size, hash_ind);
 	
 	uint64_t key_size_bytes = fast_table -> config -> key_size_bytes;
 	uint64_t value_size_bytes = fast_table -> config -> value_size_bytes;
@@ -398,7 +429,7 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 	// (at albeit potential performance hit if table is very full and we do wasted work)
 	uint64_t * is_empty_bit_vector = fast_table -> is_empty_bit_vector;
 	
-	uint64_t next_empty = get_next_ind_fast_table(is_empty_bit_vector, size, hash_ind, false);
+	uint64_t next_empty = get_next_ind_fast_table(is_empty_bit_vector, size, hash_ind);
 	
 	uint64_t cur_ind = hash_ind;
 
@@ -446,12 +477,14 @@ uint64_t find_fast_table(Fast_Table * fast_table, void * key, bool to_copy_value
 
 		// update the next key position which will be just 1 element higher so we can add the size of 1 item
 
-		// being explicity about type casting for readability...
-		cur_table_key = (void *) (((uint64_t) cur_table_key) + key_size_bytes + value_size_bytes);
+		
 
 		// next empty might have a returned a value that wrapped around
 		// if the whole table
 		cur_ind = (cur_ind + 1) % size;
+
+		cur_table_key = (void *) (((uint64_t) fast_table -> items) + (cur_ind * (key_size_bytes + value_size_bytes)));
+		
 		i += 1;
 	}
 	
@@ -494,7 +527,7 @@ int remove_fast_table(Fast_Table * fast_table, void * key, void * ret_value) {
 	uint64_t key_size_bytes = fast_table -> config -> key_size_bytes;
 	uint64_t value_size_bytes = fast_table -> config -> value_size_bytes;
 	uint64_t * is_empty_bit_vector = fast_table -> is_empty_bit_vector;
-	uint64_t next_empty = get_next_ind_fast_table(is_empty_bit_vector, size, empty_ind, false);
+	uint64_t next_empty = get_next_ind_fast_table(is_empty_bit_vector, size, empty_ind);
 
 	uint64_t items_to_check;
 
