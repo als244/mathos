@@ -21,17 +21,21 @@ int main(int argc, char * argv[]){
 	}
 
 
-	// 1.) Initialize memory
-	Memory * memory =  init_memory(NULL, SYS_MEM_NUM_CHUNKS, SYS_MEM_CHUNK_SIZE);
-	if (memory == NULL){
-		fprintf(stderr, "Error: failed to initialize memory\n");
-		return -1;
-	}
+	// 1.) Intiialize common (across accelerator backends) system memory struct
+		
+	uint64_t SYS_MEM_GB = 60;
+	uint64_t sys_mem_usage = SYS_MEM_GB * (1ULL << 30);
+	uint64_t sys_mem_chunk_size = (1ULL << 12);
 
+	
+	uint64_t DEV_MEM_GB = 0;
+	uint64_t dev_mem_usage = 0;
+	uint64_t dev_mem_chunk_size = 0;
+	
 
-	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
+	printf("\n\nINITIALIZIING SYSTEM & REQUESTING TO JOIN NETWORK and BRING SYSTEM ONLINE...!\n\n");
 
-	System * system = init_system(master_ip_addr, self_ip_addr, memory);
+	System * system = init_system(master_ip_addr, self_ip_addr, sys_mem_usage, sys_mem_chunk_size, dev_mem_usage, dev_mem_chunk_size);
 
 	if (system == NULL){
 		fprintf(stderr, "Error: failed to initialize system\n");

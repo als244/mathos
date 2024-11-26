@@ -317,13 +317,26 @@ void * hsa_reserve_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t chunk
 // Bridge between backend memory and common interface
 // called after all devices have been added
 // not responsible for initialzing system mempool
-Memory * init_backend_memory(Hsa_Memory * hsa_memory) {
+int init_backend_memory(Memory * memory, uint64_t dev_num_chunks, uint64_t dev_chunk_size) {
 
-	Memory * memory = (Memory *) malloc(sizeof(Memory));
-	if (memory == NULL){
-		fprintf(stderr, "Error: malloc failed to allocate memory container\n");
-		return NULL;
+	int ret;
+
+	Hsa_Memory * hsa_memory = hsa_init_memory();
+
+	int n_devices = hsa_memory -> n_agents - 1;
+
+	for (int i = 0; i < n_devices; i++){
+		// should return a 2GB region
+		ret = hsa_add_device_memory(hsa_memory, i, dev_num_chunks, dev_chunk_size);
+		if (ret != 0){
+			fprintf(stderr, "Error: failed to add device memory\n");
+			return -1;
+		}
+
 	}
+
+	memory -> backend_memory = hsa_memory;
+
 
 	Hsa_User_Page_Table * hsa_user_page_table = hsa_memory -> user_page_table;
 
@@ -334,26 +347,22 @@ Memory * init_backend_memory(Hsa_Memory * hsa_memory) {
 	Mempool * mempools = (Mempool *) malloc(num_devices * sizeof(Mempool));
 	if (mempools == NULL){
 		fprintf(stderr, "Error: malloc faile dto allocate mempools container\n");
-		return NULL;
+		return -1;
 	}
 
-
-	int ret;
-	Mem_Range * full_range;
 	uint64_t num_chunks;
 	uint64_t chunk_size;
 	void * backing_memory;
 	for (int i = 0; i < num_devices; i++){
-		mempools[i].pool_id = i;
 
 		num_chunks = (hsa_user_page_table -> num_chunks)[i];
 		chunk_size = (hsa_user_page_table -> chunk_size)[i];
 		backing_memory = ((hsa_user_page_table -> virt_memories)[i]);
 
-		ret = init_mempool(&(mempools[i]), backing_memory, num_chunks, chunk_size);
+		ret = init_mempool(&(mempools[i]), i, backing_memory, num_chunks, chunk_size);
 		if (ret){
 			fprintf(stderr, "Error: unable to initialize mempool for device #%d\n", i);
-			return NULL;
+			return -1;
 		}
 	}
 
@@ -362,5 +371,5 @@ Memory * init_backend_memory(Hsa_Memory * hsa_memory) {
 
 	// Let a different function be responsible for initializating system mempool / cache / filesystem
 
-	return memory;
+	return 0;
 }

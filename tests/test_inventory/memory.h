@@ -11,8 +11,6 @@
 #include "fast_tree.h"
 
 
-#define SYSTEM_MEMPOOL_ID -1
-
 typedef enum backend_memory_type {
 	HSA_MEMORY,
 	CUDA_MEMORY
@@ -87,6 +85,7 @@ typedef struct mempool {
 
 
 typedef struct memory {
+	void * backend_memory;
 	int num_devices;
 	// array of num_devices
 	Mempool * device_mempools;
@@ -192,9 +191,9 @@ MemOpStatus do_reserve_memory(Mempool * mempool, Mem_Reservation * mem_reservati
 MemOpStatus do_release_memory(Mempool * mempool, Mem_Reservation * mem_reservation);
 
 
-Memory * init_memory(void * backend_memory, uint64_t sys_mem_num_chunks, uint64_t sys_mem_chunk_size);
+Memory * init_memory(uint64_t sys_mem_num_chunks, uint64_t sys_mem_chunk_size);
 
-int init_mempool(Mempool * mempool, void * backing_memory, uint64_t num_chunks, uint64_t chunk_size);
+int init_mempool(Mempool * mempool, int pool_id, void * backing_memory, uint64_t num_chunks, uint64_t chunk_size);
 
 
 #endif

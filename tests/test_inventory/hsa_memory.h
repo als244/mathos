@@ -61,10 +61,8 @@ int hsa_copy_to_host_memory(Hsa_Memory * hsa_memory, int src_device_id, void * s
 void * hsa_reserve_memory(Hsa_Memory * hsa_memory, int device_id, uint64_t chunk_id);
 
 
-// Bridge between backend memory and common interface
-// called after all devices have been added
-// not responsible for initialzing system mempool
-Memory * init_backend_memory(Hsa_Memory * hsa_memory);
+// Called after system memory has been initialized
+int init_backend_memory(Memory * memory, uint64_t dev_num_chunks, uint64_t dev_chunk_size);
 
 
 

@@ -38,48 +38,21 @@ int main(int argc, char * argv[]){
 		self_ip_addr = argv[2];
 	}
 
-
-	// 1.) Initialize HSA memory
-
-	printf("Intializing Backend Memory...\n");
-
-	Hsa_Memory * hsa_memory = hsa_init_memory();
-	if (hsa_memory == NULL){
-		fprintf(stderr, "Error: hsa_init_memory failed\n");
-	}
-
-	printf("\nFound %d HSA agents each with a mempool!\n\n", hsa_memory -> n_agents);
+	// 1.) Intiialize common (across accelerator backends) system memory struct
+		
+	uint64_t SYS_MEM_GB = 60;
+	uint64_t sys_mem_usage = SYS_MEM_GB * (1ULL << 30);
+	uint64_t sys_mem_chunk_size = (1ULL << 12);
 
 	
-	// 2 MB Chunk Size
-	int device_id = 0;
-	uint64_t device_chunk_size = 1ULL << 16;
+	uint64_t DEV_MEM_GB = 20;
+	uint64_t dev_mem_usage = DEV_MEM_GB * (1ULL << 30);
+	uint64_t dev_mem_chunk_size = (1ULL << 16);
+	
 
-	uint64_t GPU_MEM_SIZE = 20 * (1ULL << 30);
-	double GPU_MEM_FRAC = .25;
-	uint64_t device_num_chunks = (uint64_t) ((GPU_MEM_FRAC * (double) GPU_MEM_SIZE) / (double) device_chunk_size);
+	printf("\n\nINITIALIZIING SYSTEM & REQUESTING TO JOIN NETWORK and BRING SYSTEM ONLINE...!\n\n");
 
-	// should return a 2GB region
-	ret = hsa_add_device_memory(hsa_memory, device_id, device_num_chunks, device_chunk_size);
-	if (ret != 0){
-		fprintf(stderr, "Error: failed to add device memory\n");
-		return -1;
-	}
-
-
-	// 2.) Intiialize common (across accelerator backends) system memory struct
-
-	// currently this function is within hsa_memory.c, but would be nicer to rearrange things...
-	Memory * memory =  init_memory(init_backend_memory(hsa_memory), SYS_MEM_NUM_CHUNKS, SYS_MEM_CHUNK_SIZE);
-	if (memory == NULL){
-		fprintf(stderr, "Error: failed to initialize memory\n");
-		return -1;
-	}
-
-
-	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
-
-	System * system = init_system(master_ip_addr, self_ip_addr, memory);
+	System * system = init_system(master_ip_addr, self_ip_addr, sys_mem_usage, sys_mem_chunk_size, dev_mem_usage, dev_mem_chunk_size);
 
 	if (system == NULL){
 		fprintf(stderr, "Error: failed to initialize system\n");

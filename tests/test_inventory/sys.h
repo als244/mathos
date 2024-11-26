@@ -14,6 +14,9 @@
 #include "memory.h"
 #include "memory_server.h"
 
+// JUST FOR NOW WHILE INTERFACE IS UNDERWAY...
+#include "hsa_memory.h"
+
 
 typedef struct system {
 	Work_Pool * work_pool;
@@ -29,7 +32,7 @@ typedef struct system {
 } System;
 
 
-System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory);
+System * init_system(char * master_ip_addr, char * self_ip_addr, uint64_t sys_mem_usage, uint64_t sys_mem_chunk_size, uint64_t dev_mem_usage, uint64_t dev_mem_chunk_size);
 
 int add_message_class_benchmark(System * system, CtrlMessageClass message_class, uint64_t start_message_cnt, uint64_t end_message_cnt);
 

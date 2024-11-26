@@ -1,6 +1,6 @@
 #include "sys.h"
 
-System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory){
+System * init_system(char * master_ip_addr, char * self_ip_addr, uint64_t sys_mem_usage, uint64_t sys_mem_chunk_size, uint64_t dev_mem_usage, uint64_t dev_mem_chunk_size){
 
 	int ret;
 
@@ -9,11 +9,33 @@ System * init_system(char * master_ip_addr, char * self_ip_addr, Memory * memory
 		fprintf(stderr, "Error: malloc failed to allocate system struct container\n");
 		return NULL;
 	}
+	
+
+	// MEMORY FIRST
 
 	// COULD INITIALIZE THIS HERE!!!
 	// (i.e. have an init_backend_memory() call here that makes sense)
 	// probably a function pointer for each backend...??
+	
+	uint64_t sys_mem_num_chunks = MY_CEIL(sys_mem_usage, sys_mem_chunk_size);
+	Memory * memory = init_memory(sys_mem_num_chunks, sys_mem_chunk_size);
+	if (!memory){
+		fprintf(stderr, "Error: unable to init system because failed to initialize system memory pool...\n");
+		return NULL;
+	}
+
+	if (dev_mem_usage > 0){
+
+		uint64_t dev_num_chunks = MY_CEIL(dev_mem_usage, dev_mem_chunk_size);
+		ret = init_backend_memory(memory, dev_num_chunks, dev_mem_chunk_size);
+		if (ret){
+			fprintf(stderr, "Error: failed to init backend memory...\n");
+			return NULL;
+		}
+	}
+
 	system -> memory = memory;
+
 
 	// 1.) Initialize empty exchange
 

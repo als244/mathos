@@ -27,8 +27,9 @@ master_worker.o: master_worker.c
 testWorker1: main_worker_1.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o hsa_memory.o
 	${CC} ${CFLAGS} ${HSA_CFLAGS} $^ -o $@ -I $(HSA_INCLUDE) -pthread -libverbs -lcrypto -L $(HSA_LIB) -lamdhip64 -lrocblas
 
-testWorker2: main_worker_2.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o
-	${CC} ${CFLAGS} $^ -o $@ -pthread -libverbs -lcrypto
+## JUST FOR NOW INCLUDING BACKEND LINK WHILE INTERFACE IS UNDERWAY...
+testWorker2: main_worker_2.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o hsa_memory.o
+	${CC} ${CFLAGS} $^ -o $@ -I $(HSA_INCLUDE) -pthread -libverbs -lcrypto -L $(HSA_LIB) -lamdhip64
 
 testBw: main_test_bw.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o
 	${CC} ${CFLAGS} $^ -o $@ -pthread -libverbs -lcrypto
@@ -69,11 +70,12 @@ inventory.o: inventory.c
 inventory_worker.o: inventory_worker.c
 	${CC} ${CFLAGS} -c $^
 
+## JUST FOR NOW INCLUDING BACKEND LINK WHILE INTERFACE IS UNDERWAY...
 sys.o: sys.c
-	${CC} ${CFLAGS} -c $^
+	${CC} ${CFLAGS} -c $^ -I $(HSA_INCLUDE)
 
 exchange_client.o: exchange_client.c
-	${CC} ${CFLAGS} -c $^
+	${CC} ${CFLAGS} -c $^ -I $(HSA_INCLUDE)
 
 rocblas_funcs.o: rocblas_funcs.c
 	${CC} ${CFLAGS} ${HSA_CFLAGS} -c $^ -I $(HSA_INCLUDE)

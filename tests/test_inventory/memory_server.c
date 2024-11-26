@@ -1,6 +1,5 @@
 #include "memory_server.h"
 
-
 void * run_memory_server(void * _memory){
 
 	// cast correctly
@@ -14,8 +13,8 @@ void * run_memory_server(void * _memory){
 	// FOR NOW:
 	// 	- round robin each mempool queue processing mem_ops requests
 
-	Mempool * device_mempools = memory -> device_mempools;
-	Mempool system_mempool = memory -> system_mempool;
+	Mempool ** device_mempools = &(memory -> device_mempools);
+	Mempool * system_mempool = &(memory -> system_mempool);
 
 	
 
@@ -55,8 +54,7 @@ void * run_memory_server(void * _memory){
 	Mem_Reservation * cur_reservation;
 	Mempool * cur_mempool;
 	MemOpStatus op_status;
-
-	Mem_Reservation completed_reservation;
+	
 	printf("[Memory Server] Ready to Process Memory Ops!\n\n");
 
 
@@ -93,10 +91,10 @@ void * run_memory_server(void * _memory){
 
 				// system mempool
 				if (i == num_devices){
-					cur_mempool = &system_mempool;
+					cur_mempool = system_mempool;
 				}
 				else{
-					cur_mempool = &(device_mempools[i]);
+					cur_mempool = device_mempools[i];
 				}
 
 				
@@ -106,7 +104,7 @@ void * run_memory_server(void * _memory){
 
 
 
-				clock_gettime(CLOCK_REALTIME, &start);
+				clock_gettime(CLOCK_MONOTONIC, &start);
 
 				// releasing memory should never fail
 				if (cur_op -> type == MEMORY_RELEASE){
@@ -132,7 +130,7 @@ void * run_memory_server(void * _memory){
 					if (unlikely(op_status != MEMORY_SUCCESS)){
 						// should never happen, except when OOM errors for metadata structs
 						if (op_status == MEMORY_SYSTEM_ERROR){
-							fprintf(stderr, "Error: had a system error releasing memory on mempool %d... should never happen: Reservation details:\n\tSize bytes: %lu\n", 
+							fprintf(stderr, "Error: had a system error reserving memory on mempool %d... should never happen: Reservation details:\n\tSize bytes: %lu\n", 
 											cur_reservation -> pool_id, cur_reservation -> size_bytes);
 						}
 
@@ -148,10 +146,10 @@ void * run_memory_server(void * _memory){
 							while ((!is_fulfilled) && (cur_backup_pool_num < num_backup_pools)){
 								backup_pool_id = (cur_reservation -> backup_pool_ids)[cur_backup_pool_num];
 								if (backup_pool_id == -1){
-									cur_mempool = &system_mempool;
+									cur_mempool = system_mempool;
 								}
 								else{
-									cur_mempool = &(device_mempools[i]);
+									cur_mempool = device_mempools[i];
 								}
 
 								op_status = do_reserve_memory(cur_mempool, cur_reservation);
@@ -183,7 +181,7 @@ void * run_memory_server(void * _memory){
 
 				cur_op -> status = op_status;
 
-				clock_gettime(CLOCK_REALTIME, &finish);
+				clock_gettime(CLOCK_MONOTONIC, &finish);
 
 				timestamp_start = start.tv_sec * 1e9 + start.tv_nsec;
 				timestamp_finish = finish.tv_sec * 1e9 + finish.tv_nsec;
