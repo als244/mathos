@@ -1,25 +1,22 @@
 #include "memory.h"
 
+Memory * init_memory(uint64_t sys_mem_num_chunks, uint64_t sys_mem_chunk_size) {
 
-Memory * init_memory(void * backend_memory, uint64_t sys_mem_num_chunks, uint64_t sys_mem_chunk_size){
-
-	Memory * memory;
-	if (backend_memory){
-		memory = (Memory *) backend_memory;
+	Memory * memory = malloc(sizeof(Memory));
+	if (!memory){
+		fprintf(stderr, "Error: unable to init memory()\n");
+		return NULL;
 	}
-	else{
-		memory = malloc(sizeof(Memory));
-		if (!memory){
-			fprintf(stderr, "Error: unable to init memory()\n");
-			return NULL;
-		}
-
-		memory -> num_devices = 0;
-		memory -> device_mempools = NULL;
-	}
-
+	
+	// THESE WILL BE OVERWRITTEN BY CALL TO init_backend_memory...		
+	memory -> num_devices = 0;
+	memory -> device_mempools = NULL;
 
 	uint64_t sys_mem_capacity_bytes = sys_mem_num_chunks * sys_mem_chunk_size;
+
+	printf("Creating System Mempool:\n\tChunk Size: %lu\n\tNumber Chunks: %lu\n\tTotal Sys Memory Usage: %lu\n\n", 
+											sys_mem_chunk_size, sys_mem_num_chunks, sys_mem_capacity_bytes);
+
 
 
 	// allocate system memory with mmap 
@@ -31,14 +28,14 @@ Memory * init_memory(void * backend_memory, uint64_t sys_mem_num_chunks, uint64_
 	}
 
 	// ENSURE THAT THIS IS PINNED SO WE CAN EASILY DMA TO/FROM GPUs/NICs!
-	int ret = mlock2(sys_mem_buffer, sys_mem_capacity_bytes, MLOCK_ONFAULT);
+	//int ret = mlock2(sys_mem_buffer, sys_mem_capacity_bytes, MLOCK_ONFAULT);
+	int ret = mlock(sys_mem_buffer, sys_mem_capacity_bytes);
 	if (ret){
 		fprintf(stderr, "Error: unable to pin system memory buffer\n");
 		return NULL;
 	}
 
-
-	ret = init_mempool(&(memory -> system_mempool), sys_mem_buffer, sys_mem_num_chunks, sys_mem_chunk_size);
+	ret = init_mempool(&(memory -> system_mempool), SYSTEM_MEMPOOL_ID, sys_mem_buffer, sys_mem_num_chunks, sys_mem_chunk_size);
 	if (ret){
 		fprintf(stderr, "Error: unable to initialize system memory mempool\n");
 		return NULL;
@@ -47,8 +44,10 @@ Memory * init_memory(void * backend_memory, uint64_t sys_mem_num_chunks, uint64_
 	return memory;
 }
 
-int init_mempool(Mempool * mempool, void * backing_memory, uint64_t num_chunks, uint64_t chunk_size) {
 
+int init_mempool(Mempool * mempool, int pool_id, void * backing_memory, uint64_t num_chunks, uint64_t chunk_size) {
+
+	mempool -> pool_id = pool_id;
 	mempool -> num_chunks = num_chunks;
 	mempool -> chunk_size = chunk_size;
 	mempool -> capacity_bytes = num_chunks * chunk_size;
@@ -148,7 +147,9 @@ Fast_List_Node * insert_free_mem_range(Mempool * mempool, uint64_t start_chunk_i
 	// check if the range size exists or not
 
 	Fast_List * range_list = NULL;
-	// we inserted this as it's pointer so we need to copy the table contents of 8 bytes
+
+	// range list was inserted as it's address akaa fast_list **, so we need to copy its value
+	// to into where range list is stored
 	find_fast_table(mempool -> range_lists_table, &range_size, true, (void **) &range_list);
 
 	if (!range_list){
@@ -193,6 +194,7 @@ Fast_List_Node * insert_free_mem_range(Mempool * mempool, uint64_t start_chunk_i
 	Mem_Range mem_range;
 	mem_range.range_size = range_size;
 	mem_range.start_chunk_id_ref = start_chunk_id_ref;
+
 
 	ret = insert_fast_table(mempool -> free_endpoints, &start_chunk_id, &mem_range);
 	if (ret){
@@ -382,6 +384,21 @@ MemOpStatus do_reserve_memory(Mempool * mempool, Mem_Reservation * mem_reservati
 	if (excess_chunks > 0){
 		
 		uint64_t excess_range_start_chunk_id = start_chunk_id + req_chunks;
+
+		// special case if excess chunks == 1, then 
+		// this would have already been in free endpoints
+		// table as the ending endpoint of the range we just
+		// reserved. In this scenario we want the endpoint to 
+		// be assoicated with a new size and starting ref so we
+		// should remove it first as insert_free_mem_range will
+		// take of things.
+		if (excess_chunks == 1){
+			ret = remove_fast_table(free_endpoints, &excess_range_start_chunk_id, NULL);
+			if (ret){
+				fprintf(stderr, "Error: unable to remove spliced excess chunk starting endpoint == previous range ending endpoints when excess chunks == 1...\n");
+				return MEMORY_SYSTEM_ERROR;
+			}
+		}
 		
 		Fast_List_Node * excess_range_ref;
 		excess_range_ref = insert_free_mem_range(mempool, excess_range_start_chunk_id, excess_chunks);
@@ -389,6 +406,8 @@ MemOpStatus do_reserve_memory(Mempool * mempool, Mem_Reservation * mem_reservati
 			fprintf(stderr, "Error: unable to add excess memory range of start id: %lu, size: %lu\n", excess_range_start_chunk_id, excess_chunks);
 			return MEMORY_SYSTEM_ERROR;
 		}
+
+		// this is redudant work if excess_chunks == 1, but doesnt hurt...
 
 		// now need to modify the original endpoint's mem_range
 
@@ -410,15 +429,11 @@ MemOpStatus do_reserve_memory(Mempool * mempool, Mem_Reservation * mem_reservati
 		mem_range_ref -> start_chunk_id_ref = excess_range_ref;
 	}
 
-	
-
 
 
 
 	// now need to remove the starting endpoint
 	// (and the end chunk id endpoint if there are no excess chunks)
-
-
 	Mem_Range mem_range;
 	ret = remove_fast_table(free_endpoints, &start_chunk_id, (void **) &mem_range);
 	// should never happen
@@ -606,18 +621,12 @@ MemOpStatus do_release_memory(Mempool * mempool, Mem_Reservation * mem_reservati
 
 	uint64_t new_right_endpoint = new_start_id + new_size - 1;
 
-	// if we didn't merge to the right we need to add right endpoint
-	if (!right_merge){
+	// if we merged to the right we need to either add back
+	// or modify the correct right endpoint
 
-		ret = insert_fast_table(free_endpoints, &new_right_endpoint, &merged_range);
-
-		// should never happen
-		if (unlikely(ret)){
-			fprintf(stderr, "Error: failure to insert new right endpoint\n");
-			return MEMORY_SYSTEM_ERROR;
-		}
-	}
-	else{
+	// if we merged on the right then clearly new size > 1 because
+	// it contains this range (which is >= 1) + right range (>= 1)
+	if (right_merge){
 
 		// if the right merged endpoint was size 1 then we already removed 
 		// it originally and need to add it back
@@ -648,6 +657,19 @@ MemOpStatus do_release_memory(Mempool * mempool, Mem_Reservation * mem_reservati
 			mem_range_ref -> range_size = new_size;
 			mem_range_ref -> start_chunk_id_ref = merged_range_ref;
 
+		}
+	}
+	// we need to add the right endpoint for this range (didn't merge with the right)
+	// only do so if larger than one chunk, because already added the starting endpoint
+	// and we can't have duplicate endpoints within the table
+	else if (new_size > 1){
+
+		ret = insert_fast_table(free_endpoints, &new_right_endpoint, &merged_range);
+
+		// should never happen
+		if (unlikely(ret)){
+			fprintf(stderr, "Error: failure to insert new right endpoint\n");
+			return MEMORY_SYSTEM_ERROR;
 		}
 	}
 

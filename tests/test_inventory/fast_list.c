@@ -87,10 +87,7 @@ Fast_List_Node * insert_fast_list(Fast_List * fast_list, uint64_t item){
 	}
 
 	new_node -> next = NULL;
-	new_node -> item = item;
-
-
-	fast_list -> cnt += 1;	
+	new_node -> item = item;	
 
 	if (fast_list -> tail){
 		fast_list -> tail -> next = new_node;
@@ -103,6 +100,8 @@ Fast_List_Node * insert_fast_list(Fast_List * fast_list, uint64_t item){
 		fast_list -> head = new_node;
 		fast_list -> tail = new_node;
 	}
+
+	fast_list -> cnt += 1;
 
 	return new_node;
 }
@@ -118,8 +117,6 @@ Fast_List_Node * insert_front_fast_list(Fast_List * fast_list, uint64_t item) {
 	new_node -> prev = NULL;
 	new_node -> item = item;
 
-	fast_list -> cnt += 1;	
-
 	if (fast_list -> head){
 		fast_list -> head -> next = new_node;
 		new_node -> next = fast_list -> head;
@@ -131,6 +128,8 @@ Fast_List_Node * insert_front_fast_list(Fast_List * fast_list, uint64_t item) {
 		fast_list -> head = new_node;
 		fast_list -> tail = new_node;
 	}
+
+	fast_list -> cnt += 1;
 
 	return new_node;
 }
@@ -155,9 +154,9 @@ void remove_node_fast_list(Fast_List * fast_list, Fast_List_Node * node){
 		next_node -> prev = prev_node;
 	}
 
-	fast_list -> cnt -= 1;
-
 	destroy_fast_list_node(fast_list, node);
+
+	fast_list -> cnt -= 1;
 }
 
 int take_fast_list(Fast_List * fast_list, uint64_t * ret_item) {
@@ -173,6 +172,11 @@ int take_fast_list(Fast_List * fast_list, uint64_t * ret_item) {
 	destroy_fast_list_node(fast_list, fast_list -> head);
 
 	fast_list -> head = new_head;
+
+	if (!fast_list -> head){
+		fast_list -> tail = NULL;
+	}
+
 	fast_list -> cnt -= 1;
 
 	return 0;
@@ -191,6 +195,11 @@ int take_back_fast_list(Fast_List * fast_list, uint64_t * ret_item) {
 	destroy_fast_list_node(fast_list, fast_list -> tail);
 
 	fast_list -> tail = new_tail;
+
+	if (!fast_list -> tail){
+		fast_list -> head = NULL;
+	}
+
 	fast_list -> cnt -= 1;
 
 	return 0;
