@@ -292,28 +292,28 @@ Fast_Tree_Leaf * create_fast_tree_leaf(Fast_Tree * root, uint8_t key, void * val
 	memset(fast_tree_leaf -> bit_vector, 0, 4 * sizeof(uint64_t));
 	set_bitvector(fast_tree_leaf -> bit_vector, key);
 
-	// deal with inserting value
-	int ret;
-	if (value){
-		ret = init_fast_table(&(fast_tree_leaf -> values), root -> table_config_value);
-		if (unlikely(ret != 0)){
-			fprintf(stderr, "Error: failure to init value table in leaf\n");
-			return NULL;
-		}
+	// can create table in case other items have values
+	int ret = init_fast_table(&(fast_tree_leaf -> values), root -> table_config_value);
+	if (unlikely(ret != 0)){
+		fprintf(stderr, "Error: failure to init value table in leaf\n");
+		return NULL;
+	}
 
-		if (value != NULL){
-			uint8_t value_key = key;			
-			ret = insert_fast_table(&(fast_tree_leaf -> values), &value_key, &value);
-			if (unlikely(ret != 0)){
-				fprintf(stderr, "Error: failure to insert value into the table in leaf\n");
-				return NULL;
-			}
+	// deal with inserting value
+	if (value){
+		uint8_t value_key = key;			
+		ret = insert_fast_table(&(fast_tree_leaf -> values), &value_key, &value);
+		if (unlikely(ret != 0)){
+			fprintf(stderr, "Error: failure to insert value into the table in leaf\n");
+			return NULL;
 		}
 	}
 
-	// we just created this leaf so we know there was no previous value
-	// can copy null pointer back
-	memset(prev_value, 0, sizeof(void *));
+	if (prev_value){
+		// we just created this leaf so we know there was no previous value
+		// can copy null pointer back
+		memset(prev_value, 0, sizeof(void *));
+	}
 
 
 	return fast_tree_leaf;
@@ -962,7 +962,7 @@ uint8_t lookup_bitvector_prev(uint64_t * bit_vector, uint8_t key){
 		}
 
 		// get highest order set bit position
-		found_element_pos = __builtin_ffsll(cur_search_vec) - 1;
+		found_element_pos = 63 - __builtin_clzll(cur_search_vec);
 
 		return cur_val + found_element_pos;
 	}
@@ -2113,6 +2113,7 @@ void remove_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t ke
 		// we need to remove ind_16 from the outward root as well
 		bool outward_removed = false;
 		remove_fast_tree_outward_16(root, &(fast_tree -> outward_root), ind_16, &outward_removed);
+		
 		if (outward_removed){
 			destroy_fast_table(&(fast_tree -> inward));
 			*tree_removed = true;
@@ -2278,4 +2279,3 @@ int smart_update_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeS
 	return -1;
 
 }
-
