@@ -223,11 +223,11 @@ int set_bitvector(uint64_t * bit_vector, uint8_t key){
 	// check if already set
 
 	// Note: Need to add UL otherwise compiler will assume of type bit_ind
-	if ((bit_vector[vec_ind] & (1UL << bit_ind)) >> bit_ind){
+	if ((bit_vector[vec_ind] & (1ULL << bit_ind)) >> bit_ind){
 		return -1;
 	}
 
-	bit_vector[vec_ind] |= (1UL << bit_ind);
+	bit_vector[vec_ind] |= (1ULL << bit_ind);
 
 	return 0;
 }
@@ -242,7 +242,7 @@ bool check_bitvector(uint64_t * bit_vector, uint8_t key){
 	// check if already set
 
 	// Note: Need to add UL otherwise compiler will assume of type bit_ind
-	if ((bit_vector[vec_ind] & (1UL << bit_ind)) >> bit_ind){
+	if ((bit_vector[vec_ind] & (1ULL << bit_ind)) >> bit_ind){
 		return true;
 	}
 
@@ -257,7 +257,7 @@ void clear_bitvector(uint64_t * bit_vector, uint8_t key){
 	// lower 6 bits
 	uint8_t bit_ind = (key & LEAF_BIT_POS_MASK);
 
-	bit_vector[vec_ind] &= ~(1UL << bit_ind);
+	bit_vector[vec_ind] &= ~(1ULL << bit_ind);
 
 	return;
 }
@@ -379,6 +379,8 @@ void link_fast_tree_leaf(Fast_Tree * root, Fast_Tree_Leaf * fast_tree_leaf){
 // Called by 32 inserting into an Fast_Tree_16 associated with main tree
 int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key, void * value, bool to_overwrite, void * prev_value, uint64_t base, bool * element_inserted, Fast_Tree_Leaf ** new_main_leaf){
 
+	int ret;
+	
 	if (fast_tree -> inward_leaves.items == NULL){
 		int init_ret = init_fast_table(&(fast_tree -> inward_leaves), root -> table_config_main_leaf);
 		if (unlikely(init_ret != 0)){
@@ -406,7 +408,7 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 	Fast_Tree_Outward_Leaf * outward_leaf_ref = &(fast_tree -> outward_leaf);
 
 	// if the table hasn't been created yet, this will immediately return not-found
-	uint64_t ret = find_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, (void **) &inward_leaf_ref);
+	find_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, (void **) &inward_leaf_ref);
 	
 	Fast_Tree_Leaf * inward_leaf;
 
@@ -537,6 +539,8 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 
 // Called by outward_32 inserting into a Fast_Tree_16
 int insert_fast_tree_nonmain_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key){
+	
+	int ret;
 
 	if (fast_tree -> inward_leaves.items == NULL){
 		int init_ret = init_fast_table(&(fast_tree -> inward_leaves), root -> table_config_outward_leaf);
@@ -566,9 +570,7 @@ int insert_fast_tree_nonmain_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint
 
 	Fast_Tree_Outward_Leaf * outward_leaf_ref = &(fast_tree -> outward_leaf);
 
-	uint64_t ret = find_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, (void **) &inward_leaf_ref);
-	// not in the tree so we need to create
-	// also means that ind_32 wan't inserted into the outward root
+	find_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, (void **) &inward_leaf_ref);
 	if (!inward_leaf_ref){
 
 		Fast_Tree_Outward_Leaf new_inward_leaf;
@@ -612,11 +614,13 @@ int insert_fast_tree_nonmain_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint
 		}
 
 	}
-	return ret;
+	return 0;
 }
 
 // Called by 32 & outward_32 inserting into an Fast_Tree_Outward_Root_16
 int insert_fast_tree_outward_16(Fast_Tree * root, Fast_Tree_Outward_Root_16 * fast_tree, uint16_t key) {
+
+	int ret;
 
 	if (fast_tree -> inward_leaves.items == NULL){
 		int init_ret = init_fast_table(&(fast_tree -> inward_leaves), root -> table_config_outward_leaf);
@@ -637,7 +641,7 @@ int insert_fast_tree_outward_16(Fast_Tree * root, Fast_Tree_Outward_Root_16 * fa
 
 	Fast_Tree_Outward_Leaf * outward_leaf_ref = &(fast_tree -> outward_leaf);
 
-	uint64_t ret = find_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, (void **) &inward_leaf_ref);
+	find_fast_table(&(fast_tree -> inward_leaves), &ind_8, false, (void **) &inward_leaf_ref);
 	// not in the tree so we need to create
 	// also means that ind_32 wan't inserted into the outward root
 	if (!inward_leaf_ref){
@@ -687,6 +691,8 @@ int insert_fast_tree_outward_16(Fast_Tree * root, Fast_Tree_Outward_Root_16 * fa
 
 int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key, void * value, bool to_overwrite, void * prev_value, uint64_t base, bool * element_inserted, Fast_Tree_Leaf ** new_main_leaf){
 
+	int ret;
+
 	if (fast_tree -> inward.items == NULL){
 		// the cnt will be incremented within the next function call (insert_fast_tree_nonmain_16)
 		int init_ret = init_fast_table(&(fast_tree -> inward), root -> table_config_16);
@@ -709,7 +715,7 @@ int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key
 
 	Fast_Tree_16 * inward_tree_16_ref = NULL;
 
-	uint64_t ret = find_fast_table(&(fast_tree -> inward), &ind_16, false, (void **) &inward_tree_16_ref);
+	find_fast_table(&(fast_tree -> inward), &ind_16, false, (void **) &inward_tree_16_ref);
 	// not in the tree so we need to create
 	// also means that ind_32 wan't inserted into the outward root
 	if (!inward_tree_16_ref){
@@ -759,6 +765,8 @@ int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key
 
 int insert_fast_tree_outward_32(Fast_Tree * root, Fast_Tree_Outward_Root_32 * fast_tree, uint32_t key){
 
+	int ret;
+
 	// OUTWARD ROOT 32 HAS ALREADY INITIALIZED TABLE FROM INIT_FAST_TREE()
 
 	uint16_t ind_16 = (key & IND_16_MASK) >> 16;
@@ -767,7 +775,7 @@ int insert_fast_tree_outward_32(Fast_Tree * root, Fast_Tree_Outward_Root_32 * fa
 	Fast_Tree_16 * inward_tree_16_ref = NULL;
 
 	// NOT COPYING THE VALUE, JUST SETTING REF
-	uint64_t ret = find_fast_table(&(fast_tree -> inward), &ind_16, false, (void **) &inward_tree_16_ref);
+	find_fast_table(&(fast_tree -> inward), &ind_16, false, (void **) &inward_tree_16_ref);
 	// not in the tree so we need to create
 	// also means that ind_32 wan't inserted into the outward root
 	if (!inward_tree_16_ref){
@@ -814,13 +822,15 @@ int insert_fast_tree_outward_32(Fast_Tree * root, Fast_Tree_Outward_Root_32 * fa
 // if key was already in the tree and had a non-null value, then copies the previous value into prev_value
 int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_overwrite, void * prev_value) {
 
+	int ret;
+
 	uint32_t ind_32 = (key & IND_32_MASK) >> 32;
 	uint32_t off_32 = (key & OFF_32_MASK);
 
 	Fast_Tree_32 * inward_tree_32_ref = NULL;
 	
 	// NOT COPYING THE VALUE, JUST SETTING REF
-	uint64_t ret = find_fast_table(&(fast_tree -> inward), &ind_32, false, (void **) &inward_tree_32_ref);
+	find_fast_table(&(fast_tree -> inward), &ind_32, false, (void **) &inward_tree_32_ref);
 
 	// not in the tree so we need to create
 	// also means that ind_32 wan't inserted into the outward root
@@ -946,7 +956,10 @@ uint8_t lookup_bitvector_prev(uint64_t * bit_vector, uint8_t key){
 	uint64_t orig_vec = bit_vector[vec_ind];
 	// need to clear the upper bits (all bits at positions > bit_ind) before looing for
 	// highest set bit
-	uint64_t cur_search_vec = orig_vec & ~(ALL_ONES_64 << (bit_ind + 1));
+
+	// set 1's for all positions between [0, bit_ind]
+	uint64_t lower_mask = (((1ULL << bit_ind) - 1) | (1ULL << bit_ind));
+	uint64_t cur_search_vec = orig_vec & lower_mask;
 
 	uint8_t cur_val = 64 * vec_ind;
 	uint8_t cur_vec_ind = vec_ind;
@@ -1973,6 +1986,7 @@ void remove_fast_tree_nonmain_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uin
 
 	clear_bitvector(inward_leaf_ref -> bit_vector, off_8);
 	
+	fast_tree -> cnt -= 1;
 	
 	uint16_t new_min = key;
 	uint16_t new_max = key;
@@ -2016,10 +2030,21 @@ void remove_fast_tree_nonmain_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uin
 	}
 
 	if (fast_tree -> min == key){
-		fast_tree -> min = new_min;
+		if (fast_tree -> cnt == 1){
+			fast_tree -> min = fast_tree -> max;
+		}
+		else{
+			fast_tree -> min = new_min;
+		}
+
 	}
 	else if (fast_tree -> max == key){
-		fast_tree -> max = new_max;
+		if (fast_tree -> cnt == 1){
+			fast_tree -> max = fast_tree -> min;
+		}
+		else{
+			fast_tree -> max = new_max;
+		}
 	}
 
 	return;
@@ -2067,7 +2092,6 @@ void remove_fast_tree_outward_16(Fast_Tree * root, Fast_Tree_Outward_Root_16 * f
 		}
 	}
 	else if (inward_leaf_ref -> min == off_8){
-
 		inward_leaf_ref -> min = lookup_bitvector_next(inward_leaf_ref -> bit_vector, off_8);
 	}
 	else if (inward_leaf_ref -> max == off_8){
@@ -2279,3 +2303,4 @@ int smart_update_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeS
 	return -1;
 
 }
+

@@ -3,9 +3,7 @@
 
 #include "common.h"
 #include "config.h"
-#include "deque.h"
 #include "fast_table.h"
-#include "table.h"
 
 
 // this is a modifier to specify if we want
@@ -248,7 +246,9 @@ struct fast_tree_leaf {
 	// Once we traverse to the leaf (or start there from the linked-list) we can utilize
 	// this base value to modify/query ancestors from the root. Conserving memory by not 
 	// storing pointers
-	uint64_t base: 56;
+
+	// the lower 8 bits of base should be 0...
+	uint64_t base;
 	uint64_t bit_vector[4];
 	// Table of 8-bit keys => value of size
 	// specified in root

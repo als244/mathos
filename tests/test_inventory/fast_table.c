@@ -68,7 +68,7 @@ int init_fast_table(Fast_Table * fast_table, Fast_Table_Config * config) {
 		(fast_table -> is_empty_bit_vector)[bit_vector_els - 1] = 0xFFFFFFFFFFFFFFFF;
 	}
 	else{
-		(fast_table -> is_empty_bit_vector)[bit_vector_els - 1] = (1UL << last_vec_els) - 1;
+		(fast_table -> is_empty_bit_vector)[bit_vector_els - 1] = (1ULL << last_vec_els) - 1;
 	}
 
 
@@ -196,7 +196,7 @@ int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 		new_is_empty_bit_vector[bit_vector_els - 1] = 0xFFFFFFFFFFFFFFFF;
 	}
 	else{
-		new_is_empty_bit_vector[bit_vector_els - 1] = (1UL << last_vec_els) - 1;
+		new_is_empty_bit_vector[bit_vector_els - 1] = (1ULL << last_vec_els) - 1;
 	}
 	
 	void * new_items = (void *) calloc(new_size, key_size_bytes + value_size_bytes);
@@ -232,7 +232,7 @@ int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 		cur_pos_in_vec = (old_ind & 0x3F);
 
 		// if this position was empty then continue
-		if (cur_bit_vec & (1UL << cur_pos_in_vec)){
+		if (cur_bit_vec & (1ULL << cur_pos_in_vec)){
 			continue;
 		}
 
@@ -266,8 +266,8 @@ int resize_fast_table(Fast_Table * fast_table, uint64_t new_size){
 		// the bucket's upper bits represent index into the bit vector elements
 		// and the low order 6 bits represent offset into element. Set to 0 
 
-		// needs to be 1UL otherwise will default to 1 byte
-		new_is_empty_bit_vector[new_insert_ind >> 6] &= ~(1UL << (new_insert_ind & 0x3F));
+		// needs to be 1ULL otherwise will default to 1 byte
+		new_is_empty_bit_vector[new_insert_ind >> 6] &= ~(1ULL << (new_insert_ind & 0x3F));
 		seen_cnt += 1;
 
 		if (seen_cnt == cnt){
@@ -358,8 +358,8 @@ int insert_fast_table(Fast_Table * fast_table, void * key, void * value) {
 	// the bucket's upper bits represent index into the bit vector elements
 	// and the low order 6 bits represent offset into element. Set to 0 
 
-	// needs to be 1UL otherwise will default to 1 byte
-	(fast_table -> is_empty_bit_vector)[insert_ind >> 6] &= ~(1UL << (insert_ind & 0x3F));
+	// needs to be 1ULL otherwise will default to 1 byte
+	(fast_table -> is_empty_bit_vector)[insert_ind >> 6] &= ~(1ULL << (insert_ind & 0x3F));
 
 
 	// 4.) Potentially resize
@@ -598,7 +598,7 @@ int remove_fast_table(Fast_Table * fast_table, void * key, void * ret_value) {
 	// and the low order 6 bits represent offset into element. 
 
 	// Set to 1 to indicate this bucket is now free 
-	(fast_table -> is_empty_bit_vector)[empty_ind >> 6] |= (1UL << (empty_ind & 0x3F));
+	(fast_table -> is_empty_bit_vector)[empty_ind >> 6] |= (1ULL << (empty_ind & 0x3F));
 
 
 	// 3.) Check if this removal triggered 
