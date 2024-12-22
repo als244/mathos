@@ -303,7 +303,7 @@ Fast_Tree_Leaf * create_fast_tree_leaf(Fast_Tree * root, uint8_t key, void * val
 	if (value){
 		uint8_t value_key = key;			
 		ret = insert_fast_table(&(fast_tree_leaf -> values), &value_key, &value);
-		if (unlikely(ret != 0)){
+		if (unlikely(ret)){
 			fprintf(stderr, "Error: failure to insert value into the table in leaf\n");
 			return NULL;
 		}
@@ -327,47 +327,45 @@ void link_fast_tree_leaf(Fast_Tree * root, Fast_Tree_Leaf * fast_tree_leaf){
 
 	uint64_t base = fast_tree_leaf -> base;
 
-
 	Fast_Tree_Result leaf_search;
 
-	if (base == 0){
+	if (root -> cnt == 0){
 		fast_tree_leaf -> prev = NULL;
-		if (root -> min_leaf){
-			fast_tree_leaf -> next = root -> min_leaf;
-			fast_tree_leaf -> next -> prev = fast_tree_leaf;
-		}
-		else{
-			fast_tree_leaf -> next = NULL;
-		}
+		fast_tree_leaf -> next = NULL;
 		root -> min_leaf = fast_tree_leaf;
-		
-	}
-	else{
-		ret = search_fast_tree(root, base - 1, FAST_TREE_EQUAL_OR_PREV, &leaf_search);
-		if (ret){
-			fast_tree_leaf -> prev = NULL;
-			if (root -> min_leaf){
-				fast_tree_leaf -> next = root -> min_leaf;
-				fast_tree_leaf -> next -> prev = fast_tree_leaf;
-			}
-			else{
-				fast_tree_leaf -> next = NULL;
-			}
-			root -> min_leaf = fast_tree_leaf;
-		}
-		else{
-			fast_tree_leaf -> prev = leaf_search.fast_tree_leaf;
-			fast_tree_leaf -> next = (leaf_search.fast_tree_leaf) -> next;
-			fast_tree_leaf -> prev -> next = fast_tree_leaf;
-			if (fast_tree_leaf -> next){
-				fast_tree_leaf -> next -> prev = fast_tree_leaf;
-			}
-		}
+		root -> max_leaf = fast_tree_leaf;
+		return;
 	}
 
-	if (!fast_tree_leaf -> next){
-		root -> max_leaf = fast_tree_leaf;
+	if (base < root -> min){
+		fast_tree_leaf -> prev = NULL;
+		fast_tree_leaf -> next = root -> min_leaf;
+		fast_tree_leaf -> next -> prev = fast_tree_leaf;
+		root -> min_leaf = fast_tree_leaf;
+		return;
 	}
+
+	if (base > root -> max){
+		fast_tree_leaf -> prev = root -> max_leaf;
+		fast_tree_leaf -> next = NULL;
+		fast_tree_leaf -> prev -> next = fast_tree_leaf;
+		root -> max_leaf = fast_tree_leaf;
+		return;
+	}
+
+	// we know that there are at least 2 leaves and that this is 
+	// sandwiched in the middle
+	ret = search_fast_tree(root, base, FAST_TREE_PREV, &leaf_search);
+	
+	if (unlikely(ret)){
+		fprintf(stderr, "Error: base was greater than the minimum so there should be a previous leaf...\n");
+		return;
+	}
+	
+	fast_tree_leaf -> prev = leaf_search.fast_tree_leaf;
+	fast_tree_leaf -> next = (leaf_search.fast_tree_leaf) -> next;
+	fast_tree_leaf -> prev -> next = fast_tree_leaf;
+	fast_tree_leaf -> next -> prev = fast_tree_leaf;
 
 	return;
 
@@ -534,6 +532,7 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 
 		// if ind_8 leaf was alreay created we know that it was inserted into the outward_leaf already
 	}
+
 	return 0;
 }
 
@@ -888,6 +887,12 @@ int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_
 	}
 	if (key > fast_tree -> max){
 		fast_tree -> max = key;
+	}
+
+	if ((fast_tree -> min_leaf) && (fast_tree -> min_leaf -> next) && (fast_tree -> min_leaf -> next -> next)
+			&& (fast_tree -> min_leaf -> next -> base) > (fast_tree -> min_leaf -> next -> next -> base)){
+		fprintf(stderr, "Error: leaf ordering is wrong!\n");
+		return -1;
 	}
 
 	return ret;
@@ -1849,21 +1854,25 @@ void destroy_and_unlink_fast_tree_leaf(Fast_Tree * root, Fast_Tree_Leaf * fast_t
 	Fast_Tree_Leaf * prev_leaf = fast_tree_leaf -> prev;
 	Fast_Tree_Leaf * next_leaf = fast_tree_leaf -> next;
 
-	if (prev_leaf){
+	if (prev_leaf && next_leaf){
+		*triggered_new_min_key = next_leaf -> base + next_leaf -> min;
 		*triggered_new_max_key = prev_leaf -> base + prev_leaf -> max;
 		prev_leaf -> next = next_leaf;
-	}
-	// if there was no previous we know this was at the head of ordered_leaves
-	else{
-		root -> min_leaf = next_leaf;
-	}
-
-	if (next_leaf){
-		*triggered_new_min_key = next_leaf -> base + next_leaf -> min;
 		next_leaf -> prev = prev_leaf;
 	}
-	else{
+	else if (prev_leaf){
+		*triggered_new_max_key = prev_leaf -> base + prev_leaf -> max;
+		prev_leaf -> next = NULL;
 		root -> max_leaf = prev_leaf;
+	}
+	else if (next_leaf){
+		*triggered_new_min_key = next_leaf -> base + next_leaf -> min;
+		next_leaf -> prev = NULL;
+		root -> min_leaf = next_leaf;
+	}
+	else{
+		root -> min_leaf = NULL;
+		root -> max_leaf = NULL;
 	}
 
 	free(fast_tree_leaf);
@@ -1951,7 +1960,7 @@ void remove_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t ke
 			fast_tree -> min = fast_tree -> max;
 		}
 		else{
-			fast_tree -> min = ((*triggered_new_min_key) >> 32) & OFF_16_MASK;
+			fast_tree -> min = (*triggered_new_min_key) & OFF_16_MASK;
 		}
 	}
 	else if (fast_tree -> max == key){
@@ -1959,11 +1968,9 @@ void remove_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t ke
 			fast_tree -> max = fast_tree -> min;
 		}
 		else{
-			fast_tree -> max = ((*triggered_new_max_key) >> 32) & OFF_16_MASK;
+			fast_tree -> max = (*triggered_new_max_key) & OFF_16_MASK;
 		}
 	}
-
-
 
 	return;
 }
@@ -2301,4 +2308,3 @@ int smart_update_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeS
 	return -1;
 
 }
-
