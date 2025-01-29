@@ -426,8 +426,4 @@ int smart_update_fast_tree(Fast_Tree * fast_tree, uint64_t search_key, FastTreeS
 
 
 
-
-
-
-
 #endif

@@ -679,3 +679,4 @@ MemOpStatus do_release_memory(Mempool * mempool, Mem_Reservation * mem_reservati
 
 	return MEMORY_SUCCESS;
 }
+

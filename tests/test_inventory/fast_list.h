@@ -9,17 +9,12 @@ struct fast_list_node {
 	uint64_t item;
 	Fast_List_Node * prev;
 	Fast_List_Node * next;
-	// only free nodes not held within buffer
-	bool to_free;
 };
 
 typedef struct fast_list {
 	uint64_t cnt;
 	Fast_List_Node * head;
 	Fast_List_Node * tail;
-	uint64_t node_buffer_capacity;
-	uint64_t node_buffer_cnt;
-	Fast_List_Node * node_buffer;
 } Fast_List;
 
 

@@ -327,7 +327,7 @@ void link_fast_tree_leaf(Fast_Tree * root, Fast_Tree_Leaf * fast_tree_leaf){
 
 	uint64_t base = fast_tree_leaf -> base;
 
-	Fast_Tree_Result leaf_search;
+
 
 	if (root -> cnt == 0){
 		fast_tree_leaf -> prev = NULL;
@@ -352,6 +352,9 @@ void link_fast_tree_leaf(Fast_Tree * root, Fast_Tree_Leaf * fast_tree_leaf){
 		root -> max_leaf = fast_tree_leaf;
 		return;
 	}
+
+
+	Fast_Tree_Result leaf_search;
 
 	// we know that there are at least 2 leaves and that this is 
 	// sandwiched in the middle
@@ -423,7 +426,7 @@ int insert_fast_tree_16(Fast_Tree * root, Fast_Tree_16 * fast_tree, uint16_t key
 
 		// responsible for allocating memory for leaf, initializing table for values, inserting value, 
 		// creating deque item, linking deque item (and potentially linked to root deque -> head/tail)
-		inward_leaf = create_fast_tree_leaf(root, off_8, value, to_overwrite, prev_value, base + (uint64_t) (ind_8 << 8));
+		inward_leaf = create_fast_tree_leaf(root, off_8, value, to_overwrite, prev_value, base);
 		if (!inward_leaf){
 			fprintf(stderr, "Error: failure to create and link fast tree leaf\n");
 			return -1;
@@ -752,7 +755,7 @@ int insert_fast_tree_32(Fast_Tree * root, Fast_Tree_32 * fast_tree, uint32_t key
 	}
 	
 
-	ret = insert_fast_tree_16(root, inward_tree_16_ref, off_16, value, to_overwrite, prev_value, base + (uint64_t) ((ind_16) << 16), element_inserted, new_main_leaf);
+	ret = insert_fast_tree_16(root, inward_tree_16_ref, off_16, value, to_overwrite, prev_value, base, element_inserted, new_main_leaf);
 
 	if (*element_inserted){
 		fast_tree -> cnt += 1;
@@ -872,7 +875,9 @@ int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_
 	bool element_inserted = false;
 
 	Fast_Tree_Leaf * new_main_leaf = NULL;
-	ret = insert_fast_tree_32(fast_tree, inward_tree_32_ref, off_32, value, to_overwrite, prev_value, (uint64_t) ind_32 << 32, &element_inserted, &new_main_leaf);
+
+	uint64_t base = key & LEAF_BASE_MASK;
+	ret = insert_fast_tree_32(fast_tree, inward_tree_32_ref, off_32, value, to_overwrite, prev_value, base, &element_inserted, &new_main_leaf);
 
 	if (new_main_leaf){
 		link_fast_tree_leaf(fast_tree, new_main_leaf);
@@ -889,11 +894,15 @@ int insert_fast_tree(Fast_Tree * fast_tree, uint64_t key, void * value, bool to_
 		fast_tree -> max = key;
 	}
 
+	// TEMPORARY TO ENSURE CORRECTNESS...
+	/*
 	if ((fast_tree -> min_leaf) && (fast_tree -> min_leaf -> next) && (fast_tree -> min_leaf -> next -> next)
 			&& (fast_tree -> min_leaf -> next -> base) > (fast_tree -> min_leaf -> next -> next -> base)){
-		fprintf(stderr, "Error: leaf ordering is wrong!\n");
+		fprintf(stderr, "Error: After inserting key: %lu, leaf ordering is wrong!\n\tMin Leaf -> Base: %lu\n\tMin Leaf -> Next -> Base: %lu\n\tMin Leaf -> Next -> Next -> Base: %lu\n\n",
+									key, (fast_tree -> min_leaf -> base), (fast_tree -> min_leaf -> next -> base), (fast_tree -> min_leaf -> next -> next -> base));
 		return -1;
 	}
+	*/
 
 	return ret;
 

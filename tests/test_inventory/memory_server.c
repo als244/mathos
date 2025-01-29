@@ -55,7 +55,7 @@ void * run_memory_server(void * _memory){
 	Mempool * cur_mempool;
 	MemOpStatus op_status;
 	
-	printf("[Memory Server] Ready to Process Memory Ops!\n\n");
+	printf("\n[Memory Server] Ready to Process Memory Ops!\n\n");
 
 
 	while (1){
@@ -116,8 +116,9 @@ void * run_memory_server(void * _memory){
 					
 					// should never happen, except when OOM errors for metadata structs
 					if (unlikely(op_status != MEMORY_SUCCESS)){
-						fprintf(stderr, "Error: had a system error releasing memory on mempool %d... should never happen: Reservation details:\n\tStart chunk id: %lu\n\tNum Chunks: %lu\n\n", 
+						fprintf(stderr, "FATAL Error: had a system error releasing memory on mempool %d... should never happen: Reservation details:\n\tStart chunk id: %lu\n\tNum Chunks: %lu\n\n", 
 											cur_reservation -> fulfilled_pool_id, cur_reservation -> start_chunk_id, cur_reservation -> num_chunks);
+						kill(0, SIGKILL);
 					}
 				}
 
@@ -130,8 +131,9 @@ void * run_memory_server(void * _memory){
 					if (unlikely(op_status != MEMORY_SUCCESS)){
 						// should never happen, except when OOM errors for metadata structs
 						if (op_status == MEMORY_SYSTEM_ERROR){
-							fprintf(stderr, "Error: had a system error reserving memory on mempool %d... should never happen: Reservation details:\n\tSize bytes: %lu\n", 
+							fprintf(stderr, "FATAL Error: had a system error reserving memory on mempool %d... should never happen: Reservation details:\n\tSize bytes: %lu\n", 
 											cur_reservation -> pool_id, cur_reservation -> size_bytes);
+							kill(0, SIGKILL);
 						}
 
 						// we were OOM on the primary pool, so we need to check all the backup pools supplied by request
@@ -160,9 +162,9 @@ void * run_memory_server(void * _memory){
 								}
 
 								if (op_status == MEMORY_SYSTEM_ERROR){
-									fprintf(stderr, "Error: had a system error releasing memory on mempool %d... should never happen: Reservation details:\n\tSize bytes: %lu\n", 
+									fprintf(stderr, "FATAL Error: had a system error releasing memory on mempool %d... should never happen: Reservation details:\n\tSize bytes: %lu\n", 
 												backup_pool_id, cur_reservation -> size_bytes);
-									is_fulfilled = true;
+									kill(0, SIGKILL);
 								}	
 
 								// otherwise was another POOL_OOM error

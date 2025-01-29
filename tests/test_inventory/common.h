@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
+#include <signal.h>
 
 #include <string.h>
 #include <stdint.h>
@@ -25,8 +27,8 @@
 // Setting file permission bits
 #include <fcntl.h>
 #include <sys/types.h>
-#include <unistd.h>
-#include <errno.h>
+
+
 
 // For initial TCP connections
 #include <sys/socket.h>
