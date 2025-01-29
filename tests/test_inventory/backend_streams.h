@@ -4,6 +4,8 @@
 #include "common.h"
 
 #include "memory_client.h"
+
+#include "cuda_memory.h"
 #include "cublas_helper.h"
 #include "backend_profile.h"
 #include "backend_funcs.h"
