@@ -4,7 +4,7 @@
 #include "utils.h"
 #include "self_net.h"
 
-#define MAX_DATA_PER_MSG 4000
+#define MAX_DATA_PER_MSG 1500
 
 int main(int argc, char * argv[]){
 
@@ -26,7 +26,17 @@ int main(int argc, char * argv[]){
 
 	printf("\n\nREQUESTING TO JOIN NETWORK & BRING SYSTEM ONLINE...!\n\n");
 
-	System * system = init_system(master_ip_addr, self_ip_addr, NULL);
+	uint64_t SYS_MEM_GB = 10;
+	uint64_t sys_mem_usage = SYS_MEM_GB * (1ULL << 30);
+	uint64_t sys_mem_chunk_size = (1ULL << 12);
+
+	
+	uint64_t DEV_MEM_GB = 0;
+	uint64_t dev_mem_usage = DEV_MEM_GB * (1ULL << 30);
+	uint64_t dev_mem_chunk_size = (1ULL << 16);
+
+
+	System * system = init_system(master_ip_addr, self_ip_addr, sys_mem_usage, sys_mem_chunk_size, dev_mem_usage, dev_mem_chunk_size);
 
 	if (system == NULL){
 		fprintf(stderr, "Error: failed to initialize system\n");
@@ -93,12 +103,14 @@ int main(int argc, char * argv[]){
 
 	struct timespec start, stop;
 
+	uint64_t seen_completitions;
+
 	// sender
 	if (net_world -> self_node_id == 1){
 
 		printf("Sleeping to let other side post recvs...\n");
 		// Wait for other node to prepare memory and post recv
-		sleep(2);
+		sleep(5);
 
 		data = malloc(num_items * item_length);
 		ret = register_virt_memory(pd, (void *) data, num_items * item_length, &mr);
@@ -151,10 +163,10 @@ int main(int argc, char * argv[]){
 
 		printf("Posted sends! Now blocking for confirmation...\n");
 
-		ret = block_for_wr_comp(cq, 0);
+		seen_completitions = block_for_batch_wr_comp(cq, 1);
 		clock_gettime(CLOCK_REALTIME, &stop);
 
-		if (ret != 0){
+		if (seen_completitions != 1){
 			fprintf(stderr, "Error: failure to block for completed wr id\n");
 			return -1;
 		}
@@ -211,7 +223,7 @@ int main(int argc, char * argv[]){
 
 		printf("Blocking for %lu completitions...\n", num_items);
 
-		uint64_t seen_completitions = block_for_batch_wr_comp(cq, num_items);
+		seen_completitions = block_for_batch_wr_comp(cq, num_items);
 		if (seen_completitions != num_items){
 			fprintf(stderr, "Error: unable to find correct number of completitions (%lu != %lu)\n", seen_completitions, num_items);
 			return -1;

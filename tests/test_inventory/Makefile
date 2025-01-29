@@ -29,11 +29,12 @@ BACKEND_CFLAGS = ${CUDA_CFLAGS}
 BACKEND_LIB_PATH = ${CUDA_LIB}
 BACKEND_LIB_LINKS = -lcuda -lcublasLt
 
-BACKEND_MEMORY_OBJ =cuda_memory.o
+BACKEND_MEMORY_OBJ = cuda_memory.o
 
 
+EXECS = testMaster testWorker1 testBw
 
-all: testMaster testWorker1 testWorker2 ${BACKEND_KERNELS}
+all: ${EXECS} ${BACKEND_KERNELS}
 
 ## executables
 
@@ -54,11 +55,11 @@ testWorker1: main_worker_1.c fast_table.o fast_tree.o fast_list.o table.o fifo.o
 	${CC} ${CFLAGS} ${BACKEND_CFLAGS} $^ -o $@ -I $(BACKEND_INCLUDE) -pthread -libverbs -lcrypto -L $(BACKEND_LIB_PATH) ${BACKEND_LIB_LINKS}
 
 ## JUST FOR NOW INCLUDING BACKEND LINK WHILE INTERFACE IS UNDERWAY...
-testWorker2: main_worker_2.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o backend_funcs.o backend_streams.o backend_profile.o ${BACKEND_MEMORY_OBJ}
+testWorker2: main_worker_2.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o ${BACKEND_MEMORY_OBJ}
 	${CC} ${CFLAGS} ${BACKEND_CFLAGS} $^ -o $@ -I $(BACKEND_INCLUDE) -pthread -libverbs -lcrypto -L $(BACKEND_LIB_PATH) ${BACKEND_LIB_LINKS}
 
-testBw: main_test_bw.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o
-	${CC} ${CFLAGS} $^ -o $@ -pthread -libverbs -lcrypto
+testBw: main_test_bw.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o backend_funcs.o backend_streams.o backend_profile.o ${BACKEND_MEMORY_OBJ}
+	${CC} ${CFLAGS} ${BACKEND_CFLAGS} $^ -o $@ -I $(BACKEND_INCLUDE) -pthread -libverbs -lcrypto -L $(BACKEND_LIB_PATH) ${BACKEND_LIB_LINKS}
 
 
 
@@ -218,4 +219,4 @@ ctrl_recv_dispatch.o: ctrl_recv_dispatch.c
 
 
 clean:
-	rm -f *.o testMaster testWorker1 testWorker2
+	rm -f *.o ${EXECS} ${BACKEND_KERNELS}

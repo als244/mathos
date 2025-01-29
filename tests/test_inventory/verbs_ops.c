@@ -1,6 +1,6 @@
 #include "verbs_ops.h"
 
-#define TO_PRINT_COMPLETE 0
+#define TO_PRINT_WORK_REQUEST_COMPLETE 1
 
 int register_virt_memory(struct ibv_pd * pd, void * addr, size_t size_bytes, struct ibv_mr ** ret_mr) {
 
@@ -481,7 +481,7 @@ uint64_t block_for_batch_wr_comp(struct ibv_cq_ex * cq, uint64_t num_completetio
 		if (seen_new_completition){
 			/* DO SOMETHING WITH wr_id! */
 
-			if (TO_PRINT_COMPLETE){
+			if (TO_PRINT_WORK_REQUEST_COMPLETE){
 				printf("Saw completion of wr_id = %lu\n\tStatus: %d\n", wr_id, status);
 			}
 
