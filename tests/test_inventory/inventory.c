@@ -69,6 +69,70 @@ Inventory * init_inventory(Memory * memory) {
 
 
 
+int handle_fingerprint_match(Inventory * inventory, WorkerType worker_type, int thread_id, Fingerprint_Match * match_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages){
+
+	uint8_t * fingerprint = match_message -> fingerprint;
+	uint32_t num_nodes = match_message -> num_nodes;
+	uint32_t * node_ids = match_message -> node_ids;
+
+	// for now let's just iniate a transfer from the first node
+
+	uint32_t node_to_retrieve_from = node_ids[0];
+
+	// 1.) Remove outstanding bid because we saw match
+
+	Outstanding_Bid target_bid;
+	memcpy(target_bid.fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
+
+	Table * outstanding_bids = inventory -> outstanding_bids;
+
+	Outstanding_Bid * outstanding_bid = remove_item_table(outstanding_bids, &target_bid);
+
+	// probably got a different notification in other worker thread
+	// that already handled it
+	if (!outstanding_bid){
+		fprintf(stderr, "In fingerprint match: could not find matching outstanding bid...\n");
+		return 0;
+	}
+
+	uint64_t content_size = outstanding_bid -> content_size;
+	int preferred_pool_id = outstanding_bid -> preferred_pool_id;
+
+	// done with the bid so can free it
+	free(outstanding_bid);
+
+	// 2.) Reserve object now that we have a match
+
+	Obj_Location * reserved_location;
+	int ret = reserve_object(inventory, fingerprint, preferred_pool_id, content_size, 0, NULL, thread_id, &reserved_location);
+	if (ret){
+		fprintf(stderr, "Error: unable to reserve object\n\tPreferred Pool: %d\n\tSize: %lu\n", preferred_pool_id, content_size);
+		return -1;
+	}
+
+	printf("SAW A FINGERPRINT MATCH AND RESERVED MEMORY!\nRerservation Details:\n\tPool Id: %d\n\tContent Size: %lu\n\n", reserved_location -> pool_id, content_size);
+
+	printf("Would have acquired a transfer gate and sent transfer init message to node: %d...\n\n", node_to_retrieve_from);
+
+	// 3.) Acquire a "gate" for inbound transfer
+
+
+	// 4.) Build and send transfer initiate message
+
+	if (ret_num_ctrl_messages){
+		*ret_num_ctrl_messages = 0;
+	}
+
+	if (ret_ctrl_messages){
+		*ret_ctrl_messages = NULL;
+	}
+
+	return 0;
+}
+
+
+
+
 // THE MAIN FUNCTION THAT IS EXPOSED
 
 int do_inventory_function(Inventory * inventory, WorkerType worker_type, int thread_id, Ctrl_Message * ctrl_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages) {
@@ -82,19 +146,19 @@ int do_inventory_function(Inventory * inventory, WorkerType worker_type, int thr
 	InventoryMessageType inventory_message_type = inventory_message -> message_type;
 
 	switch(inventory_message_type){
-		case FINGERPRINT_MATCH:
+		case FINGERPRINT_MATCH: ;
 			Fingerprint_Match * match_message = (Fingerprint_Match *) (inventory_message -> message);
 			ret = handle_fingerprint_match(inventory, worker_type, thread_id, match_message, ret_num_ctrl_messages, ret_ctrl_messages);
 			break;
-		case TRANSFER_INITIATE:
+		case TRANSFER_INITIATE: ;
 			Transfer_Initiate * transfer_initiate_message = (Transfer_Initiate *) (inventory_message -> message);
 			// handle transfer initiate here
 			break;
-		case TRANSFER_RESPONSE:
+		case TRANSFER_RESPONSE: ;
 			Transfer_Response * transfer_response_message = (Transfer_Response *) (inventory_message -> message);
 			// handle transfer response here
 			break;
-		case INVENTORY_Q:
+		case INVENTORY_Q: ;
 			Inventory_Query * inventory_query_message = (Inventory_Query *) (inventory_message -> message);
 			// handle inventory query here
 			break;
@@ -354,68 +418,6 @@ int lookup_object(Inventory * inventory, uint8_t * fingerprint, Object ** ret_ob
 
 
 
-
-
-int handle_fingerprint_match(Inventory * inventory, WorkerType worker_type, int thread_id, Fingerprint_Match * match_message, uint32_t * ret_num_ctrl_messages, Ctrl_Message ** ret_ctrl_messages){
-
-	uint8_t * fingerprint = match_message -> fingerprint;
-	uint32_t num_nodes = match_message -> num_nodes;
-	uint32_t * node_ids = match_message -> node_ids;
-
-	// for now let's just iniate a transfer from the first node
-
-	uint32_t node_to_retrieve_from = node_ids[0];
-
-	// 1.) Remove outstanding bid because we saw match
-
-	Outstanding_Bid target_bid;
-	memcpy(target_bid.fingerprint, fingerprint, FINGERPRINT_NUM_BYTES);
-
-	Table * outstanding_bids = inventory -> outstanding_bids;
-
-	Outstanding_Bid * outstanding_bid = remove_item_table(outstanding_bids, &target_bid);
-
-	// probably got a different notification in other worker thread
-	// that already handled it
-	if (!outstanding_bid){
-		fprintf(stderr, "In fingerprint match: could not find matching outstanding bid...\n");
-		return 0;
-	}
-
-	uint64_t content_size = outstanding_bid -> content_size;
-	int preferred_pool_id = outstanding_bid -> preferred_pool_id;
-
-	// done with the bid so can free it
-	free(outstanding_bid);
-
-	// 2.) Reserve object now that we have a match
-
-	Obj_Location * reserved_location;
-	int ret = reserve_object(inventory, fingerprint, preferred_pool_id, content_size, 0, NULL, thread_id, &reserved_location);
-	if (ret){
-		fprintf(stderr, "Error: unable to reserve object\n\tPreferred Pool: %d\n\tSize: %lu\n", preferred_pool_id, content_size);
-		return -1;
-	}
-
-	printf("SAW A FINGERPRINT MATCH AND RESERVED MEMORY!\nRerservation Details:\n\tPool Id: %d\n\tContent Size: %lu\n\n", reserved_location -> pool_id, content_size);
-
-	printf("Would have acquired a transfer gate and sent transfer init message to node: %d...\n\n", node_to_retrieve_from);
-
-	// 3.) Acquire a "gate" for inbound transfer
-
-
-	// 4.) Build and send transfer initiate message
-
-	if (ret_num_ctrl_messages){
-		*ret_num_ctrl_messages = 0;
-	}
-
-	if (ret_ctrl_messages){
-		*ret_ctrl_messages = NULL;
-	}
-
-	return 0;
-}
 
 
 
