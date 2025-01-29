@@ -14,9 +14,11 @@
 #include "memory.h"
 #include "memory_server.h"
 
-// JUST FOR NOW WHILE INTERFACE IS UNDERWAY...
-#include "hsa_memory.h"
+#include "backend_funcs.h"
 
+// JUST FOR NOW WHILE INTERFACE IS UNDERWAY...
+//#include "hsa_memory.h"
+#include "cuda_memory.h"
 
 typedef struct system {
 	Work_Pool * work_pool;
@@ -28,6 +30,7 @@ typedef struct system {
 	// throughput benchmark;
 	Deque * are_benchmarks_ready;
 	Memory * memory;
+	Backend_Funcs * compute;
 	pthread_t memory_server;
 } System;
 

@@ -57,6 +57,16 @@ System * init_system(char * master_ip_addr, char * self_ip_addr, uint64_t sys_me
 
 
 	// 4.) Intialize function request handling
+	Backend_Funcs * backend_funcs = NULL;
+	if (dev_mem_usage > 0){
+		backend_funcs = init_backend_funcs(memory);
+		if (!backend_funcs){
+			fprintf(stderr, "Error: unable to init backend functions\n");
+			return NULL;
+		}
+	}
+
+	system -> compute = backend_funcs;
 
 
 

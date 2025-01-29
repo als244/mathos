@@ -4,16 +4,6 @@
 #include "utils.h"
 #include "self_net.h"
 
-
-// Temporary
-#include "hsa_memory.h"
-#include "memory.h"
-#include "rocblas_funcs.h"
-
-
-#include "fast_table.h"
-#include "fast_tree.h"
-
 #include "memory_client.h"
 
 int main(int argc, char * argv[]){

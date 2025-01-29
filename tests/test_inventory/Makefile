@@ -1,13 +1,39 @@
 CC = gcc
 
-CFLAGS = -g -std=c99 -Wall -pedantic
+DEV_CFLAGS = -g -std=c99 -Wall -pedantic
+BUILD_CFLAGS = -O3 -std=c99 -Wall -pedantic
+CFLAGS = ${DEV_CFLAGS}
 
 HSA_CFLAGS = -D__HIP_PLATFORM_AMD__ 
-
 HSA_INCLUDE = /opt/rocm/include
 HSA_LIB = /opt/rocm/lib -lhsa-runtime64
 
-all: testMaster testWorker1 testWorker2
+
+
+CUDA_CFLAGS = -D__HIP_PLATFORM_NVIDIA__
+CUDA_INCLUDE = /usr/local/cuda/include
+CUDA_LIB = /usr/local/cuda/lib64
+
+BACKEND_OBJS = cuda_memory.o backend_funcs.o backend_streams.o backend_profile.o cublas_helper.o
+
+
+DEV_NVCC_FLAGS = -g -G
+BUILD_NVCC_FLAGS = -O4 --use_fast_math
+PROF_NVCC_FLAGS = -O4 --use_fast_math --generate-line-info -Xptxas=-v
+NVCC_FLAGS = ${PROF_NVCC_FLAGS}
+
+BACKEND_KERNELS = cuda_kernels_cubin cuda_kernels_ptx
+BACKEND_INCLUDE = ${CUDA_INCLUDE}
+
+BACKEND_CFLAGS = ${CUDA_CFLAGS}
+BACKEND_LIB_PATH = ${CUDA_LIB}
+BACKEND_LIB_LINKS = -lcuda -lcublasLt
+
+BACKEND_MEMORY_OBJ =cuda_memory.o
+
+
+
+all: testMaster testWorker1 testWorker2 ${BACKEND_KERNELS}
 
 ## executables
 
@@ -24,21 +50,27 @@ master_worker.o: master_worker.c
 
 
 ## WORKER PROGRAM
-testWorker1: main_worker_1.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o hsa_memory.o
-	${CC} ${CFLAGS} ${HSA_CFLAGS} $^ -o $@ -I $(HSA_INCLUDE) -pthread -libverbs -lcrypto -L $(HSA_LIB) -lamdhip64 -lrocblas
+testWorker1: main_worker_1.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o backend_funcs.o backend_streams.o backend_profile.o ${BACKEND_MEMORY_OBJ}
+	${CC} ${CFLAGS} ${BACKEND_CFLAGS} $^ -o $@ -I $(BACKEND_INCLUDE) -pthread -libverbs -lcrypto -L $(BACKEND_LIB_PATH) ${BACKEND_LIB_LINKS}
 
 ## JUST FOR NOW INCLUDING BACKEND LINK WHILE INTERFACE IS UNDERWAY...
-testWorker2: main_worker_2.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o hsa_memory.o
-	${CC} ${CFLAGS} $^ -o $@ -I $(HSA_INCLUDE) -pthread -libverbs -lcrypto -L $(HSA_LIB) -lamdhip64
+testWorker2: main_worker_2.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o backend_funcs.o backend_streams.o backend_profile.o ${BACKEND_MEMORY_OBJ}
+	${CC} ${CFLAGS} ${BACKEND_CFLAGS} $^ -o $@ -I $(BACKEND_INCLUDE) -pthread -libverbs -lcrypto -L $(BACKEND_LIB_PATH) ${BACKEND_LIB_LINKS}
 
 testBw: main_test_bw.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o
 	${CC} ${CFLAGS} $^ -o $@ -pthread -libverbs -lcrypto
 
-testWorker1_Compute: main_worker_1_compute.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o hsa_memory.o rocblas_funcs.o
-	${CC} ${CFLAGS} ${HSA_CFLAGS} $^ -o $@ -I $(HSA_INCLUDE) -pthread -libverbs -lcrypto -L $(HSA_LIB) -lamdhip64 -lrocblas
 
-testWorker2_Compute: main_worker_2_compute.c fast_table.o fast_tree.o fast_list.o table.o fifo.o deque.o verbs_ops.o ctrl_channel.o self_net.o net.o rdma_init_info.o tcp_connection.o tcp_rdma_init.o join_net.o init_net.o utils.o cq_handler.o ctrl_handler.o fingerprint.o exchange.o exchange_worker.o memory.o memory_server.o memory_client.o inventory.o inventory_worker.o work_pool.o sys.o ctrl_recv_dispatch.o exchange_client.o
-	${CC} ${CFLAGS} $^ -o $@ -pthread -libverbs -lcrypto
+
+
+
+
+
+
+
+
+
+
 
 join_net.o: join_net.c
 	${CC} ${CFLAGS} -c $^
@@ -72,22 +104,54 @@ inventory_worker.o: inventory_worker.c
 
 ## JUST FOR NOW INCLUDING BACKEND LINK WHILE INTERFACE IS UNDERWAY...
 sys.o: sys.c
-	${CC} ${CFLAGS} -c $^ -I $(HSA_INCLUDE)
+	${CC} ${CFLAGS} -c $^ -I $(BACKEND_INCLUDE)
 
 exchange_client.o: exchange_client.c
-	${CC} ${CFLAGS} -c $^ -I $(HSA_INCLUDE)
+	${CC} ${CFLAGS} -c $^ -I $(BACKEND_INCLUDE)
 
-rocblas_funcs.o: rocblas_funcs.c
-	${CC} ${CFLAGS} ${HSA_CFLAGS} -c $^ -I $(HSA_INCLUDE)
+
+
+
+
+
 
 
 
 ## BACKENDS
 
+backend_funcs.o: backend_funcs.c
+	${CC} ${CFLAGS} -c $^ -I $(BACKEND_INCLUDE)
+
+backend_streams.o: backend_streams.c
+	${CC} ${CFLAGS} -c $^ -I $(BACKEND_INCLUDE)
+
+backend_profile.o: backend_profile.c
+	${CC} ${CFLAGS} -c $^ -I $(BACKEND_INCLUDE)
+	
+
+## CUDA SPECIFIC
+
+cuda_memory.o: cuda_memory.c
+	${CC} ${CFLAGS} -c $^ -I $(CUDA_INCLUDE)
+
+cublas_helper.o: cublas_helper.c
+	${CC} ${CFLAGS} -c $^ -I $(CUDA_INCLUDE)
+
+cuda_kernels_ptx: cuda_kernels.cu
+	nvcc ${NVCC_FLAGS} -ptx cuda_kernels.cu -arch=compute_86 -code=sm_86
+
+cuda_kernels_cubin: cuda_kernels.cu
+	nvcc ${NVCC_FLAGS} -cubin cuda_kernels.cu -arch=compute_86 -code=sm_86
+
+
+
+# HSA SPECIFIC
+
 hsa_memory.o: hsa_memory.c
 	${CC} ${CFLAGS} -c $^ -I $(HSA_INCLUDE)
 
-
+rocblas_funcs.o: rocblas_funcs.c
+	${CC} ${CFLAGS} ${HSA_CFLAGS} -c $^ -I $(HSA_INCLUDE)
 
 ## BOTH
 
@@ -154,4 +218,4 @@ ctrl_recv_dispatch.o: ctrl_recv_dispatch.c
 
 
 clean:
-	rm -f *.o testMaster testWorker1 testWorker2 testBw testWorker1_Compute testWorker2_Compute
+	rm -f *.o testMaster testWorker1 testWorker2

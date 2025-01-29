@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
+#include <linux/limits.h>
 
 #include <string.h>
 #include <stdint.h>
